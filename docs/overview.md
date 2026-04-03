@@ -1,0 +1,43 @@
+# Project Overview
+
+What this project is, tech stack choices with rationale, target platforms, and scale constraints.
+
+---
+
+## About
+
+**Title**: A Couple of Gamers.  
+**Description**: A 2-player boardgame hub for iOS and Android. Players can play classic and modern board games in real-time or asynchronously against friends or AI opponents. Built as a self-learning project with a focus on correct architecture over scale.
+
+---
+
+## Tech Stack
+
+| Layer | Choice | Rationale |
+|-------|--------|-----------|
+| Client | Godot 4.x (GDScript) | Cross-platform iOS/Android; good 2D support for board games |
+| Server | NestJS + TypeScript | Structured modules, WebSocket gateway built-in, widely documented |
+| Realtime transport | NestJS WebSocket Gateway (ws) | Sufficient for 100 CCU; no need for Colyseus overhead |
+| Async transport | REST (HTTP) | Turn submission doesn't require a persistent connection |
+| Cache / room presence | Redis | Fast in-memory store for WS presence, job queue, and rate limit counters |
+| Job queue | BullMQ (via Redis) | Persistent delayed and repeatable jobs in a separate worker service |
+| ORM | TypeORM | NestJS-native; parameterized queries by default; built-in migration system |
+| Primary database | PostgreSQL | Relational; game state stored as JSONB for per-game flexibility |
+| Object storage | Cloudflare R2 | Daily DB backups; static assets (game cover images) |
+| Push notifications | Firebase Cloud Messaging (FCM) | Covers iOS (via APNs bridge) and Android from a single API |
+| Analytics | Firebase Analytics | Client-side event tracking in Godot |
+| Error tracking | Sentry | Server exceptions and Godot client crashes |
+| Reverse proxy | Caddy | Automatic HTTPS (Let's Encrypt), WebSocket upgrade headers, HTTP→HTTPS redirect — zero cert management |
+| CI/CD | GitHub Actions | Lint → test → build → deploy pipeline |
+| Container runtime | Docker Compose | Per-environment service definitions |
+
+---
+
+## Project Context
+
+| | |
+|-|-|
+| Platforms | iOS, Android |
+| Expected CCU | ~100 |
+| Expected DAU | ~500 |
+| Project type | Self-learning — correctness and clarity over performance |

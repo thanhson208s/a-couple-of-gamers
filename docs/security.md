@@ -1,0 +1,89 @@
+# Security
+
+Two-token JWT auth (access + refresh with rotation), one-time WS ticket pattern, per-endpoint rate limiting, input validation policy, security headers, and secrets management.
+
+---
+
+## Authentication
+
+### JWT Lifecycle
+
+Two-token model: short-lived access token + long-lived refresh token.
+
+| Token | Lifetime | Storage | Sent as |
+|-------|----------|---------|---------|
+| Access token | 15 minutes | Memory only (never persisted) | `Authorization: Bearer <token>` header |
+| Refresh token | 30 days | Device secure storage (iOS Keychain / Android Keystore) | `POST /v1/auth/refresh` body |
+
+Flow:
+```
+Login → server issues access token + refresh token
+Access token expires → client silently calls POST /v1/auth/refresh
+  → server validates refresh token, issues new access token (+ rotates refresh token)
+Refresh token expires or is revoked → client must log in again
+```
+
+Refresh token rotation: each use issues a new refresh token and invalidates the old one. Detected reuse of an invalidated refresh token revokes the entire session.
+
+### WebSocket Authentication
+
+**Problem:** Passing a JWT as a query param (`?token=...`) causes the token to appear in server access logs and reverse proxy logs.
+
+**Solution — short-lived WS ticket:**
+```
+1. Client calls POST /v1/auth/ws-ticket (with valid JWT in header)
+2. Server generates a one-time random ticket, stores it in Redis with a 30s TTL
+3. Server returns ticket to client
+4. Client opens WS connection using ticket as query param (?ticket=...)
+5. Server validates ticket on connect, immediately deletes it from Redis
+6. JWT never appears in any log
+```
+
+Tickets are single-use and expire in 30 seconds regardless of use.
+
+---
+
+## Rate Limiting
+
+Applied at the API server level (NestJS guard or middleware).
+
+| Endpoint / action | Limit | Window |
+|-------------------|-------|--------|
+| `POST /v1/auth/social` (login) | 10 requests | per IP per minute |
+| `POST /v1/auth/refresh` | 20 requests | per user per minute |
+| `POST /v1/matches/:id/moves` | 30 requests | per user per minute |
+| `POST /v1/matches` (create) | 20 requests | per user per hour |
+| All other endpoints | 120 requests | per user per minute |
+
+Rate limit state stored in Redis. Limits are conservative starting points — adjust based on observed usage.
+
+---
+
+## Input Validation
+
+- All request bodies validated at the API boundary using NestJS `ValidationPipe` with `class-validator`
+- Unknown properties stripped (`whitelist: true`, `forbidNonWhitelisted: true`)
+- Game-specific move payloads validated inside `applyMove` — the game plugin throws on invalid input; the server catches and returns a 400
+- No raw SQL; all DB access through TypeORM (parameterized queries by default)
+
+---
+
+## Security Headers
+
+Configured at the reverse proxy level (not in NestJS):
+
+| Header | Value |
+|--------|-------|
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` |
+| `X-Content-Type-Options` | `nosniff` |
+| `X-Frame-Options` | `DENY` |
+| `Referrer-Policy` | `no-referrer` |
+
+---
+
+## Secrets Management
+
+- All secrets (DB password, Redis password, JWT signing key, FCM service account, Sentry DSN, social auth credentials) stored as environment variables
+- Never committed to the repository
+- In production: managed via GitHub Actions secrets (CI/CD) and `.env` files on VPS (not committed)
+- JWT signing key: minimum 256-bit random secret; separate keys for access and refresh tokens
