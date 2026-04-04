@@ -6,42 +6,45 @@
 
 ## Overview
 
-AI logic runs entirely in the Godot client (a per-game AI node). The AI submits moves through the same API as human players; the server validates AI moves identically to human moves. Because the AI requires a running client, AI matches are always real-time — there is no async variant.
+AI matches run fully offline — no server connection is needed during play. The entire game (move validation, state transitions, win detection) runs client-side using the shared TypeScript game plugin from `packages/game-logic/<slug>/`. The server is only contacted at match completion to record the result.
 
 ---
 
 ## Session Flow
 
 ```
-Human player opens AI match → connects WS
-Server creates Redis room for the match
+Human opens AI match (game bundle must be downloaded or preinstalled)
+  → Client initialises local game state via plugin.initialState()
+  → No WS connection, no server calls
 
-Human and AI take turns:
-  → Both submit moves via WS
-  → Server validates via game plugin (same path as human moves)
-  → Writes updated state to Postgres
-  → Broadcasts updated player view to the human client
+Human and AI take turns locally:
+  → Human submits move → plugin.applyMove() runs client-side
+  → AI component reads PlayerView, computes Move, calls applyMove() again
+  → Client renders updated state
+  → Repeat until plugin.isGameOver() returns true
 
-On match end: server records result, updates match status to completed
+Match ends:
+  → Client calls POST /v1/matches/:id/complete  { winnerId }
+  → Server records result, updates match status to completed
+  → Server does not re-validate moves
 ```
-
-The AI node reads the current player view from the broadcast, computes its move locally, and submits it — no server-side AI logic exists.
 
 ---
 
 ## State Persistence (quit and resume)
 
-AI match state is authoritative on the server (Postgres), not on the device.
+AI match state is stored on the device, not on the server during play.
 
-- **Human quits or disconnects:** server persists current match state to Postgres; Redis room cleared
-- **Human resumes match:** client connects WS, server loads state from Postgres into Redis room, session continues from where it left off
-- **Unfinished matches:** not recorded in match history; only completed matches are counted
-- **Restart:** human can abandon and restart the AI match at any time; previous unfinished match is deleted
+- **Human quits mid-match:** current game state saved to device storage
+- **Human resumes:** client loads state from device storage and continues locally
+- **Unfinished matches:** not reported to server; only completed matches are recorded in history
+- **Restart:** human can abandon and start a new AI match; previous state cleared from device
 
 ---
 
 ## Related
 
 - Game plugin interface: [game-system.md#game-plugin-interface](../game-system.md#game-plugin-interface)
-- WS events: [api-reference.md#websocket-events](../api-reference.md#websocket-events)
+- AI completion endpoint: [api-reference.md#matches-ai-completion](../api-reference.md#matches-ai-completion)
+- Bundle download (required before play): [mini-game-bundles.md](mini-game-bundles.md)
 - DB: [database-schema.md#match_players](../database-schema.md#match_players) (`is_ai` flag for the AI seat)

@@ -6,20 +6,28 @@
 
 ## Overview
 
-Match completion is triggered when the game plugin signals the game is over (`isGameOver` returns true after a move). The server records the outcome, updates rival stats, and the client shows results. This flow is identical for vs AI and vs Human matches.
+Match completion works differently for vs Human and vs AI matches. For vs Human, the server detects game over and records the result. For vs AI, the client plays the full game offline and reports the result to the server on completion.
 
 ---
 
-## Server-Side Steps
+## vs Human Completion (Server-Driven)
 
-1. `applyMove` is called → after writing state, server calls `isGameOver`
+1. Player submits move → server calls `applyMove` → calls `isGameOver`
 2. If game is over: record `winner_id` (null for draw), transition match status to `completed`
-3. Update `rival_stats` for both players if both are logged-in users (skipped for guests and AI matches)
+3. Update `rival_stats` for both players if both are logged-in users (skipped for guests)
 4. Return final player view with `matchStatus: 'completed'` to the submitting player; broadcast to both via WS if both connected
 
-## Client-Side Steps
+## vs AI Completion (Client-Driven)
 
-1. Client receives completed state → shows results screen (winner/draw/score)
+1. Client plays the full game locally via the shared game plugin (`packages/game-logic/<slug>/`)
+2. When `isGameOver()` returns true client-side, the match ends
+3. Client calls `POST /v1/matches/:id/complete` with `{ winnerId }` — server trusts this result without re-validating moves
+4. Server records outcome and transitions match status to `completed`
+5. `rival_stats` are not updated for AI matches
+
+## Client-Side Steps (both paths)
+
+1. Client shows results screen (winner/draw/score)
 2. Interstitial ad shown after results screen (unless `is_ad_free = true`)
 3. Player can tap "Return to lobby" or "Rematch" (rematch creates a new match with same game + opponent)
 

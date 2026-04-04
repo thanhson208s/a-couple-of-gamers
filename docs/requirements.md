@@ -64,11 +64,13 @@ All 12 functional features and non-functional requirements. Each feature section
 ## vs AI Match
 → Implementation: [features/vs-ai.md](features/vs-ai.md)
 
-- AI is a local Godot node; always real-time (AI requires a running client)
-- AI generates moves client-side and submits via the normal move API; server validates identically to human moves
+- AI is a local Cocos Creator component running against the player offline — no server connection needed during play
+- Full game logic (move validation, state transitions) runs client-side via the shared game plugin package
+- On match completion, client reports the result to the server; server records it without re-validating
 - Player can have at most 1 concurrent AI match per game on a device
 - Player can quit and resume an AI match at any time
 - Unfinished AI matches are not recorded in history; only completed matches count
+- Requires the game bundle to be downloaded or preinstalled
 
 ---
 
@@ -143,6 +145,38 @@ When the last valid move is accepted by the server:
 - After a TBD inactivity period, server sends one FCM reminder to the player whose turn it is
 - Not repeated until the turn changes (opponent moves)
 - Cancelled if the player moves before the reminder fires
+
+---
+
+## Hot Update
+→ Implementation: [features/hot-update.md](features/hot-update.md)
+
+- The main app (lobby, UI, core flows) can be updated without an app store release
+- On launch, the client checks for a new version manifest and downloads only changed assets before rendering
+- Does not apply to mini game bundles — those are updated through the bundle system below
+- If the update fails, the app continues with its cached version
+
+---
+
+## Mini Game Bundles
+→ Implementation: [features/mini-game-bundles.md](features/mini-game-bundles.md)
+
+- Some games are preinstalled (bundled at app build time); others must be downloaded before first play
+- On launch, client fetches the game catalog and compares local bundle versions against server versions
+- Games not yet downloaded show a "Download" button; games with a newer version show an update indicator
+- Download happens in-app with a progress indicator; the game becomes playable immediately after
+- Downloaded bundles are cached on device; available offline after download
+- Disabling a game via remote config hides it from the lobby but does not delete its local bundle
+
+---
+
+## Remote Config
+→ Implementation: [features/remote-config.md](features/remote-config.md)
+
+- On launch, client fetches a config document from the server and caches it locally
+- Config controls which games are visible in the lobby (`enabled`/`disabled` per game)
+- An internal admin dashboard allows authorized staff to update the config
+- Config changes take effect on the user's next app launch
 
 ---
 

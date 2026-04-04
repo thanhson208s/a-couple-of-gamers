@@ -22,15 +22,20 @@ UNIQUE (provider, provider_id)
 
 ### `games`
 ```sql
-id              UUID PRIMARY KEY DEFAULT gen_random_uuid()
-slug            TEXT NOT NULL UNIQUE   -- e.g. 'tictactoe', 'battleship'
-name            TEXT NOT NULL
-description     TEXT
-cover_image_url TEXT
-min_players     INT NOT NULL DEFAULT 2
-max_players     INT NOT NULL DEFAULT 2
-has_hidden_info BOOLEAN NOT NULL DEFAULT false
-is_active       BOOLEAN NOT NULL DEFAULT true  -- toggle to hide games from lobby
+id               UUID PRIMARY KEY DEFAULT gen_random_uuid()
+slug             TEXT NOT NULL UNIQUE   -- e.g. 'tictactoe', 'battleship'
+name             TEXT NOT NULL
+description      TEXT
+cover_image_url  TEXT
+min_players      INT NOT NULL DEFAULT 2
+max_players      INT NOT NULL DEFAULT 2
+has_hidden_info  BOOLEAN NOT NULL DEFAULT false
+is_active        BOOLEAN NOT NULL DEFAULT true   -- toggle to hide games from lobby
+is_preinstalled  BOOLEAN NOT NULL DEFAULT false  -- bundled in the app package; no download needed
+bundle_url       TEXT             -- R2 CDN URL for the Cocos Asset Bundle (NULL if preinstalled)
+bundle_version   TEXT             -- version string; client compares against local to detect updates
+bundle_size_bytes INT             -- shown during download
+min_app_version  TEXT             -- minimum hot-update app version required to run this game
 ```
 
 ### `matches`
@@ -109,6 +114,15 @@ payload     JSONB NOT NULL   -- type-specific data (match_id, etc.)
 sent_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 ```
 _Log of FCM notifications sent. Used for deduplication and debugging._
+
+### `app_config`
+```sql
+id         SERIAL PRIMARY KEY   -- always a single row (id = 1)
+config     JSONB NOT NULL       -- full config document; shape defined in features/remote-config.md
+updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+updated_by TEXT                 -- admin identifier for audit trail
+```
+_Single-row table. Always update in place. `GET /v1/config` reads this row._
 
 ---
 

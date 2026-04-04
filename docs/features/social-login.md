@@ -6,15 +6,33 @@
 
 ## Overview
 
-Social login exchanges a provider-issued token (Google/Apple/Facebook) for a server-issued JWT pair (access + refresh token). If a guest UUID is present on the request, the server merges in-progress guest data before returning the JWT. See [guest-auth.md](guest-auth.md) for the merge flow.
+The client uses the Firebase SDK to run the OAuth flow for the chosen provider (Google/Apple/Facebook). Firebase issues a Firebase ID token to the client. The client sends that ID token to `POST /v1/auth/social`; the server verifies it with the Firebase Admin SDK, extracts the user identity, then issues its own JWT pair (access + refresh). If a guest UUID is present on the request, guest data is merged first. See [guest-auth.md](guest-auth.md) for the merge flow.
+
+---
+
+## Flow
+
+```
+Godot client
+  → Firebase SDK: signInWithProvider(google|apple|facebook)
+  → Firebase issues ID token to client
+
+Client → POST /v1/auth/social  { idToken: "<firebase-id-token>" }
+  → Server: admin.auth().verifyIdToken(idToken)
+  → Decoded token contains: uid, email, displayName, provider
+  → Find or create user by (provider, uid)
+  → Issue access token + refresh token
+  ← Return JWT pair to client
+```
 
 ---
 
 ## Key Points
 
-- Provider token validated server-side against the provider's token introspection endpoint
-- Account identified by `provider` + `provider_id`; display name synced from provider at login
-- If the provider identity matches an existing account: log in to that account (no duplicate created)
+- Server never calls Google/Apple/Facebook APIs directly — Firebase Admin SDK handles all provider token verification
+- Account identified by Firebase `uid` (globally unique per provider per Firebase project)
+- Display name synced from Firebase token at login
+- If the Firebase identity matches an existing account: log in, no duplicate created
 - Refresh token rotation on every use; detected reuse revokes the entire session
 - Access token: 15 min lifetime, held in memory only; refresh token: 30 days, stored in device secure storage
 

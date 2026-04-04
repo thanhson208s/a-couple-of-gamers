@@ -33,7 +33,7 @@ Error response shape (all endpoints):
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/v1/auth/social` | Exchange provider token for access + refresh tokens. Body: `{ provider, token }` |
+| `POST` | `/v1/auth/social` | Verify a Firebase ID token and return access + refresh tokens. Body: `{ idToken }` |
 | `POST` | `/v1/auth/refresh` | Exchange refresh token for new access token. Body: `{ refreshToken }` |
 | `POST` | `/v1/auth/ws-ticket` | Issue a short-lived one-time WS ticket. Requires valid JWT. |
 | `POST` | `/v1/auth/guest-merge` | Merge guest data into authenticated account. Requires JWT + `X-Guest-Id`. |
@@ -44,8 +44,8 @@ Error response shape (all endpoints):
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/v1/games` | List all active games in catalog |
-| `GET` | `/v1/games/:slug` | Get single game details |
+| `GET` | `/v1/games` | List all active games in catalog. Response includes bundle metadata: `bundleUrl`, `bundleVersion`, `bundleSizeBytes`, `isPreinstalled` |
+| `GET` | `/v1/games/:slug` | Get single game details including bundle metadata |
 
 ---
 
@@ -98,6 +98,33 @@ _Real-time moves are submitted via WebSocket — see below._
 | `DELETE` | `/v1/users/me` | Delete account and all associated data. See [requirements.md#account-deletion](requirements.md#account-deletion). |
 | `GET` | `/v1/users/me/rivals` | List all opponents with at least one completed match |
 | `GET` | `/v1/users/me/rivals/:opponentId` | Get rival stats vs a specific opponent, broken down by game |
+
+---
+
+### Config
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/config` | Returns current app config (enabled/disabled games, feature flags). No auth required. |
+
+---
+
+### Matches (AI Completion)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/matches/:id/complete` | Report the result of an offline AI match. Body: `{ winnerId: string \| null }`. Server records without re-validating. Requires valid auth (guest or JWT). |
+
+---
+
+### Admin
+
+All admin endpoints require `X-Admin-Token: <token>` header.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/admin/config` | Get full current config for the admin dashboard |
+| `PUT` | `/v1/admin/config` | Replace config. Body: full config object |
 
 ---
 

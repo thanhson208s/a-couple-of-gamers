@@ -71,13 +71,15 @@ Some games have distinct phases where the set of valid actions changes (e.g. Bat
 
 ## AI Integration
 
-- AI logic lives in Godot, inside `games/<slug>/AiPlayer.gd`
-- AI reads the current `PlayerView` (its own view of the board)
-- AI computes a `Move` and submits it via the normal move API (`POST /matches/:id/moves`)
-- Server validates the move via `applyMove` — no special AI bypass
-- Consequence: AI games are always real-time (AI needs a running client to compute moves)
+The game plugin is a **shared TypeScript package** at `packages/game-logic/<slug>/`. It runs on both the server (for vs Human move validation) and the Cocos Creator client (for vs AI offline play).
 
-AI complexity is per-game and up to the implementer. The server doesn't care how the move was generated.
+- AI logic lives in `client/games/<slug>/AiPlayer.ts` and imports the shared plugin from `packages/game-logic/<slug>/`
+- For vs AI matches: the entire game runs client-side — `AiPlayer.ts` calls `applyMove` locally, no server contact during play
+- AI reads the current `PlayerView`, computes a `Move`, and applies it via the local plugin instance
+- On match end, client reports the result to `POST /v1/matches/:id/complete`; server records without re-validating
+- For vs Human matches: server uses the same plugin from `packages/game-logic/<slug>/` to validate every move — unchanged
+
+AI complexity is per-game and up to the implementer. The shared plugin must produce identical results on both runtimes.
 
 ---
 

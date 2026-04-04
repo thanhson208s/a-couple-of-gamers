@@ -15,7 +15,7 @@ What this project is, tech stack choices with rationale, target platforms, and s
 
 | Layer | Choice | Rationale |
 |-------|--------|-----------|
-| Client | Godot 4.x (GDScript) | Cross-platform iOS/Android; good 2D support for board games |
+| Client | Cocos Creator + TypeScript | Cross-platform iOS/Android; TypeScript shared with server; good 2D support for board games |
 | Server | NestJS + TypeScript | Structured modules, WebSocket gateway built-in, widely documented |
 | Realtime transport | NestJS WebSocket Gateway (ws) | Sufficient for 100 CCU; no need for Colyseus overhead |
 | Async transport | REST (HTTP) | Turn submission doesn't require a persistent connection |
@@ -23,8 +23,11 @@ What this project is, tech stack choices with rationale, target platforms, and s
 | Job queue | BullMQ (via Redis) | Persistent delayed and repeatable jobs in a separate worker service |
 | ORM | TypeORM | NestJS-native; parameterized queries by default; built-in migration system |
 | Primary database | PostgreSQL | Relational; game state stored as JSONB for per-game flexibility |
-| Object storage | Cloudflare R2 | Daily DB backups; static assets (game cover images) |
+| Object storage | Cloudflare R2 | Daily DB backups; hot update assets; mini game bundles (CDN) |
+| Shared game plugin | TypeScript package (`packages/game-logic/`) | Game logic shared between server (vs Human validation) and client (vs AI offline play) |
+| Admin dashboard | Static HTML served by NestJS at `/admin` | Internal UI for remote config management; protected by admin token |
 | Push notifications | Firebase Cloud Messaging (FCM) | Covers iOS (via APNs bridge) and Android from a single API |
+| Authentication | Firebase Authentication | OAuth flow handling (Google/Apple/Facebook) on client; ID token verification via Admin SDK on server |
 | Analytics | Firebase Analytics | Client-side event tracking in Godot |
 | Error tracking | Sentry | Server exceptions and Godot client crashes |
 | Reverse proxy | Caddy | Automatic HTTPS (Let's Encrypt), WebSocket upgrade headers, HTTP→HTTPS redirect — zero cert management |

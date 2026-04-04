@@ -6,6 +6,12 @@ Two-token JWT auth (access + refresh with rotation), one-time WS ticket pattern,
 
 ## Authentication
 
+### Social Login via Firebase
+
+The client uses the Firebase SDK to run the OAuth flow with the chosen provider (Google/Apple/Facebook). Firebase issues a short-lived ID token to the client upon success. The client sends this ID token to `POST /v1/auth/social`. The server verifies it using the Firebase Admin SDK — no direct calls to provider APIs needed. Provider identity (`uid`, `email`, `displayName`) is extracted from the decoded token and used to find or create the user account.
+
+---
+
 ### JWT Lifecycle
 
 Two-token model: short-lived access token + long-lived refresh token.

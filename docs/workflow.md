@@ -6,7 +6,7 @@ Local dev commands, branching strategy, conventional commit format, DB migration
 
 ## Local Dev Setup
 
-Prerequisites: Docker, Docker Compose, Godot 4.x, Node.js 20+.
+Prerequisites: Docker, Docker Compose, Cocos Creator, Node.js 20+.
 
 ```bash
 # 1. Clone repo
@@ -24,9 +24,9 @@ cd server
 npm install
 npm run start:dev
 
-# 5. Open Godot project
-# Open client/ in Godot Editor
-# Set API base URL to http://localhost:3000 in project settings
+# 5. Open Cocos Creator project
+# Open client/ in Cocos Creator
+# Set API base URL to http://localhost:3000 in the project config
 ```
 
 Local Postgres: `localhost:5432`  
@@ -86,12 +86,25 @@ Migrations run automatically on deploy (step 4 of CI/CD). See [infrastructure.md
 
 ## Adding a New Game
 
-1. Create a server-side game plugin implementing `GamePlugin` interface — see [game-system.md](game-system.md)
-2. Register the plugin in `GamesModule`
-3. Insert a row into the `games` table (via migration)
-4. Create the Godot game scene under `client/games/<slug>/`
-5. Create the AI node at `client/games/<slug>/AiPlayer.gd` (can be a stub that plays random valid moves)
+1. Create the shared game plugin in `packages/game-logic/<slug>/` implementing the `GamePlugin` interface — see [game-system.md](game-system.md)
+2. Import and register the plugin in `GamesModule` (server) and in the Cocos client's game loader
+3. Create the Cocos Creator scene and assets under `client/games/<slug>/` (this is the Asset Bundle)
+4. Create the AI component at `client/games/<slug>/AiPlayer.ts` (imports from `packages/game-logic/<slug>/`)
+5. Insert a row into the `games` table via migration (set `is_preinstalled` or leave `bundle_url` for CI to populate)
 6. Add the game to the catalog table in [game-system.md#game-catalog](game-system.md#game-catalog)
+7. CI will build and upload the bundle to R2 on the next `dev` merge or `client/games/<slug>/` change
+
+---
+
+## Publishing a Hot Update
+
+Hot updates are automatic — no manual step needed. Any merge to `dev` or push of a `v*` tag triggers the Cocos asset publish job, which builds the main bundle, generates the version diff, and uploads to R2. See [infrastructure.md#cicd](infrastructure.md#cicd).
+
+---
+
+## Publishing a Mini Game Bundle
+
+Pushing changes to `client/games/<slug>/` on `dev` or `main` triggers a bundle-only publish for that game. CI builds the bundle and uploads to `game-bundles/<env>/<slug>/`. After the upload, bump `bundle_version` in the `games` table row for that slug (via a migration or direct update on the target environment).
 
 ---
 

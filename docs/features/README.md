@@ -41,3 +41,6 @@ Links to api-reference.md and database-schema.md sections
 | [rival-history.md](rival-history.md) | Denormalized stats counters, update on completion |
 | [monetization.md](monetization.md) | Ads, IAP (remove ads), donations, affiliate links |
 | [background-workers.md](background-workers.md) | Inactive match cleanup (repeatable job), turn reminder (delayed job) |
+| [hot-update.md](hot-update.md) | Main app update via Cocos AssetsManager; manifest diff upload in CI |
+| [mini-game-bundles.md](mini-game-bundles.md) | Per-game Asset Bundle download, version check on launch, offline caching |
+| [remote-config.md](remote-config.md) | Admin dashboard, config fetch on launch, game enable/disable |

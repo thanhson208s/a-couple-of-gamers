@@ -20,9 +20,39 @@ The lobby is the app's home screen. It combines two lists: the game catalog (sta
 
 ---
 
+## Game Tile Download States
+
+Each game tile shows one of four states, derived from comparing the local bundle version against the server version returned by `GET /v1/games`:
+
+| State | Condition | UI |
+|-------|-----------|----|
+| `preinstalled` | `isPreinstalled = true` | Play button always enabled |
+| `downloaded` | local version == server version | Play button enabled |
+| `update-available` | local version < server version | Play button enabled (old version); update badge shown |
+| `not-downloaded` | no local bundle | Download button shown |
+
+Update check runs once per launch after `GET /v1/games` completes.
+
+---
+
+## Download Flow
+
+```
+User taps Download (or update badge)
+  → Show progress bar (bytes downloaded / bundleSizeBytes)
+  → Download bundle from bundleUrl (R2 CDN, direct — no NestJS proxy)
+  → Decompress and write to local cache
+  → Update local version record
+  → Switch tile to 'downloaded' state; enable Play button
+```
+
+---
+
 ## Related
 
-- Catalog endpoint: [api-reference.md#games](../api-reference.md#games)
+- Catalog + bundle metadata endpoint: [api-reference.md#games](../api-reference.md#games)
+- Remote config (enabled/disabled games): [remote-config.md](remote-config.md)
+- Bundle download system: [mini-game-bundles.md](mini-game-bundles.md)
 - Favorites endpoints: [api-reference.md#favorites](../api-reference.md#favorites)
 - Active match list: [api-reference.md#matches](../api-reference.md#matches)
 - DB: [database-schema.md#games](../database-schema.md#games), [database-schema.md#user_favorites](../database-schema.md#user_favorites)
