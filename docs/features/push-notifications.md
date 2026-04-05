@@ -29,6 +29,17 @@ Notification payloads carry enough data for the client to route directly to the 
 
 ---
 
+## Tasks
+
+`[ ]` not started · `[~]` in progress · `[x]` done
+
+**Server**
+- [ ] `POST /v1/users/me/device-token` — register / refresh FCM token
+- [ ] FCM dispatch on async move (inline in `MatchesModule`)
+- [ ] Stale token cleanup on FCM `UNREGISTERED` error
+
+---
+
 ## Related
 
 - Device token endpoint: [api-reference.md#users](../api-reference.md#users)

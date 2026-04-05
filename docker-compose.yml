@@ -1,0 +1,45 @@
+services:
+  app:
+    image: ghcr.io/acog/server:latest
+    environment:
+      - NODE_ENV=production
+    env_file: .env.production
+    networks:
+      - acog_net
+    restart: unless-stopped
+
+  worker:
+    image: ghcr.io/acog/server:latest
+    command: node dist/worker.js
+    environment:
+      - NODE_ENV=production
+    env_file: .env.production
+    networks:
+      - acog_net
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: acog
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    networks:
+      - acog_net
+    restart: unless-stopped
+
+  cache:
+    image: redis:7-alpine
+    networks:
+      - acog_net
+    restart: unless-stopped
+
+  proxy:
+    image: caddy:2-alpine
+    networks:
+      - acog_net
+    restart: unless-stopped
+
+networks:
+  acog_net:
+    driver: bridge

@@ -21,6 +21,22 @@ Core approach / key decision
 ## [Sections]
 Flows, sequences, edge cases, design notes
 
+## Tasks
+
+`[ ]` not started · `[~]` in progress · `[x]` done
+
+**Server**
+- [ ] endpoint or job description
+
+**Client**
+- [ ] screen or behaviour description
+
+**Shared** _(omit if not applicable)_
+- [ ] shared package task
+
+**CI** _(omit if not applicable)_
+- [ ] pipeline task
+
 ## Related
 Links to api-reference.md and database-schema.md sections
 ```

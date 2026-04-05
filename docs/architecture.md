@@ -107,7 +107,7 @@ Client responsibilities:
 | `WsGateway` | WebSocket connections, real-time move dispatch, player presence in Redis |
 | `NotificationsModule` | FCM push dispatch on async turns; enqueues delayed reminder jobs to BullMQ |
 | `AdminModule` | Admin config endpoints (`/v1/admin/*`); serves static admin dashboard from `server/public/admin/`; protected by `X-Admin-Token` header |
-| `ConfigModule` | Serves `GET /v1/config`; reads from `app_config` table |
+| `ConfigModule` | Serves `GET /v1/config`; reads from `config` table |
 
 ---
 

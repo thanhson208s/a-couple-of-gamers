@@ -38,6 +38,21 @@ Client → POST /v1/auth/social  { idToken: "<firebase-id-token>" }
 
 ---
 
+## Tasks
+
+`[ ]` not started · `[~]` in progress · `[x]` done
+
+**Server**
+- [ ] `POST /v1/auth/social` — verify Firebase ID token, upsert user, issue JWT
+- [ ] `POST /v1/auth/refresh` — refresh token rotation
+- [ ] Guest→account merge on social login (transfer in-progress matches)
+
+**Client**
+- [ ] Google / Apple / Facebook OAuth flow via Firebase SDK
+- [ ] Store refresh token in device secure storage; hold access token in memory
+
+---
+
 ## Related
 
 - Auth endpoints: [api-reference.md#auth](../api-reference.md#auth)

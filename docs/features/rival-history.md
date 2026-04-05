@@ -19,6 +19,16 @@ Rival stats are a denormalized win/loss/draw counter per (user, opponent, game) 
 
 ---
 
+## Tasks
+
+`[ ]` not started · `[~]` in progress · `[x]` done
+
+**Server**
+- [ ] `GET /v1/users/me/rivals` — rival list
+- [ ] `GET /v1/users/me/rivals/:userId` — per-rival stats broken down by game
+
+---
+
 ## Related
 
 - Endpoints: [api-reference.md#users](../api-reference.md#users) (`/v1/users/me/rivals`, `/v1/users/me/rivals/:opponentId`)

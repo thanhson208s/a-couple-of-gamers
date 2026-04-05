@@ -1,0 +1,34 @@
+# prod-app VPS: NestJS app, worker, and Caddy reverse proxy.
+# Connects to prod-data VPS over Oracle private network.
+
+services:
+  app:
+    env_file: .env.production
+    networks:
+      - acog_net
+
+  worker:
+    env_file: .env.production
+    networks:
+      - acog_net
+
+  proxy:
+    volumes:
+      - ./Caddyfile.production:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - acog_net
+
+  # Disable data services — they run on prod-data VPS
+  db:
+    profiles: ["disabled"]
+  cache:
+    profiles: ["disabled"]
+
+volumes:
+  caddy_data:
+  caddy_config:

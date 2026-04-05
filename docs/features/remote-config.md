@@ -49,7 +49,7 @@ Served by NestJS at `/admin` as static HTML files embedded in the Docker image (
 - Protected by `X-Admin-Token` header (value set via `ADMIN_TOKEN` env var)
 - Shows all games with enable/disable toggles
 - On save: `PUT /v1/admin/config` with the full updated config object
-- Changes persist to `app_config` table immediately
+- Changes persist to `config` table immediately
 
 ---
 
@@ -63,8 +63,21 @@ Re-enabling the game restores its lobby visibility immediately on the user's nex
 
 ---
 
+## Tasks
+
+`[ ]` not started · `[~]` in progress · `[x]` done
+
+**Server**
+- [ ] `GET /v1/config` — serve `config` table
+- [ ] Admin dashboard (`/admin`) + `PUT /v1/admin/config` endpoints
+
+**Client**
+- [ ] Fetch and cache config on launch; apply `enabled` flag to game catalog
+
+---
+
 ## Related
 
-- DB: [database-schema.md#app_config](../database-schema.md#app_config)
+- DB: [database-schema.md#config](../database-schema.md#config)
 - Endpoints: [api-reference.md#config](../api-reference.md#config), [api-reference.md#admin](../api-reference.md#admin)
 - Lobby filtering: [game-lobby.md](game-lobby.md)

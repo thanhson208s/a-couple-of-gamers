@@ -69,6 +69,22 @@ If a game is disabled via remote config, it is hidden from the lobby. Its local 
 
 ---
 
+## Tasks
+
+`[ ]` not started · `[~]` in progress · `[x]` done
+
+**Server**
+- [ ] `bundle_url`, `bundle_version`, `bundle_size_bytes`, `is_preinstalled` columns in `games` table
+
+**Client**
+- [ ] Bundle version check on launch; show Download / Update indicator
+- [ ] In-app download with progress bar; offline cache
+
+**CI**
+- [ ] Per-game bundle build + upload to R2 on `client/games/<slug>/` change
+
+---
+
 ## Related
 
 - DB columns: [database-schema.md#games](../database-schema.md#games) (`bundle_url`, `bundle_version`, `bundle_size_bytes`, `is_preinstalled`)

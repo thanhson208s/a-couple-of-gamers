@@ -33,6 +33,20 @@ Match completion works differently for vs Human and vs AI matches. For vs Human,
 
 ---
 
+## Tasks
+
+`[ ]` not started · `[~]` in progress · `[x]` done
+
+**Server**
+- [ ] End-of-game detection on move accept; transition match to `completed`
+- [ ] Upsert `rival_stats` for both players (logged-in users only)
+
+**Client**
+- [ ] Results screen (winner / draw)
+- [ ] Rematch flow
+
+---
+
 ## Related
 
 - Game plugin: [game-system.md#game-plugin-interface](../game-system.md#game-plugin-interface)

@@ -1,0 +1,80 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - dev
+    tags:
+      - "v*"
+
+jobs:
+  deploy-vps:
+    name: Deploy NestJS to VPS
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine environment
+        id: env
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "env=production" >> $GITHUB_OUTPUT
+            echo "host=${{ secrets.PROD_VPS_HOST }}" >> $GITHUB_OUTPUT
+          else
+            echo "env=staging" >> $GITHUB_OUTPUT
+            echo "host=${{ secrets.STAGING_VPS_HOST }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and push Docker image
+        run: |
+          echo "${{ secrets.REGISTRY_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker build -f server/Dockerfile -t ghcr.io/${{ github.repository }}/server:${{ github.sha }} .
+          docker push ghcr.io/${{ github.repository }}/server:${{ github.sha }}
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ steps.env.outputs.host }}
+          username: opc
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /opt/acog
+            docker pull ghcr.io/${{ github.repository }}/server:${{ github.sha }}
+            docker compose -f docker-compose.yml -f docker-compose.${{ steps.env.outputs.env }}-app.yml up -d
+            docker compose exec app node dist/app --run-migrations || true
+            curl -f http://localhost:3000/health
+
+  publish-assets:
+    name: Publish Cocos assets to R2
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine environment
+        id: env
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "env=production" >> $GITHUB_OUTPUT
+          else
+            echo "env=staging" >> $GITHUB_OUTPUT
+          fi
+
+      # Cocos Creator CLI is not yet available in CI.
+      # These steps are placeholders — replace with actual Cocos headless build
+      # commands once the build pipeline is configured.
+      - name: Build Cocos main bundle (placeholder)
+        run: echo "TODO: cocos-creator --build --platform web-mobile --configPath client/build-config.json"
+
+      - name: Generate hot-update manifest (placeholder)
+        run: echo "TODO: run hot-update manifest tool against previous project.manifest"
+
+      - name: Upload hot-update assets to R2 (placeholder)
+        run: echo "TODO: rclone copy hot-update/assets r2:${{ secrets.R2_BUCKET_NAME }}/hot-update/${{ steps.env.outputs.env }}/assets/"
+
+      - name: Build game bundles (placeholder)
+        run: echo "TODO: build each client/games/<slug>/ bundle"
+
+      - name: Upload game bundles to R2 (placeholder)
+        run: echo "TODO: rclone copy game-bundles r2:${{ secrets.R2_BUCKET_NAME }}/game-bundles/${{ steps.env.outputs.env }}/"

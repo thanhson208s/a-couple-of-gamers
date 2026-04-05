@@ -89,6 +89,22 @@ Player A ──WS: move──► WsGateway
 
 ---
 
+## Tasks
+
+`[ ]` not started · `[~]` in progress · `[x]` done
+
+**Server**
+- [ ] `POST /v1/matches/:id/moves` — validate move (game plugin), apply, enqueue FCM if async
+- [ ] WS gateway: ticket-based auth, Redis presence tracking
+- [ ] WS: real-time move broadcast when both players are present
+- [ ] Auto fallback to async on player disconnect
+
+**Client**
+- [ ] Match scene: unified board + input (async and real-time transparent to UI)
+- [ ] WS connection management + reconnection
+
+---
+
 ## Related
 
 - REST endpoint: [api-reference.md#moves](../api-reference.md#moves)

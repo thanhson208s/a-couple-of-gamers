@@ -40,29 +40,23 @@ min_app_version  TEXT             -- minimum hot-update app version required to 
 
 ### `matches`
 ```sql
-id                    UUID PRIMARY KEY DEFAULT gen_random_uuid()
-game_id               UUID NOT NULL REFERENCES games(id)
-opponent_type         TEXT NOT NULL    -- 'human' | 'ai'
-status                TEXT NOT NULL    -- 'pending' | 'active' | 'completed' | 'abandoned'
-state                 JSONB NOT NULL   -- full game state; shape owned by game plugin
-current_turn_player_id UUID            -- NULL if game over or pending
-winner_id             UUID             -- NULL if draw or not yet finished
-invite_code           TEXT UNIQUE      -- short alphanumeric; NULL after opponent joins or match is cancelled
-created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
-updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+id                  UUID PRIMARY KEY DEFAULT gen_random_uuid()
+game_id             UUID NOT NULL REFERENCES games(id)
+status              TEXT NOT NULL    -- 'pending' | 'active' | 'completed' | 'abandoned'
+state               JSONB NOT NULL   -- full game state; shape owned by game plugin
+player1_id          UUID             -- NULL if guest; set by creator
+player1_guest_uuid  TEXT             -- NULL if logged-in; set by creator
+player2_id          UUID             -- NULL if guest or not yet joined
+player2_guest_uuid  TEXT             -- NULL if logged-in or not yet joined
+current_turn        INT              -- 1 or 2; NULL when pending or game over
+winner              INT              -- 1, 2, or 0 (draw); NULL if not finished
+invite_code         TEXT UNIQUE      -- short alphanumeric; NULL after opponent joins or match is cancelled
+created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 -- updated_at used by inactive match cleanup worker to detect stale matches
+-- Invariant: exactly one of player1_id / player1_guest_uuid is set; same for player2 once joined
 ```
-
-### `match_players`
-```sql
-match_id    UUID NOT NULL REFERENCES matches(id)
-player_id   UUID             -- NULL if guest or AI
-guest_uuid  TEXT             -- NULL if logged-in user or AI
-is_ai       BOOLEAN NOT NULL DEFAULT false
-seat_index  INT NOT NULL     -- 0 or 1 (determines player order)
-PRIMARY KEY (match_id, seat_index)
--- Exactly one of: player_id set, guest_uuid set, or is_ai = true
-```
+_vs AI matches are client-only — no server record is created._
 
 ### `moves`
 ```sql
@@ -115,7 +109,7 @@ sent_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 ```
 _Log of FCM notifications sent. Used for deduplication and debugging._
 
-### `app_config`
+### `config`
 ```sql
 id         SERIAL PRIMARY KEY   -- always a single row (id = 1)
 config     JSONB NOT NULL       -- full config document; shape defined in features/remote-config.md
@@ -132,8 +126,8 @@ _Single-row table. Always update in place. `GET /v1/config` reads this row._
 -- Match lookups
 CREATE INDEX ON matches(status);
 CREATE INDEX ON matches(updated_at);   -- inactive match cleanup worker
-CREATE INDEX ON match_players(player_id);
-CREATE INDEX ON match_players(guest_uuid);
+CREATE INDEX ON matches(player1_id);
+CREATE INDEX ON matches(player2_id);
 
 -- Move history
 CREATE INDEX ON moves(match_id, created_at);

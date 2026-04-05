@@ -1,0 +1,42 @@
+# Staging VPS: all services on a single host.
+
+services:
+  app:
+    env_file: .env.staging
+    networks:
+      - acog_net
+
+  worker:
+    env_file: .env.staging
+    networks:
+      - acog_net
+
+  db:
+    environment:
+      POSTGRES_DB: acog
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - acog_staging_db:/var/lib/postgresql/data
+    networks:
+      - acog_net
+
+  cache:
+    networks:
+      - acog_net
+
+  proxy:
+    volumes:
+      - ./Caddyfile.staging:/etc/caddy/Caddyfile:ro
+      - caddy_staging_data:/data
+      - caddy_staging_config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - acog_net
+
+volumes:
+  acog_staging_db:
+  caddy_staging_data:
+  caddy_staging_config:

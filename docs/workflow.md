@@ -1,36 +1,9 @@
 # Workflow
 
-Local dev commands, branching strategy, conventional commit format, DB migration commands, VPS access via Oracle Bastion, steps for adding a new game, and environment variable reference.
+Branching strategy, conventional commit format, DB migration commands, VPS access via Oracle Bastion, steps for adding a new game, and environment variable reference.
 
----
-
-## Local Dev Setup
-
-Prerequisites: Docker, Docker Compose, Cocos Creator, Node.js 20+.
-
-```bash
-# 1. Clone repo
-git clone <repo-url>
-cd a-couple-of-gamers
-
-# 2. Copy env template
-cp .env.example .env.local
-
-# 3. Start local services (Postgres + Redis)
-docker compose -f docker-compose.yml -f docker-compose.local.yml up -d db cache
-
-# 4. Start NestJS server (watch mode)
-cd server
-npm install
-npm run start:dev
-
-# 5. Open Cocos Creator project
-# Open client/ in Cocos Creator
-# Set API base URL to http://localhost:3000 in the project config
-```
-
-Local Postgres: `localhost:5432`  
-Local Redis: `localhost:6379`
+→ Local dev setup and environment provisioning: [setup.md](setup.md)  
+→ Code conventions (guards, errors, DTOs, modules, BullMQ, entities): [conventions.md](conventions.md)
 
 ---
 
@@ -69,18 +42,66 @@ Examples:
 
 ```bash
 # Generate a new migration (from server/ directory)
-npx typeorm migration:generate src/migrations/<MigrationName> -d src/data-source.ts
+# Requires the local DB to be running — TypeORM diffs entities against the current schema
+npm run typeorm -- migration:generate src/migrations/<MigrationName> -d src/app.data.ts
 
 # Review the generated SQL before committing
 
 # Run pending migrations manually (local)
-npx typeorm migration:run -d src/data-source.ts
+npm run typeorm -- migration:run -d src/app.data.ts
 
 # Revert the last migration
-npx typeorm migration:revert -d src/data-source.ts
+npm run typeorm -- migration:revert -d src/app.data.ts
 ```
 
 Migrations run automatically on deploy (step 4 of CI/CD). See [infrastructure.md#database-migrations](infrastructure.md#database-migrations).
+
+---
+
+## Adding a Module
+
+```bash
+# From server/
+nest g module  modules/<name>
+nest g controller modules/<name> --no-spec   # omit if no REST endpoints
+nest g service    modules/<name> --no-spec   # omit if no service layer
+```
+
+After generation:
+
+1. **Register in `app.module.ts`** — add to the `imports` array.
+2. **Add entities** if the module owns DB tables — see [Adding an Entity](#adding-an-entity).
+3. **Add guards** if endpoints require auth — import `AuthModule` and apply `JwtAuthGuard`, `GuestAuthGuard`, or `OptionalAuthGuard` from `modules/auth/guards/`.
+4. **Export services** that other modules will inject — add to the `exports` array in the module decorator.
+5. **Update `docs/structure.md`** — add the new module to the server modules table.
+6. **Add a feature doc** if the module implements a user-facing feature — create `docs/features/<name>.md` following the template in `docs/features/README.md` and link it from `docs/requirements.md`.
+
+---
+
+## Adding an Entity
+
+Entities live co-located with the module that owns their table. `app.data.ts` scans `**/*.entity{.ts,.js}` automatically — no registration needed.
+
+```
+modules/users/
+├── user.entity.ts          # users
+modules/games/
+├── game.entity.ts          # games
+modules/matches/
+├── match.entity.ts         # matches (includes embedded player identity)
+├── move.entity.ts          # moves
+modules/config/
+├── config.entity.ts    # config
+```
+
+If module A needs to query module B's entity, import module B and call its service — no direct cross-module entity references.
+
+After adding an entity, generate a migration:
+
+```bash
+cd server
+npx typeorm migration:generate src/migrations/<MigrationName> -d src/app.data.ts
+```
 
 ---
 
@@ -157,3 +178,75 @@ All secrets and config live in `.env.<environment>` files (never committed). Cop
 | `SENTRY_DSN` | Sentry project DSN for server |
 
 Full list in `.env.example`.
+
+---
+
+## Testing
+
+```bash
+cd server
+npm test              # run all unit tests once
+npm run test:cov      # with coverage report
+npm run test:watch    # watch mode during development
+```
+
+### File naming
+
+Test files live alongside the file they test and must end in `.spec.ts`:
+
+```
+modules/matches/
+├── matches.service.ts
+├── matches.service.spec.ts   ← unit tests for the service
+```
+
+### What to test per layer
+
+**Services** — the core logic layer. Mock all dependencies (repositories, other services, queues):
+
+```typescript
+const module = await Test.createTestingModule({
+  providers: [
+    MatchesService,
+    { provide: getRepositoryToken(Match), useValue: mockRepository() },
+    { provide: PluginRegistry, useValue: { get: jest.fn() } },
+  ],
+}).compile();
+```
+
+**Guards** — test `canActivate()` with mock `ExecutionContext`. Confirm it returns `true` on valid input and throws on invalid.
+
+**Controllers** — only if the controller has non-trivial logic (rare). Use `@nestjs/testing` `Test.createTestingModule` with a mocked service.
+
+Processors and gateways are tested via integration tests (out of scope until the project has an integration test setup).
+
+---
+
+## Feature Implementation Checklist
+
+Steps for implementing any feature end-to-end, in order:
+
+1. **Read** `docs/features/<name>.md` — understand the design before touching code
+2. **Entities** — add `*.entity.ts` files in the owning module, then generate a migration
+3. **Service** — implement the business logic; throw NestJS HTTP exceptions for all error cases
+4. **DTO** — add a `<action>-<resource>.dto.ts` for every request body
+5. **Controller** — wire the endpoint with the correct `@UseGuards()` decorator
+6. **Tests** — write `*.spec.ts` for the service; cover the main path and key error cases
+7. **Docs** — update `docs/api-reference.md` for new/changed endpoints; tick off completed tasks in the feature doc's `## Tasks` section; update `docs/structure.md` if new files were added
+
+→ Guard selection and error handling rules: [conventions.md](conventions.md)
+
+---
+
+## PR Checklist
+
+Before requesting review:
+
+- [ ] All new endpoints have a guard (or are intentionally public — leave a comment)
+- [ ] All request bodies use a DTO with `class-validator` decorators
+- [ ] New or changed service methods have unit tests
+- [ ] `docs/api-reference.md` updated for any endpoint additions or changes
+- [ ] Feature doc `## Tasks` section updated
+- [ ] `docs/structure.md` updated if new files or directories were added
+- [ ] Migration generated and SQL reviewed if schema changed
+- [ ] No `throw new Error(...)` — only NestJS HTTP exceptions in service/controller code

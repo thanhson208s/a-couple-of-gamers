@@ -41,6 +41,16 @@ See [requirements.md#inactive-match-cleanup](../requirements.md#inactive-match-c
 
 ---
 
+## Tasks
+
+`[ ]` not started · `[~]` in progress · `[x]` done
+
+**Server**
+- [ ] Inactive match cleanup (BullMQ repeatable job)
+- [ ] Turn reminder dispatch (BullMQ delayed job; cancel on move)
+
+---
+
 ## Related
 
 - Worker container setup: [infrastructure.md#docker-compose](../infrastructure.md#docker-compose)

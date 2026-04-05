@@ -24,6 +24,21 @@ All monetization is client-side except for the `is_ad_free` flag, which is store
 
 ---
 
+## Tasks
+
+`[ ]` not started · `[~]` in progress · `[x]` done
+
+**Server**
+- [ ] IAP receipt verification → set `is_ad_free = true`
+
+**Client**
+- [ ] Banner ads during gameplay (AdMob)
+- [ ] Interstitial ads after match completion (skip if ad-free)
+- [ ] Remove Ads IAP purchase flow
+- [ ] Affiliate links in game detail screen
+
+---
+
 ## Related
 
 - `is_ad_free` field: [database-schema.md#users](../database-schema.md#users)

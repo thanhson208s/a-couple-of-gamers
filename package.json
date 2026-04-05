@@ -1,0 +1,9 @@
+{
+  "name": "a-couple-of-gamers",
+  "private": true,
+  "workspaces": [
+    "server",
+    "packages/game-logic",
+    "packages/game-logic/tictactoe"
+  ]
+}

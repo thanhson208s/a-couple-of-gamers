@@ -46,6 +46,19 @@ The manifest upload is the last step — clients only see the new version once t
 
 ---
 
+## Tasks
+
+`[ ]` not started · `[~]` in progress · `[x]` done
+
+**Client**
+- [ ] Cocos AssetsManager manifest check + delta download on launch
+- [ ] Graceful fallback to cached version on network failure
+
+**CI**
+- [ ] Main bundle build + version diff upload to R2 on `dev` merge / `v*` tag
+
+---
+
 ## Related
 
 - R2 paths: [infrastructure.md#asset-pipeline-r2](../infrastructure.md#asset-pipeline-r2)

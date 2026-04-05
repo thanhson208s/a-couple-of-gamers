@@ -1,0 +1,16 @@
+import { Injectable } from '@nestjs/common';
+import { GamePlugin } from '@acog/game-logic';
+import { TicTacToePlugin } from '@acog/game-logic-tictactoe';
+
+@Injectable()
+export class PluginRegistry {
+  private readonly plugins = new Map<string, GamePlugin>([
+    ['tictactoe', new TicTacToePlugin()],
+  ]);
+
+  get(slug: string): GamePlugin {
+    const plugin = this.plugins.get(slug);
+    if (!plugin) throw new Error(`No plugin registered for game: ${slug}`);
+    return plugin;
+  }
+}

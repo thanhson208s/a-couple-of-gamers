@@ -42,6 +42,22 @@ AI match state is stored on the device, not on the server during play.
 
 ---
 
+## Tasks
+
+`[ ]` not started · `[~]` in progress · `[x]` done
+
+**Server**
+- [ ] `POST /v1/matches/:id/complete` — record AI match result
+
+**Client**
+- [ ] Offline AI match play loop (uses local game plugin)
+- [ ] Quit + resume — persist in-progress state to local SQLite
+
+**Shared**
+- [x] `tictactoe` game plugin (reference implementation)
+
+---
+
 ## Related
 
 - Game plugin interface: [game-system.md#game-plugin-interface](../game-system.md#game-plugin-interface)

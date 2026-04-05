@@ -48,6 +48,24 @@ User taps Download (or update badge)
 
 ---
 
+## Tasks
+
+`[ ]` not started · `[~]` in progress · `[x]` done
+
+**Server**
+- [ ] `GET /v1/games` — catalog list
+- [ ] `GET /v1/matches?active=true` — active match list with turn status
+- [ ] `POST /v1/users/me/favorites/:gameId` — add favorite
+- [ ] `DELETE /v1/users/me/favorites/:gameId` — remove favorite
+
+**Client**
+- [ ] Catalog screen (cover, description, download state)
+- [ ] Favorites — server-synced for logged-in users; local SQLite for guests
+- [ ] Active match list with "your turn" / "waiting" label
+- [ ] Persistent "your turn" badge count
+
+---
+
 ## Related
 
 - Catalog + bundle metadata endpoint: [api-reference.md#games](../api-reference.md#games)

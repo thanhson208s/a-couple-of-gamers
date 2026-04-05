@@ -1,0 +1,32 @@
+# prod-data VPS: PostgreSQL and Redis.
+# No public port exposure — accessed by prod-app over Oracle private network.
+
+services:
+  db:
+    environment:
+      POSTGRES_DB: acog
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - acog_prod_db:/var/lib/postgresql/data
+    networks:
+      - acog_net
+
+  cache:
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - acog_prod_cache:/data
+    networks:
+      - acog_net
+
+  # Disable app-side services
+  app:
+    profiles: ["disabled"]
+  worker:
+    profiles: ["disabled"]
+  proxy:
+    profiles: ["disabled"]
+
+volumes:
+  acog_prod_db:
+  acog_prod_cache:

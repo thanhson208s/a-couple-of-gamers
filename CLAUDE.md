@@ -26,8 +26,11 @@
 | [docs/architecture.md](docs/architecture.md) | System diagram, all services (internal + external), module responsibilities, key decisions |
 | [docs/security.md](docs/security.md) | Auth mechanism (JWT lifecycle, WS ticket), rate limiting, input validation, secrets |
 | [docs/infrastructure.md](docs/infrastructure.md) | Deployment topology, Docker Compose, CI/CD, migrations, backup, monitoring |
-| [docs/workflow.md](docs/workflow.md) | Local dev setup, branching, commit conventions, how-to guides |
+| [docs/setup.md](docs/setup.md) | Scaffolding steps, local dev setup (install → run), and full environment provisioning (VPS → first deploy) |
+| [docs/conventions.md](docs/conventions.md) | Code conventions — guards, error handling, DTOs, module communication, BullMQ jobs, entities |
+| [docs/workflow.md](docs/workflow.md) | Branching, commit conventions, DB migrations, adding modules/games, testing, PR checklist |
 | [docs/api-reference.md](docs/api-reference.md) | [DRAFT] REST endpoints and WebSocket events |
 | [docs/database-schema.md](docs/database-schema.md) | [DRAFT] Postgres tables, indexes, data ownership |
 | [docs/game-system.md](docs/game-system.md) | Game plugin interface, state visibility, AI integration, game catalog |
-| [docs/features/](docs/features/) | One doc per feature — implementation flows and sequences (mirrors requirements.md) |
+| [docs/features/](docs/features/) | One doc per feature — implementation flows, sequences, and task list |
+| [docs/structure.md](docs/structure.md) | Living codebase map — every file and directory with its purpose |

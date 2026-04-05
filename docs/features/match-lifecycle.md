@@ -45,6 +45,23 @@ Covers match creation, invitation, joining, and abandonment — the shell of a m
 
 ---
 
+## Tasks
+
+`[ ]` not started · `[~]` in progress · `[x]` done
+
+**Server**
+- [ ] `POST /v1/matches` — create match
+- [ ] `POST /v1/matches/:id/join` — join via invite code
+- [ ] `DELETE /v1/matches/:id` — abandon match (no penalty)
+- [ ] Invite code generation + deep link
+
+**Client**
+- [ ] Create match flow (game + opponent type selection)
+- [ ] Invite code share sheet + deep link handling
+- [ ] Abandon match action
+
+---
+
 ## Related
 
 - Endpoints: [api-reference.md#matches](../api-reference.md#matches), [api-reference.md#invites](../api-reference.md#invites)

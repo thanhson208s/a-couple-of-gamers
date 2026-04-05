@@ -21,6 +21,15 @@ All steps run in a single DB transaction. If any step fails, the entire deletion
 
 ---
 
+## Tasks
+
+`[ ]` not started · `[~]` in progress · `[x]` done
+
+**Server**
+- [ ] `DELETE /v1/users/me` — cascade delete user data in transaction order
+
+---
+
 ## Related
 
 - Endpoint: `DELETE /v1/users/me` → [api-reference.md#users](../api-reference.md#users)
