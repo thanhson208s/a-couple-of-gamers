@@ -728,16 +728,22 @@ Place all three instances in the same **VCN** and **Availability Domain**. prod-
 
 ---
 
-### 2. DNS
+### 2. DNS (Cloudflare)
 
-Point two A records at the prod-app public IP and one at the staging public IP:
+Add the `gootube.online` zone to Cloudflare and enable the DNS proxy:
 
-| Record | Target |
-|--------|--------|
-| `acog.gootube.online` | prod-app public IP |
-| `acoq.gootube.online` | staging public IP |
+1. Cloudflare Dashboard → **Add a site** → enter `gootube.online`. Cloudflare scans existing records.
+2. At the domain registrar, update nameservers to the two Cloudflare nameservers shown. Wait for propagation.
+3. Create DNS A records with the proxy **on** (orange cloud):
 
-**Verify:** `dig acog.gootube.online +short` and `dig acoq.gootube.online +short` return the correct IPs.
+| Name | Type | Value | Proxy |
+|------|------|-------|-------|
+| `acog` | A | prod-app public IP | On |
+| `acoq` | A | staging public IP | On |
+
+4. Cloudflare Dashboard → **SSL/TLS → Overview** → set mode to **Full (strict)**.
+
+**Verify:** `dig acog.gootube.online +short` returns a Cloudflare IP (not the VPS IP). After first deploy, `curl -I https://acog.gootube.online/health` includes a `CF-Ray` response header.
 
 ---
 
@@ -749,8 +755,8 @@ Open the following ingress rules on the VCN security list (or NSG):
 
 | Port | Protocol | Source | Purpose |
 |------|----------|--------|---------|
-| 80 | TCP | 0.0.0.0/0 | HTTP (Caddy redirects to HTTPS) |
-| 443 | TCP | 0.0.0.0/0 | HTTPS + WebSocket |
+| 80 | TCP | Cloudflare CIDRs (cloudflare.com/ips) | HTTP |
+| 443 | TCP | Cloudflare CIDRs (cloudflare.com/ips) | HTTPS + WebSocket |
 | 22 | TCP | Oracle Bastion CIDR | SSH via Bastion only |
 
 **prod-data only — also open within VCN (private CIDR only):**
@@ -862,34 +868,121 @@ Create two Sentry projects in the same org:
 1. Cloudflare Dashboard → R2 → Create bucket. Name: `acog` (or as preferred). Region: automatic.
 2. Create an R2 API token with **Object Read & Write** permission scoped to the bucket.
 3. Note the `Access Key ID` and `Secret Access Key`.
-4. Set the bucket's public access (custom domain or R2 public URL) so clients can download bundles and hot-update assets without authentication.
 
 R2 bucket structure is created automatically by CI on first publish — no manual folder creation needed.
 
-**Verify:** upload a test file via `rclone` or the Cloudflare dashboard and confirm it is publicly accessible at the CDN URL.
+#### Custom Domain
+
+Attach `acob.gootube.online` as a CDN custom domain for client asset downloads:
+
+1. R2 → select your bucket → **Settings → Custom Domains → Connect Domain**
+2. Enter `acob.gootube.online`
+3. Cloudflare automatically creates a proxied CNAME record — no manual DNS step needed
+4. Files are now accessible at `https://acob.gootube.online/<path>`
+
+#### Cache Rules
+
+Create three rules in **Cloudflare Dashboard → Caching → Cache Rules**, in this order (first match wins):
+
+**Rule 1 — manifests (short TTL):**
+- Match: `acob.gootube.online/hot-update/*.manifest`
+- Cache eligibility: Eligible for cache
+- Edge TTL: 60 seconds (override origin)
+
+**Rule 2 — hot update assets (permanent cache):**
+- Match: `acob.gootube.online/hot-update/*/assets/*`
+- Cache eligibility: Eligible for cache
+- Edge TTL: 1 year (override origin)
+
+**Rule 3 — game bundles (bypass cache):**
+- Match: `acob.gootube.online/game-bundles/*`
+- Cache eligibility: Bypass cache
+
+Manifests share the same URL on every publish → short TTL + purge on publish. Hot update assets are named with their MD5 hash — new content always gets a new URL, safe to cache forever. Game bundles are full replacements at the same path → bypassing cache avoids stale downloads without purge logic.
+
+**Verify:** upload a test file and confirm it is accessible at `https://acob.gootube.online/<path>`. Check `CF-Cache-Status` response header matches expected behaviour per path type.
 
 ---
 
-### 9. GitHub Actions Secrets
+### 9. Cloudflare Origin Certificate
+
+The Caddyfiles use a Cloudflare Origin Certificate instead of Let's Encrypt. This cert is trusted by Cloudflare (required for Full strict mode) but not by browsers directly — which is fine since all traffic goes through Cloudflare.
+
+**Issue the cert (Cloudflare Dashboard):**
+
+1. SSL/TLS → Origin Server → **Create Certificate**
+2. Hostnames: `*.gootube.online`, `gootube.online`
+3. Validity: 15 years
+4. Download `origin-cert.pem` and `origin-key.pem`
+
+**Install on each VPS** (prod-app and staging — SSH in manually):
+
+```bash
+sudo mkdir -p /etc/caddy/certs
+sudo cp origin-cert.pem /etc/caddy/certs/
+sudo cp origin-key.pem /etc/caddy/certs/
+sudo chmod 600 /etc/caddy/certs/origin-key.pem
+```
+
+The cert directory is bind-mounted read-only into the Caddy container via `docker-compose.prod-app.yml` and `docker-compose.staging.yml`.
+
+**Verify:** after first deploy, `curl -v https://acog.gootube.online/health 2>&1 | grep issuer` shows `Cloudflare` as the certificate issuer.
+
+#### Cache Rule
+
+Cloudflare does not cache JSON API responses by default. Create a rule to opt `/v1/config` in:
+
+1. Cloudflare Dashboard → **Caching → Cache Rules → Create rule**
+2. Match: `acog.gootube.online/v1/config`
+3. Cache eligibility: **Eligible for cache**
+
+#### Cache Purge API Token
+
+The server calls Cloudflare's purge API when config is updated. Create a scoped token:
+
+1. Cloudflare Dashboard → **My Profile → API Tokens → Create Token**
+2. Permission: **Zone → Cache Purge → Purge**
+3. Zone: `gootube.online` only
+4. Copy the token → add to `.env.production` as `CLOUDFLARE_API_TOKEN`
+
+Zone ID is on the Cloudflare Dashboard → `gootube.online` → **Overview** (right sidebar) → copy to `.env.production` as `CLOUDFLARE_ZONE_ID`.
+
+#### Cloudflare Access (Admin Auth)
+
+Protects `/admin` and `/v1/admin/*` with identity-based auth. No fixed IP needed — users authenticate via Google or email OTP. After auth, the admin page loads without any manual token entry.
+
+1. Go to **Cloudflare Zero Trust** (one.dash.cloudflare.com) → complete first-time setup, which assigns a team domain (e.g. `your-team.cloudflareaccess.com`) → note it as `CF_TEAM_DOMAIN`
+2. Access → Applications → **Add application → Self-hosted**
+3. Name: `acog-admin`. Add two application domains:
+   - Host: `acog.gootube.online`, Path: `admin`
+   - Host: `acog.gootube.online`, Path: `v1/admin`
+4. Identity providers: enable **Google** (or **One-time PIN** for email OTP)
+5. Policy: Allow → Emails → your admin email(s)
+6. After creation, open the app → copy the **Application Audience (AUD) tag** → add to `.env.production` as `CF_ACCESS_AUD`
+
+**Verify:** navigate to `https://acog.gootube.online/admin` → Cloudflare login prompt appears. After login, admin page loads. `curl https://acog.gootube.online/v1/admin/config` without a valid CF token → 401.
+
+---
+
+### 10. GitHub Actions Secrets
 
 Set these in the GitHub repo (Settings → Secrets and variables → Actions):
 
 | Secret | Value |
 |--------|-------|
-| `PROD_VPS_HOST` | prod-app public IP |
-| `STAGING_VPS_HOST` | staging public IP |
-| `VPS_SSH_KEY` | Private SSH key used for Bastion sessions (see [workflow.md#connecting-to-a-vps](workflow.md#connecting-to-a-vps)) |
 | `REGISTRY_TOKEN` | GHCR token from step 5 |
 | `R2_ACCESS_KEY_ID` | R2 API key from step 8 |
 | `R2_SECRET_ACCESS_KEY` | R2 API secret from step 8 |
 | `R2_BUCKET_NAME` | R2 bucket name from step 8 |
 | `ADMIN_TOKEN` | Random secret for admin dashboard (min 32 chars) |
+| `CLOUDFLARE_ZONE_ID` | Zone ID from Cloudflare Dashboard → `gootube.online` → Overview (right sidebar) |
+| `CLOUDFLARE_API_TOKEN` | API token with **Zone → Cache Purge → Purge** permission (from step 9) |
 
 **Verify:** GitHub → Actions → any workflow run → the secret names appear masked in logs where used.
 
 ---
 
-### 10. VPS Environment Files
+### 11. VPS Environment Files
 
 On each VPS, create `/opt/acog/.env.<environment>` (never committed). Use `.env.example` as the template.
 
@@ -909,6 +1002,11 @@ FIREBASE_PROJECT_ID=<from Firebase Console>
 FCM_SERVICE_ACCOUNT=<stringified JSON from step 6b>
 SENTRY_DSN=<server DSN from step 7>
 ADMIN_TOKEN=<same value as GitHub secret>
+CLOUDFLARE_ZONE_ID=<zone ID from Cloudflare Dashboard → Overview>
+CLOUDFLARE_API_TOKEN=<API token with Cache Purge permission scoped to the zone>
+APP_BASE_URL=https://acog.gootube.online
+CF_TEAM_DOMAIN=<your-team>.cloudflareaccess.com
+CF_ACCESS_AUD=<AUD tag from Cloudflare Access application>
 PORT=3000
 NODE_ENV=production
 ```
@@ -921,7 +1019,7 @@ Generate JWT secrets: `openssl rand -hex 32`
 
 ---
 
-### 11. First Deploy
+### 12. First Deploy
 
 On prod-data VPS:
 ```bash
@@ -947,7 +1045,7 @@ docker compose exec app node dist/app --run-migrations
 
 ---
 
-### 12. Backup Cron (prod-data)
+### 13. Backup Cron (prod-data)
 
 Set up a daily Postgres dump on prod-data:
 
@@ -965,3 +1063,37 @@ crontab -e
 ```
 
 **Verify:** run `backup.sh` manually and confirm the dump appears in the R2 bucket under `backups/`.
+
+---
+
+### 14. GitHub Actions Self-Hosted Runner (prod-app and staging)
+
+The CI/CD deploy job runs directly on the target VPS instead of a GitHub-hosted VM. This avoids the need for inbound SSH access — the runner process polls GitHub for jobs and executes them locally.
+
+Run these steps on **each VPS that receives deploys** (prod-app and staging):
+
+```bash
+# Create a dedicated directory
+mkdir -p /opt/actions-runner && cd /opt/actions-runner
+
+# Download the latest runner (get the exact URL from:
+# GitHub repo → Settings → Actions → Runners → New self-hosted runner → Linux x64)
+curl -o actions-runner-linux-x64.tar.gz -L \
+  https://github.com/actions/runner/releases/download/v2.x.x/actions-runner-linux-x64-2.x.x.tar.gz
+tar xzf actions-runner-linux-x64.tar.gz
+
+# Register the runner (token from GitHub UI — expires in 1 hour)
+./config.sh --url https://github.com/<org>/<repo> --token <RUNNER_TOKEN>
+
+# Install and start as a systemd service (survives reboots)
+sudo ./svc.sh install
+sudo ./svc.sh start
+
+# Grant the runner user Docker access
+sudo usermod -aG docker $(whoami)
+# Log out and back in, or run: newgrp docker
+```
+
+**Verify:** GitHub → Settings → Actions → Runners — the runner appears as **Idle**.
+
+> The registration token is single-use and expires in 1 hour. If it expires, generate a new one from the GitHub UI. The runner itself stays registered permanently until explicitly removed.

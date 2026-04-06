@@ -1,0 +1,8 @@
+# Staging reverse proxy — Caddy
+# TLS via Cloudflare Origin Certificate (not Let's Encrypt).
+# Cert installed at /etc/caddy/certs/ on the VPS — see docs/setup.md.
+
+acoq.gootube.online {
+    tls /etc/caddy/certs/origin-cert.pem /etc/caddy/certs/origin-key.pem
+    reverse_proxy app:3000
+}

@@ -28,6 +28,7 @@ services:
   proxy:
     volumes:
       - ./Caddyfile.staging:/etc/caddy/Caddyfile:ro
+      - /etc/caddy/certs:/etc/caddy/certs:ro
       - caddy_staging_data:/data
       - caddy_staging_config:/config
     ports:

@@ -16,11 +16,16 @@ Request flow diagram, all internal services (NestJS app, worker, Postgres, Redis
 └──────┬──────────────────────────────────────────────────┘
        │ HTTP / WebSocket          │ SDK (Sentry, Firebase)
        │                   ┌───────┴───────────────────────┐
-       │                   │  Sentry      Firebase Analytics│
+       │                   │  Sentry     Firebase Analytics│
        │                   └───────────────────────────────┘
        ▼
 ┌──────────────┐
-│    Caddy     │  TLS termination, WS upgrade, HTTP→HTTPS
+│  Cloudflare  │  DNS proxy, DDoS protection, TLS termination (client-facing)
+│     Edge     │
+└──────┬───────┘
+       │
+┌──────▼───────┐
+│    Caddy     │  WS upgrade, TLS (Origin Certificate, origin-side)
 └──────┬───────┘
        │
 ┌──────▼──────────────────────────────────┐
@@ -36,7 +41,7 @@ Request flow diagram, all internal services (NestJS app, worker, Postgres, Redis
        ▼                    ▼
 ┌─────────────────┐  ┌───────────────┐
 │      Redis      │  │  PostgreSQL   │
-│ (presence · queue│  │               │
+│(presence · queue│  │               │
 │  · rate limits) │  └───────┬───────┘
 └──────┬──────────┘          │ read/write
        │ consume jobs        │
@@ -68,7 +73,7 @@ External (not in request path):
 |---------|---------|---------|
 | **NestJS API Server** | prod-app VPS | Handles all HTTP and WebSocket traffic. Validates and applies game moves via the game plugin interface. Enqueues BullMQ jobs for background work. |
 | **NestJS Worker Service** | prod-app VPS | Consumes BullMQ jobs from Redis. No HTTP listener. Runs inactive match cleanup (repeatable) and turn reminder dispatch (delayed). |
-| **Caddy** | prod-app VPS | TLS termination (automatic Let's Encrypt), WebSocket upgrade headers, HTTP→HTTPS redirect. Reverse proxy to the API server. |
+| **Caddy** | prod-app VPS | TLS termination (Cloudflare Origin Certificate), WebSocket upgrade headers. Reverse proxy to the API server. |
 | **PostgreSQL** | prod-data VPS | Primary relational database. Single source of truth for all match state, user data, and history. Game state stored as JSONB. |
 | **Redis** | prod-data VPS | Three roles: (1) WebSocket presence tracking per match, (2) BullMQ job queue shared between API server and worker, (3) rate limit counters. |
 
@@ -77,6 +82,7 @@ External (not in request path):
 | Service | Purpose | Integrated by |
 |---------|---------|--------------|
 | **FCM** | Push notifications to iOS (via APNs bridge) and Android | NestJS API Server (inline, on move submission) and Worker (turn reminders) |
+| **Cloudflare DNS Proxy** | DNS proxy for all client traffic; DDoS protection; hides origin VPS IP; client-facing TLS termination at edge | All HTTP/WS traffic from clients; Caddy authenticates to Cloudflare via Origin Certificate (Full strict SSL mode) |
 | **Cloudflare R2** | Daily Postgres backups; hot update assets (main app); mini game bundles (CDN for client downloads) | Backups: OS cron on prod-data VPS. Hot update + bundles: CI/CD asset publish job. Client fetches directly from R2 CDN URL. |
 | **Sentry** | Error tracking and crash reporting | NestJS API Server (unhandled exceptions); Cocos Creator client (crashes via Sentry JavaScript SDK) |
 | **Firebase Authentication** | OAuth provider handling (Google/Apple/Facebook); issues ID tokens to the client | Godot client (Firebase SDK for OAuth flow); NestJS API Server (Admin SDK for ID token verification) |
@@ -112,6 +118,8 @@ Client responsibilities:
 ---
 
 ## Key Architectural Decisions
+
+**Cloudflare DNS proxy** — All client traffic routes through Cloudflare's edge before reaching Caddy. This provides DDoS protection and hides the origin VPS IP at zero cost. Caddy uses a Cloudflare Origin Certificate (not Let's Encrypt) to satisfy Full strict SSL mode — no ACME, no 90-day renewal.
 
 **NestJS over Colyseus** — Colyseus is optimized for persistent real-time rooms; async-first play fights against its room lifecycle. At 100 CCU its performance advantages are irrelevant. NestJS gives full control over state management.
 
