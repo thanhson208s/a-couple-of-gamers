@@ -44,7 +44,6 @@ Error response shape (all endpoints):
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/v1/games` | List all active games in catalog. Response includes bundle metadata: `bundleUrl`, `bundleVersion`, `bundleSizeBytes`, `isPreinstalled` |
 | `GET` | `/v1/games/:slug` | Get single game details including bundle metadata |
 
 ---
@@ -105,7 +104,7 @@ _Real-time moves are submitted via WebSocket — see below._
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/v1/config` | Returns current app config (enabled/disabled games, feature flags). No auth required. |
+| `GET` | `/v1/config` | Returns app config merged with game catalog. No auth required. Each entry under `games` includes config fields (`enabled`) and bundle metadata (`bundleUrl`, `bundleVersion`, `bundleSizeBytes`, `isPreinstalled`). |
 
 ---
 

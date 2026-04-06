@@ -16,12 +16,14 @@ A single config document stored in Postgres controls which games are visible in 
 {
   "version": "1",
   "games": {
-    "tictactoe":  { "enabled": true  },
-    "battleship": { "enabled": false },
-    "kingdomino": { "enabled": true  }
+    "tictactoe":  { "enabled": true,  "bundleUrl": "...", "bundleVersion": "1.0.0", "bundleSizeBytes": 102400, "isPreinstalled": true  },
+    "battleship": { "enabled": false, "bundleUrl": "...", "bundleVersion": "1.0.0", "bundleSizeBytes": 204800, "isPreinstalled": false },
+    "kingdomino": { "enabled": true,  "bundleUrl": "...", "bundleVersion": "1.0.0", "bundleSizeBytes": 307200, "isPreinstalled": false }
   }
 }
 ```
+
+`bundleUrl`, `bundleVersion`, `bundleSizeBytes`, and `isPreinstalled` come from the `games` table and are merged into the response at serve time. The admin `PUT /v1/admin/config` payload only manages `enabled` flags and feature flags — bundle metadata is not part of the stored config.
 
 `version` is a monotonically increasing string; bump it on every save. Additional top-level keys (feature flags, etc.) can be added without schema changes.
 
@@ -34,6 +36,7 @@ App launch
   → GET /v1/config
   → Cache response locally
   → Filter lobby game list: only show games where enabled = true
+  → Compare bundleVersion per game against local cache for download/update indicators
 
 If fetch fails:
   → Use locally cached config (last known good)
@@ -68,7 +71,7 @@ Re-enabling the game restores its lobby visibility immediately on the user's nex
 `[ ]` not started · `[~]` in progress · `[x]` done
 
 **Server**
-- [ ] `GET /v1/config` — serve `config` table
+- [ ] `GET /v1/config` — serve `config` table merged with bundle metadata from `games` table
 - [ ] Admin dashboard (`/admin`) + `PUT /v1/admin/config` endpoints
 
 **Client**

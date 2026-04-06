@@ -22,7 +22,7 @@ The lobby is the app's home screen. It combines two lists: the game catalog (sta
 
 ## Game Tile Download States
 
-Each game tile shows one of four states, derived from comparing the local bundle version against the server version returned by `GET /v1/games`:
+Each game tile shows one of four states, derived from comparing the local bundle version against the server version returned by `GET /v1/config`:
 
 | State | Condition | UI |
 |-------|-----------|----|
@@ -31,7 +31,7 @@ Each game tile shows one of four states, derived from comparing the local bundle
 | `update-available` | local version < server version | Play button enabled (old version); update badge shown |
 | `not-downloaded` | no local bundle | Download button shown |
 
-Update check runs once per launch after `GET /v1/games` completes.
+Update check runs once per launch after `GET /v1/config` completes.
 
 ---
 
@@ -53,7 +53,7 @@ User taps Download (or update badge)
 `[ ]` not started · `[~]` in progress · `[x]` done
 
 **Server**
-- [ ] `GET /v1/games` — catalog list
+- [ ] `GET /v1/config` — catalog list
 - [ ] `GET /v1/matches?active=true` — active match list with turn status
 - [ ] `POST /v1/users/me/favorites/:gameId` — add favorite
 - [ ] `DELETE /v1/users/me/favorites/:gameId` — remove favorite
@@ -68,7 +68,7 @@ User taps Download (or update badge)
 
 ## Related
 
-- Catalog + bundle metadata endpoint: [api-reference.md#games](../api-reference.md#games)
+- Catalog + bundle metadata endpoint: [api-reference.md#config](../api-reference.md#config)
 - Remote config (enabled/disabled games): [remote-config.md](remote-config.md)
 - Bundle download system: [mini-game-bundles.md](mini-game-bundles.md)
 - Favorites endpoints: [api-reference.md#favorites](../api-reference.md#favorites)
