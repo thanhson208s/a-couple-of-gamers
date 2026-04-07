@@ -8,10 +8,10 @@ import {
 @Injectable()
 export class GuestAuthGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
-    const req = context.switchToHttp().getRequest<{ headers: Record<string, string>; guestId?: string }>();
+    const req = context.switchToHttp().getRequest<{ headers: Record<string, string>; body: Record<string, unknown> }>();
     const guestId = req.headers['x-guest-id'];
     if (!guestId) throw new UnauthorizedException();
-    req.guestId = guestId;
+    req.body = { ...req.body, guestId };
     return true;
   }
 }

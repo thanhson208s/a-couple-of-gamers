@@ -47,7 +47,7 @@ After login:
 `[ ]` not started · `[~]` in progress · `[x]` done
 
 **Server**
-- [ ] `POST /v1/auth/guest` — issue guest JWT from `X-Guest-Id` header
+- [x] `POST /v1/auth/guest` — issue guest JWT from `X-Guest-Id` header
 
 **Client**
 - [ ] Generate and store UUID in device secure storage (iOS Keychain / Android Keystore) on first launch

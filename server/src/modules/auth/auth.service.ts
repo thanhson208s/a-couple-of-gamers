@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'crypto';
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
@@ -22,7 +22,19 @@ export class AuthService {
 
   async devLogin(accountId: string): Promise<{ accessToken: string; refreshToken: string; id: string; provider: string; providerId: string; displayName: string }> {
     const user = await this.usersService.findOrCreate('dev', accountId, `dev_${accountId}`);
-    const accessToken = this.jwtService.sign({ sub: user.id, provider: user.provider });
+    const accessToken = this.jwtService.sign({ sub: user.id });
+    const refreshToken = await this.issueRefreshToken(user.id);
+    return { accessToken, refreshToken, id: user.id, provider: user.provider, providerId: user.providerId, displayName: user.displayName };
+  }
+
+  async guestLogin(guestId: string): Promise<{ accessToken: string; refreshToken: string; id: string; provider: string; providerId: string; displayName: string }> {
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_REGEX.test(guestId)) {
+      throw new BadRequestException('Invalid guest UUID format');
+    }
+
+    const user = await this.usersService.findOrCreate('guest', guestId, `guest_${guestId}`)
+    const accessToken = this.jwtService.sign({ sub: user.id });
     const refreshToken = await this.issueRefreshToken(user.id);
     return { accessToken, refreshToken, id: user.id, provider: user.provider, providerId: user.providerId, displayName: user.displayName };
   }
@@ -45,7 +57,7 @@ export class AuthService {
     if (!user) throw new UnauthorizedException();
 
     const newRefreshToken = await this.issueRefreshToken(token.userId);
-    const accessToken = this.jwtService.sign({ sub: user.id, provider: user.provider });
+    const accessToken = this.jwtService.sign({ sub: user.id });
     return { accessToken, refreshToken: newRefreshToken, id: user.id, provider: user.provider, providerId: user.providerId, displayName: user.displayName };
   }
 

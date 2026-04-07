@@ -11,7 +11,7 @@ All Postgres table definitions (users, games, matches, match_players, moves, riv
 ### `users`
 ```sql
 id              UUID PRIMARY KEY DEFAULT gen_random_uuid()
-provider        TEXT NOT NULL          -- 'google' | 'apple' | 'facebook'
+provider        TEXT NOT NULL          -- 'google' | 'apple' | 'facebook' | 'guest' | 'dev'
 provider_id     TEXT NOT NULL          -- ID from the auth provider
 display_name    TEXT NOT NULL
 avatar_url      TEXT
