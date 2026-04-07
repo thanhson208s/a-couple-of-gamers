@@ -13,8 +13,8 @@ Four guards live in `modules/auth/guards/`. All are exported from `AuthModule` �
 | `JwtAuthGuard` | Endpoint requires a logged-in user |
 | `GuestAuthGuard` | Endpoint requires a guest (device UUID) |
 | `OptionalAuthGuard` | Endpoint accepts either logged-in or guest — your handler decides |
-| `AdminGuard` | Endpoint is admin-only (`X-Admin-Token` header) |
-| `DevGuard` | Endpoint must only be reachable in local dev (blocked when `CF_TEAM_DOMAIN` is set or `DEV_MODE` is unset) |
+| `AdminAuthGuard` | Endpoint is admin-only (`X-Admin-Token` header) |
+| `DevAuthGuard` | Endpoint must only be reachable in local dev (blocked when `CF_TEAM_DOMAIN` is set or `DEV_MODE` is unset) |
 
 Endpoints with no guard are **public** — no auth checked at all (e.g. `GET /v1/config`, `GET /health`).
 

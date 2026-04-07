@@ -1,9 +1,9 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
-import { DevGuard } from '../auth/guards/dev.guard';
+import { DevAuthGuard } from '../auth/guards/dev-auth.guard';
 import { MatchesService } from '../matches/matches.service';
 
 @Controller('dev/cheat')
-@UseGuards(DevGuard)
+@UseGuards(DevAuthGuard)
 export class DevController {
   constructor(private readonly matchesService: MatchesService) {}
 

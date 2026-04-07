@@ -1,9 +1,9 @@
 import { Controller, Get, Put, Body, UseGuards } from '@nestjs/common';
-import { AdminGuard } from '../auth/guards/admin.guard';
+import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 import { ConfigService as ConfigService } from '../config/config.service';
 
 @Controller('admin')
-@UseGuards(AdminGuard)
+@UseGuards(AdminAuthGuard)
 export class AdminController {
   constructor(private readonly configService: ConfigService) {}
 

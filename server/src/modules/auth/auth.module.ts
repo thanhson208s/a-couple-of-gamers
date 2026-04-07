@@ -4,8 +4,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { RefreshToken } from './refresh-token.entity';
-import { AdminGuard } from './guards/admin.guard';
-import { DevGuard } from './guards/dev.guard';
+import { AdminAuthGuard } from './guards/admin-auth.guard';
+import { DevAuthGuard } from './guards/dev-auth.guard';
 import { GuestAuthGuard } from './guards/guest-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { OptionalAuthGuard } from './guards/optional-auth.guard';
@@ -23,7 +23,7 @@ import { UsersModule } from '../users/users.module';
     UsersModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, AdminGuard, DevGuard, GuestAuthGuard, JwtAuthGuard, OptionalAuthGuard],
-  exports: [AuthService, JwtModule, AdminGuard, DevGuard, GuestAuthGuard, JwtAuthGuard, OptionalAuthGuard],
+  providers: [AuthService, AdminAuthGuard, DevAuthGuard, GuestAuthGuard, JwtAuthGuard, OptionalAuthGuard],
+  exports: [AuthService, JwtModule, AdminAuthGuard, DevAuthGuard, GuestAuthGuard, JwtAuthGuard, OptionalAuthGuard],
 })
 export class AuthModule {}

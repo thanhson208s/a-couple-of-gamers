@@ -392,7 +392,7 @@ After generation, apply these manual changes:
 
 **`modules/auth/`** — add `guards/` subdirectory with four guards:
 ```
-guards/admin.guard.ts         # checks X-Admin-Token header
+guards/admin-auth.guard.ts         # checks X-Admin-Token header
 guards/jwt-auth.guard.ts      # verifies Bearer token, attaches req.user
 guards/guest-auth.guard.ts    # requires X-Guest-Id header, attaches req.guestId
 guards/optional-auth.guard.ts # tries JWT then guest, never throws
@@ -420,7 +420,7 @@ export class PluginRegistry {
 nest g gateway modules/ws/ws --no-spec
 ```
 
-**`modules/admin/`** — imports `AuthModule` (for `AdminGuard`) and `ConfigModule`; also registers `ServeStaticModule` to serve `public/admin/` at `/admin`.
+**`modules/admin/`** — imports `AuthModule` (for `AdminAuthGuard`) and `ConfigModule`; also registers `ServeStaticModule` to serve `public/admin/` at `/admin`.
 
 ---
 

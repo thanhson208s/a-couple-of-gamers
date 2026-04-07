@@ -8,7 +8,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as crypto from 'crypto';
 
 @Injectable()
-export class AdminGuard implements CanActivate {
+export class AdminAuthGuard implements CanActivate {
   private jwksCache: { keys: JsonWebKey[]; fetchedAt: number } | null = null;
   private readonly jwksCacheTtl = 3_600_000; // 1 hour
 
