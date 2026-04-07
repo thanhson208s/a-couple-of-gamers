@@ -7,6 +7,10 @@ import { User } from './user.entity';
 export class UsersService {
   constructor(@InjectRepository(User) private readonly users: Repository<User>) {}
 
+  async findById(id: string): Promise<User | null> {
+    return this.users.findOne({ where: { id } });
+  }
+
   async findOrCreate(provider: string, providerId: string, displayName: string): Promise<User> {
     let user = await this.users.findOne({ where: { provider, providerId } });
     if (!user) {

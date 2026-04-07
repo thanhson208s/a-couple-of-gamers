@@ -44,7 +44,7 @@ Client → POST /v1/auth/social  { idToken: "<firebase-id-token>" }
 
 **Server**
 - [ ] `POST /v1/auth/social` — verify Firebase ID token, upsert user, issue JWT
-- [ ] `POST /v1/auth/refresh` — refresh token rotation
+- [x] `POST /v1/auth/refresh` — refresh token rotation (opaque token, SHA-256 hash stored in `refresh_tokens`; reuse detection wipes session)
 - [ ] Guest→account merge on social login (transfer in-progress matches)
 
 **Client**

@@ -74,6 +74,7 @@ Direct children:
 | `guards/optional-auth.guard.ts` | Tries JWT then guest header; never throws — for endpoints that serve both |
 | `guards/admin.guard.ts` | Prod: validates Cloudflare Access JWT. Dev fallback: checks `X-Admin-Token` header |
 | `guards/dev.guard.ts` | Returns 404 if `CF_TEAM_DOMAIN` is set or `DEV_MODE !== 'true'` |
+| `refresh-token.entity.ts` | `refresh_tokens` table — id, user_id (FK), token_hash (SHA-256), expires_at, revoked_at |
 
 ### `users/`
 

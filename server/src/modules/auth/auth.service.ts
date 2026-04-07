@@ -1,28 +1,55 @@
-import { Injectable } from '@nestjs/common';
+import { createHash, randomBytes } from 'crypto';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import * as jwt from 'jsonwebtoken';
+import { InjectRepository } from '@nestjs/typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { UsersService } from '../users/users.service';
+import { RefreshToken } from './refresh-token.entity';
+
+const REFRESH_TOKEN_TTL_DAYS = 30;
+
+function sha256(value: string): string {
+  return createHash('sha256').update(value).digest('hex');
+}
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
+    @InjectRepository(RefreshToken) private readonly refreshTokens: Repository<RefreshToken>,
   ) {}
 
-  async devLogin(accountId: string): Promise<{ accessToken: string; refreshToken: string }> {
-    const user = await this.usersService.findOrCreate('dev', accountId, accountId);
-    const payload = { sub: user.id, provider: user.provider };
-    const accessToken = this.jwtService.sign(payload);
-    const refreshToken = jwt.sign(payload, process.env.JWT_REFRESH_SECRET!, { expiresIn: '30d' });
-    return { accessToken, refreshToken };
+  async devLogin(accountId: string): Promise<{ accessToken: string; refreshToken: string; id: string; provider: string; providerId: string; displayName: string }> {
+    const user = await this.usersService.findOrCreate('dev', accountId, `dev_${accountId}`);
+    const accessToken = this.jwtService.sign({ sub: user.id, provider: user.provider });
+    const refreshToken = await this.issueRefreshToken(user.id);
+    return { accessToken, refreshToken, id: user.id, provider: user.provider, providerId: user.providerId, displayName: user.displayName };
+  }
+
+  async refresh(rawToken: string): Promise<{ accessToken: string; refreshToken: string; id: string; provider: string; providerId: string; displayName: string }> {
+    const hash = sha256(rawToken);
+    const token = await this.refreshTokens.findOne({ where: { tokenHash: hash } });
+
+    if (!token) throw new UnauthorizedException();
+    if (token.expiresAt < new Date()) throw new UnauthorizedException();
+
+    if (token.revokedAt) {
+      await this.revokeAllTokens(token.userId);
+      throw new UnauthorizedException();
+    }
+
+    await this.refreshTokens.update(token.id, { revokedAt: new Date() });
+
+    const user = await this.usersService.findById(token.userId);
+    if (!user) throw new UnauthorizedException();
+
+    const newRefreshToken = await this.issueRefreshToken(token.userId);
+    const accessToken = this.jwtService.sign({ sub: user.id, provider: user.provider });
+    return { accessToken, refreshToken: newRefreshToken, id: user.id, provider: user.provider, providerId: user.providerId, displayName: user.displayName };
   }
 
   async socialLogin(_idToken: string) {
-    throw new Error('not implemented');
-  }
-
-  async refresh(_refreshToken: string) {
     throw new Error('not implemented');
   }
 
@@ -32,5 +59,17 @@ export class AuthService {
 
   async guestMerge() {
     throw new Error('not implemented');
+  }
+
+  private async issueRefreshToken(userId: string): Promise<string> {
+    const raw = randomBytes(32).toString('hex');
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_TTL_DAYS);
+    await this.refreshTokens.save(this.refreshTokens.create({ userId, tokenHash: sha256(raw), expiresAt }));
+    return raw;
+  }
+
+  private async revokeAllTokens(userId: string): Promise<void> {
+    await this.refreshTokens.update({ userId, revokedAt: IsNull() }, { revokedAt: new Date() });
   }
 }

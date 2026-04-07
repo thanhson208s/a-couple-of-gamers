@@ -6,7 +6,7 @@ import { DevGuard } from './guards/dev.guard';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Post('dev/login')
+  @Post('dev')
   @UseGuards(DevGuard)
   devLogin(@Body() body: { accountId: string }) {
     return this.authService.devLogin(body.accountId);

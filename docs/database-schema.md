@@ -20,6 +20,17 @@ created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 UNIQUE (provider, provider_id)
 ```
 
+### `refresh_tokens`
+```sql
+id          UUID PRIMARY KEY DEFAULT gen_random_uuid()
+user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE
+token_hash  TEXT NOT NULL UNIQUE   -- SHA-256 of the raw opaque token; never store raw token
+expires_at  TIMESTAMPTZ NOT NULL
+revoked_at  TIMESTAMPTZ            -- NULL = active; set on use or reuse detection
+created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+```
+_Rotation: each use revokes the old row and inserts a new one. Reuse of a revoked token triggers full session wipe (`revoked_at` set on all rows for that user)._
+
 ### `games`
 ```sql
 id               UUID PRIMARY KEY DEFAULT gen_random_uuid()
