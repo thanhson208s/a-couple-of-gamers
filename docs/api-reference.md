@@ -37,6 +37,7 @@ Error response shape (all endpoints):
 | `POST` | `/v1/auth/refresh` | Exchange refresh token for new access token. Body: `{ refreshToken }` |
 | `POST` | `/v1/auth/ws-ticket` | Issue a short-lived one-time WS ticket. Requires valid JWT. |
 | `POST` | `/v1/auth/guest-merge` | Merge guest data into authenticated account. Requires JWT + `X-Guest-Id`. |
+| `POST` | `/v1/auth/guest` | Issue guest JWT. Requires X-Guest-Id: <uuid>. |
 
 ---
 
@@ -133,7 +134,8 @@ All dev endpoints require `DEV_MODE=true` and `CF_TEAM_DOMAIN` unset. Return `40
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/v1/auth/dev/login` | Sign in as any user by `accountId`. Creates the user if not found. Body: `{ accountId }`. Returns `{ accessToken, refreshToken }`. |
+| `GET`  | `/dev` | Dev console — interactive HTML page for testing pre-game flows. No `/v1/` prefix. |
+| `POST` | `/v1/auth/dev` | Sign in as any user by `accountId`. Creates the user if not found. Body: `{ accountId }`. Returns `{ accessToken, refreshToken }`. |
 | `GET`  | `/v1/dev/cheat/ping` | Health check confirming dev mode is active. Returns `{ ok: true, mode: 'dev' }`. |
 | `POST` | `/v1/dev/cheat/matches/:id/force-complete` | Force a match to completed status. Body: `{ winner: 0\|1\|2 }` (0=draw). |
 

@@ -35,6 +35,7 @@ Direct children:
 | `src/` | TypeScript source — see breakdown below |
 | `dist/` | Compiled JS output (gitignored; produced by `nest build`) |
 | `public/admin/` | Static HTML for the admin dashboard, embedded in the Docker image |
+| `public/dev/` | Dev console (`GET /dev`) — `index.html` (renderer) + `config.js` (scenes/endpoints), embedded in the Docker image |
 | `Dockerfile` | Multi-stage build: `builder` compiles TS, `runtime` runs `dist/` |
 | `package.json` | Dependencies and npm scripts (`start`, `start:dev`, `build`, `test`, `typeorm`) |
 | `tsconfig.json` | Base TypeScript config (strict mode, ES2021 target) |
@@ -72,8 +73,8 @@ Direct children:
 | `guards/jwt-auth.guard.ts` | Verifies `Authorization: Bearer <token>`; attaches decoded payload to `req.user` |
 | `guards/guest-auth.guard.ts` | Requires `X-Guest-Id` header; attaches UUID to `req.guestId` |
 | `guards/optional-auth.guard.ts` | Tries JWT then guest header; never throws — for endpoints that serve both |
-| `guards/admin.guard.ts` | Prod: validates Cloudflare Access JWT. Dev fallback: checks `X-Admin-Token` header |
-| `guards/dev.guard.ts` | Returns 404 if `CF_TEAM_DOMAIN` is set or `DEV_MODE !== 'true'` |
+| `guards/admin-auth.guard.ts` | Prod: validates Cloudflare Access JWT. Dev fallback: checks `X-Admin-Token` header |
+| `guards/dev-auth.guard.ts` | Returns 404 if `CF_TEAM_DOMAIN` is set or `DEV_MODE !== 'true'` |
 | `refresh-token.entity.ts` | `refresh_tokens` table — id, user_id (FK), token_hash (SHA-256), expires_at, revoked_at |
 
 ### `users/`
@@ -133,7 +134,7 @@ Direct children:
 | File | Purpose |
 |------|---------|
 | `dev.module.ts` | Dev module — imports `AuthModule` and `MatchesModule` |
-| `dev.controller.ts` | `/v1/dev/cheat/*` HTTP controller — guarded by `DevGuard` |
+| `dev.controller.ts` | `GET /dev` (console page) + `/v1/dev/cheat/*` API endpoints — all guarded by `DevAuthGuard` |
 | `force-complete.dto.ts` | Request body for `POST /v1/dev/cheat/matches/:id/force-complete` |
 
 ### `admin/`
@@ -141,7 +142,7 @@ Direct children:
 | File | Purpose |
 |------|---------|
 | `admin.module.ts` | Admin module — imports `AuthModule` and `ConfigModule`; serves static admin dashboard |
-| `admin.controller.ts` | `/v1/admin/*` HTTP controller — guarded by `AdminGuard` |
+| `admin.controller.ts` | `/v1/admin/*` HTTP controller — guarded by `AdminAuthGuard` |
 
 ---
 

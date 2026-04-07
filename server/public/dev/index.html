@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dev Console</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<h1>Dev Console</h1>
+<p class="note page-note">Local dev only — guarded by DevAuthGuard</p>
+
+<!-- identity bar — hardcoded, not config-driven -->
+<div id="identity-bar">
+  <span id="identity-label">Not logged in</span>
+  <button type="button" id="btn-logout">Logout</button>
+</div>
+
+<!-- global state — always visible -->
+<div id="state-bar">
+  <span class="state-label">STATE</span>
+  <pre id="state-display"></pre>
+</div>
+
+<!-- scenes rendered here by renderAll() -->
+<div id="scenes"></div>
+
+<script src="script.js"></script>
+<script>
+  // ── utils ─────────────────────────────────────────────────────────────────
+  function uuid4() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+      const r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+  }
+
+  function authHeaders() {
+    const s = DEV_STATE;
+    if (s.accessToken)   return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${s.accessToken}` };
+    if (s.guestId) return { 'Content-Type': 'application/json', 'X-Guest-Id': s.guestId };
+    return { 'Content-Type': 'application/json' };
+  }
+
+  // ── state ─────────────────────────────────────────────────────────────────
+  function setState(patch) {
+    Object.assign(DEV_STATE, patch);
+    if ('accessToken'  in patch) patch.accessToken  ? localStorage.setItem('devAccessToken',  patch.accessToken)  : localStorage.removeItem('devAccessToken');
+    if ('refreshToken' in patch) patch.refreshToken ? localStorage.setItem('devRefreshToken', patch.refreshToken) : localStorage.removeItem('devRefreshToken');
+    if ('guestId'      in patch) patch.guestId      ? localStorage.setItem('devGuestId',      patch.guestId)      : localStorage.removeItem('devGuestId');
+
+    updateIdentityBar();
+    updateSceneVisibility();
+    refillBoundInputs();
+    updateStateDisplay();
+  }
+
+  // ── identity bar ──────────────────────────────────────────────────────────
+  function updateIdentityBar() {
+    const { accessToken, guestId, provider, providerId, displayName } = DEV_STATE;
+    const label = document.getElementById('identity-label');
+    const btn   = document.getElementById('btn-logout');
+    if (accessToken) {
+      label.innerHTML = `<span class="badge">JWT</span> &nbsp;${displayName ?? ''}` +
+        ` &nbsp;<span class="note">${provider} / ${providerId}</span>`;
+    } else if (guestId) {
+      label.innerHTML = `<span class="badge guest">guest</span> &nbsp;<span class="note">${guestId}</span>`;
+    } else {
+      label.textContent = 'Not logged in';
+    }
+  }
+
+  // ── state display ─────────────────────────────────────────────────────────
+  function updateStateDisplay() {
+    const omit = (v) => (typeof v === 'string' && v.length > 20) ? `${v.slice(0, 10)}…${v.slice(-6)}` : v;
+    const display = Object.fromEntries(Object.entries(DEV_STATE).map(([k, v]) => [k, omit(v)]));
+    document.getElementById('state-display').textContent = JSON.stringify(display, null, 2);
+  }
+
+  document.getElementById('btn-logout').addEventListener('click', () => {
+    setState({ accessToken: null, refreshToken: null, id: null, guestId: null, provider: null, providerId: null, displayName: null });
+  });
+
+  // ── render ────────────────────────────────────────────────────────────────
+  function renderInput(input) {
+    const { key, label, type = 'text', placeholder = '', options = [] } = input;
+    if (type === 'select') {
+      const opts = options.map(o => {
+        const val = typeof o === 'object' ? o.value : o;
+        const lbl = typeof o === 'object' ? o.label : o;
+        return `<option value="${val}">${lbl}</option>`;
+      }).join('');
+      return `
+        <div class="field">
+          <label>${label}</label>
+          <select data-input-key="${key}">${opts}</select>
+        </div>`;
+    }
+    if (type === 'textarea') {
+      return `
+        <div class="field" style="width:100%">
+          <label>${label}</label>
+          <textarea data-input-key="${key}" placeholder="${placeholder}"></textarea>
+        </div>`;
+    }
+    return `
+      <div class="field">
+        <label>${label}</label>
+        <input type="text" data-input-key="${key}" placeholder="${placeholder}">
+      </div>`;
+  }
+
+  function renderEndpoint(endpoint, sceneId) {
+    const isDelete = endpoint.method === 'DELETE';
+    const isLocal  = endpoint.method === 'LOCAL';
+    const btnClass = isDelete ? 'danger' : isLocal ? '' : 'primary';
+    const btnLabel = typeof endpoint.path === 'string'
+      ? `${endpoint.method} ${endpoint.path}`
+      : endpoint.label;
+
+    const inputs   = (endpoint.inputs || []).map(renderInput).join('');
+    const inputRow = inputs ? `<div class="row">${inputs}</div>` : '';
+
+    return `
+      <div class="endpoint-block" id="ep-${endpoint.id}">
+        <h2>${endpoint.label}</h2>
+        ${inputRow}
+        <div class="row">
+          <button type="button" class="${btnClass}" data-run="${endpoint.id}" data-scene="${sceneId}">${btnLabel}</button>
+        </div>
+        <div id="resp-${endpoint.id}" class="response empty">—</div>
+      </div>`;
+  }
+
+  function renderScene(scene) {
+    const body = scene.endpoints.length
+      ? scene.endpoints.map(ep => renderEndpoint(ep, scene.id)).join('')
+      : scene.note
+        ? `<p class="note">${scene.note}</p>`
+        : '<p class="note">No endpoints defined yet.</p>';
+
+    const visible = scene.showWhen(DEV_STATE);
+    return `
+      <div class="section" id="scene-${scene.id}" style="${visible ? '' : 'display:none'}">
+        <div class="section-header" data-target="scene-body-${scene.id}">
+          <span>${scene.label}</span>
+          <span class="arrow">▾</span>
+        </div>
+        <div class="section-body" id="scene-body-${scene.id}">${body}</div>
+      </div>`;
+  }
+
+  function renderAll() {
+    document.getElementById('scenes').innerHTML =
+      DEV_CONFIG.scenes.map(renderScene).join('');
+  }
+
+  // ── scene visibility ──────────────────────────────────────────────────────
+  function updateSceneVisibility() {
+    DEV_CONFIG.scenes.forEach(scene => {
+      const el = document.getElementById(`scene-${scene.id}`);
+      if (el) el.style.display = scene.showWhen(DEV_STATE) ? '' : 'none';
+    });
+  }
+
+  // ── bound input refill ────────────────────────────────────────────────────
+  function refillBoundInputs() {
+    DEV_CONFIG.scenes.forEach(scene => {
+      (scene.endpoints || []).forEach(ep => {
+        (ep.inputs || []).forEach(input => {
+          if (!input.from) return;
+          const el = document.querySelector(`#ep-${ep.id} [data-input-key="${input.key}"]`);
+          if (el && DEV_STATE[input.from] != null) el.value = DEV_STATE[input.from];
+        });
+      });
+    });
+  }
+
+  // ── run endpoint ──────────────────────────────────────────────────────────
+  async function runEndpoint(endpointId, sceneId) {
+    const scene    = DEV_CONFIG.scenes.find(s => s.id === sceneId);
+    const endpoint = scene && scene.endpoints.find(e => e.id === endpointId);
+    if (!endpoint) return;
+
+    const respEl = document.getElementById(`resp-${endpoint.id}`);
+    respEl.className   = 'response';
+    respEl.textContent = '…';
+
+    const inputs = {};
+    (endpoint.inputs || []).forEach(input => {
+      const el = document.querySelector(`#ep-${endpoint.id} [data-input-key="${input.key}"]`);
+      inputs[input.key] = el ? el.value : '';
+    });
+
+    // LOCAL method — no HTTP call
+    if (endpoint.method === 'LOCAL') {
+      try {
+        const result = endpoint.action(inputs, DEV_STATE, setState);
+        respEl.textContent = JSON.stringify(result, null, 2);
+      } catch (e) {
+        respEl.className   = 'response error';
+        respEl.textContent = String(e);
+      }
+      return;
+    }
+
+    // HTTP call
+    const path    = typeof endpoint.path === 'function' ? endpoint.path(inputs, DEV_STATE) : endpoint.path;
+    const headers = endpoint.noAuth ? { 'Content-Type': 'application/json' } : authHeaders();
+
+    try {
+      let body;
+      if (endpoint.body) body = endpoint.body(inputs, DEV_STATE);
+
+      const opts = { method: endpoint.method, headers };
+      if (body !== undefined) opts.body = JSON.stringify(body);
+
+      const res  = await fetch(path, opts);
+      const text = await res.text();
+      let parsed;
+      try { parsed = JSON.parse(text); } catch { parsed = text; }
+
+      respEl.textContent = JSON.stringify(parsed, null, 2);
+      if (!res.ok) { respEl.classList.add('error'); return; }
+
+      if (endpoint.onSuccess) endpoint.onSuccess(parsed, DEV_STATE, setState);
+    } catch (e) {
+      respEl.className   = 'response error';
+      respEl.textContent = String(e);
+    }
+  }
+
+  // ── event delegation ──────────────────────────────────────────────────────
+  document.getElementById('scenes').addEventListener('click', e => {
+    const runBtn = e.target.closest('[data-run]');
+    if (runBtn) {
+      runEndpoint(runBtn.dataset.run, runBtn.dataset.scene);
+      return;
+    }
+    const header = e.target.closest('.section-header');
+    if (header) {
+      const bodyId    = header.dataset.target;
+      const body      = document.getElementById(bodyId);
+      const collapsed = header.classList.toggle('collapsed');
+      body.classList.toggle('hidden', collapsed);
+    }
+  });
+
+  // ── init ──────────────────────────────────────────────────────────────────
+  DEV_STATE.accessToken  = null;
+  DEV_STATE.refreshToken = localStorage.getItem('devRefreshToken') || null;
+  DEV_STATE.guestId      = localStorage.getItem('devGuestId')      || null;
+  localStorage.removeItem('devAccessToken');
+
+  renderAll();
+  updateIdentityBar();
+  updateStateDisplay();
+  refillBoundInputs();
+</script>
+</body>
+</html>
