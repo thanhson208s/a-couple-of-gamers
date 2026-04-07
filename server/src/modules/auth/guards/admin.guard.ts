@@ -48,7 +48,7 @@ export class AdminGuard implements CanActivate {
     const { kid } = JSON.parse(Buffer.from(headerB64, 'base64url').toString());
     const jwk = keys.find((k) => (k as { kid?: string }).kid === kid);
     if (!jwk) throw new Error('No matching JWKS key');
-    const key = crypto.createPublicKey({ key: jwk, format: 'jwk' });
+    const key = crypto.createPublicKey({ key: jwk as crypto.JsonWebKeyInput['key'], format: 'jwk' });
     return key.export({ type: 'spki', format: 'pem' }) as string;
   }
 
