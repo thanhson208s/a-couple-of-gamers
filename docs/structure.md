@@ -111,7 +111,7 @@ Direct children:
 | File | Purpose |
 |------|---------|
 | `ws.module.ts` | WS module — imports `MatchesModule` |
-| `ws.gateway.ts` | WebSocket gateway — real-time move dispatch and player presence |
+| `ws.gateway.ts` | WebSocket gateway at `/v1/ws` — user-scoped persistent connection, move submission, real-time broadcast, Redis presence |
 
 ### `notifications/`
 

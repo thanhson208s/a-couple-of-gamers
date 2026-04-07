@@ -73,11 +73,7 @@ Error response shape (all endpoints):
 
 ### Moves
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/v1/matches/:id/moves` | Submit a move. Body: game-specific `move` object. Returns updated player view. Used by both human (async path) and AI clients. |
-
-_Real-time moves are submitted via WebSocket — see below._
+Human match moves are submitted via WebSocket only — see [WebSocket Events](#websocket-events) below.
 
 ---
 
@@ -143,24 +139,30 @@ All dev endpoints require `DEV_MODE=true` and `CF_TEAM_DOMAIN` unset. Return `40
 
 ## WebSocket Events
 
-Connection: `wss://<host>/v1/matches/:matchId/ws?ticket=<ws-ticket>`  
+Connection: `wss://<host>/v1/ws?ticket=<ws-ticket>`  
 Hosts: `acog.gootube.online` (production), `acoq.gootube.online` (staging)  
 Authentication: use a short-lived WS ticket obtained from `POST /v1/auth/ws-ticket`. See [security.md#websocket-authentication](security.md#websocket-authentication).
+
+The connection is **user-scoped and persistent** — opened once after login. All match events for all of the user's active matches arrive over this single connection. Each event includes `matchId` so the client can route it to the correct scene.
 
 ### Client → Server
 
 | Event | Payload | Description |
 |-------|---------|-------------|
-| `move` | `{ move: <game-specific> }` | Submit a move during a real-time session |
+| `open_match` | `{ matchId }` | Client entered a match board scene. Server registers match-viewing presence and notifies opponent. |
+| `close_match` | `{ matchId }` | Client left a match board scene. Server removes viewing presence and notifies opponent. |
+| `move` | `{ matchId, move: <game-specific> }` | Submit a move. Server validates, writes state, then broadcasts or sends FCM. |
 | `ping` | — | Keepalive |
 
 ### Server → Client
 
+All events include `matchId`.
+
 | Event | Payload | Description |
 |-------|---------|-------------|
-| `state` | `{ view: <player-view>, matchStatus }` | Sent after every valid move to all connected players (each receives their own view) |
-| `move_error` | `{ code, message }` | Sent to submitting player when move is invalid |
-| `opponent_connected` | `{ playerId }` | Opponent joined the WebSocket session |
-| `opponent_disconnected` | `{ playerId }` | Opponent's WebSocket closed |
-| `match_over` | `{ winner: playerId | null, finalView }` | Game ended (win/draw/forfeit) |
+| `match:state` | `{ matchId, view: <player-view>, matchStatus }` | Sent after every valid move; each player receives their own view |
+| `match:move_error` | `{ matchId, code, message }` | Sent to the submitting player when a move is invalid |
+| `match:over` | `{ matchId, winner: playerId \| null, finalView }` | Game ended (win/draw/forfeit) |
+| `opponent_connected` | `{ matchId, playerId }` | Opponent opened this match's board scene |
+| `opponent_disconnected` | `{ matchId, playerId }` | Opponent closed this match's board scene or disconnected |
 | `pong` | — | Keepalive response |

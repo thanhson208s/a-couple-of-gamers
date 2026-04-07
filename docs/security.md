@@ -53,10 +53,12 @@ Refresh token rotation: each use issues a new refresh token and invalidates the 
 1. Client calls POST /v1/auth/ws-ticket (with valid JWT in header)
 2. Server generates a one-time random ticket, stores it in Redis with a 30s TTL
 3. Server returns ticket to client
-4. Client opens WS connection using ticket as query param (?ticket=...)
+4. Client opens WS connection: wss://<host>/v1/ws?ticket=<ticket>
 5. Server validates ticket on connect, immediately deletes it from Redis
 6. JWT never appears in any log
 ```
+
+The WS connection is **user-scoped and persistent** — opened once after login, used for all match events and lobby notifications. The ticket authenticates the user (not a specific match).
 
 Tickets are single-use and expire in 30 seconds regardless of use.
 
@@ -70,7 +72,7 @@ Applied at the API server level (NestJS guard or middleware).
 |-------------------|-------|--------|
 | `POST /v1/auth/social` (login) | 10 requests | per IP per minute |
 | `POST /v1/auth/refresh` | 20 requests | per user per minute |
-| `POST /v1/matches/:id/moves` | 30 requests | per user per minute |
+| WS `move` event | 30 events | per user per minute |
 | `POST /v1/matches` (create) | 20 requests | per user per hour |
 | All other endpoints | 120 requests | per user per minute |
 

@@ -75,7 +75,7 @@ External (not in request path):
 | **NestJS Worker Service** | prod-app VPS | Consumes BullMQ jobs from Redis. No HTTP listener. Runs inactive match cleanup (repeatable) and turn reminder dispatch (delayed). |
 | **Caddy** | prod-app VPS | TLS termination (Cloudflare Origin Certificate), WebSocket upgrade headers. Reverse proxy to the API server. |
 | **PostgreSQL** | prod-data VPS | Primary relational database. Single source of truth for all match state, user data, and history. Game state stored as JSONB. |
-| **Redis** | prod-data VPS | Three roles: (1) WebSocket presence tracking per match, (2) BullMQ job queue shared between API server and worker, (3) rate limit counters. |
+| **Redis** | prod-data VPS | Three roles: (1) WebSocket presence tracking — `user:{userId}:ws` (connected) and `match:{matchId}:viewing:{userId}` (match scene open), (2) BullMQ job queue shared between API server and worker, (3) rate limit counters. |
 
 ### External Services
 
@@ -109,8 +109,8 @@ Client responsibilities:
 | `AuthModule` | Social login (Google/Apple/Facebook), guest UUID validation, JWT issuance, WS ticket issuance |
 | `UsersModule` | User profiles, `is_ad_free` flag, guest→account merge, device token management |
 | `GamesModule` | Game catalog, game plugin registry |
-| `MatchesModule` | Match lifecycle: create, invite, join, complete; async move submission |
-| `WsGateway` | WebSocket connections, real-time move dispatch, player presence in Redis |
+| `MatchesModule` | Match lifecycle: create, invite, join, complete |
+| `WsGateway` | Persistent user-scoped WS connection (`/v1/ws`); move submission, real-time state broadcast, player presence in Redis |
 | `NotificationsModule` | FCM push dispatch on async turns; enqueues delayed reminder jobs to BullMQ |
 | `AdminModule` | Admin config endpoints (`/v1/admin/*`); serves static admin dashboard from `server/public/admin/`; protected by `X-Admin-Token` header |
 | `ConfigModule` | Serves `GET /v1/config`; reads from `config` table |
@@ -124,7 +124,7 @@ Client responsibilities:
 
 **NestJS over Colyseus** — Colyseus is optimized for persistent real-time rooms; async-first play fights against its room lifecycle. At 100 CCU its performance advantages are irrelevant. NestJS gives full control over state management.
 
-**REST for async moves, WebSocket only for real-time sessions** — Async play (hours between turns) does not need a persistent connection. REST + FCM push is simpler and more reliable for this pattern. WebSocket is layered on top when both players happen to be online.
+**Global persistent WebSocket, WS-only move submission** — The client opens a single user-scoped WS connection (`/v1/ws`) immediately after login and keeps it alive. All human match moves are submitted over this connection. If the opponent is also connected (Redis presence), the server broadcasts the new state over WS; if not, it falls back to FCM push. This eliminates the REST move endpoint for human matches and makes the async/real-time distinction transparent to the client.
 
 **Client-side AI** — AI logic runs locally in the Cocos Creator client as a per-game TypeScript component and submits moves through the same API as human players. The server validates all moves regardless of source. This eliminates server-side AI infrastructure. Consequence: AI games require a running client.
 
