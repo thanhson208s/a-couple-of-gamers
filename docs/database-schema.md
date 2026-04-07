@@ -10,9 +10,9 @@ All Postgres table definitions (users, games, matches, match_players, moves, riv
 
 ### `users`
 ```sql
-id              UUID PRIMARY KEY DEFAULT gen_random_uuid()
-provider        TEXT NOT NULL          -- 'google' | 'apple' | 'facebook' | 'guest' | 'dev'
-provider_id     TEXT NOT NULL          -- ID from the auth provider
+id              CHAR(10) PRIMARY KEY     -- server-generated; 10 uppercase alphanumeric chars (A-Z2-9, no ambiguous chars); used as PK, JWT sub, and client-facing identifier
+provider        TEXT NOT NULL            -- 'google' | 'apple' | 'facebook' | 'guest' | 'dev'
+provider_id     TEXT NOT NULL            -- ID from the auth provider
 display_name    TEXT NOT NULL
 avatar_url      TEXT
 is_ad_free      BOOLEAN NOT NULL DEFAULT false

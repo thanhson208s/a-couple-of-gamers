@@ -84,7 +84,7 @@ Direct children:
 | `users.module.ts` | Users module — registers `User` entity repository, exports `UsersService` |
 | `users.controller.ts` | `/v1/users/me/*` HTTP controller |
 | `users.service.ts` | User business logic — profiles, device tokens, favorites, rivals, find-or-create |
-| `user.entity.ts` | `users` table — `id` (uuid), `provider`, `provider_id`, `display_name`, `created_at`; unique on `(provider, provider_id)` |
+| `user.entity.ts` | `users` table — `id` (char 10, server-generated PK), `provider`, `provider_id`, `display_name`, `created_at`; unique on `(provider, provider_id)` |
 
 ### `games/`
 

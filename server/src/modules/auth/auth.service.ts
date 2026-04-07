@@ -33,7 +33,7 @@ export class AuthService {
       throw new BadRequestException('Invalid guest UUID format');
     }
 
-    const user = await this.usersService.findOrCreate('guest', guestId, `guest_${guestId}`)
+    const user = await this.usersService.findOrCreate('guest', guestId, `guest_${guestId}`);
     const accessToken = this.jwtService.sign({ sub: user.id });
     const refreshToken = await this.issueRefreshToken(user.id);
     return { accessToken, refreshToken, id: user.id, provider: user.provider, providerId: user.providerId, displayName: user.displayName };

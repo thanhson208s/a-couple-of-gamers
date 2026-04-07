@@ -22,22 +22,24 @@ Postgres is always written first. Redis is a presence cache, not the source of t
 
 ```
 User logs in → client opens wss://<host>/v1/ws?ticket=<ticket>
-  Server validates ticket, registers user:{userId}:ws in Redis
+  Server validates ticket, sets ws:{userId} = "lobby" in Redis
 
 User enters match board scene → client sends open_match { matchId }
-  Server sets match:{matchId}:viewing:{userId} in Redis
-  Server checks: opponent also viewing this match?
+  If ws:{userId} was a matchId (navigated from another match):
+    → send opponent_disconnected to old match's opponent
+  Server sets ws:{userId} = matchId
+  Server checks: ws:{opponentId} === matchId?
     YES → sends opponent_connected { matchId } to opponent
+          sends opponent_connected { matchId } to self (opponent was already there)
     NO  → nothing
 
 User leaves match board scene → client sends close_match { matchId }
-  Server removes match:{matchId}:viewing:{userId} from Redis
+  Server sets ws:{userId} = "lobby"
   Server sends opponent_disconnected { matchId } to opponent (if connected)
 
 User disconnects WS (app background / network loss)
-  Server removes user:{userId}:ws from Redis
-  Server removes all match:{matchId}:viewing:{userId} keys for this user
-  Server sends opponent_disconnected to all affected opponents
+  Server deletes ws:{userId}
+  Server sends opponent_disconnected { matchId } to opponent (if ws:{userId} was a matchId)
 ```
 
 ---
@@ -48,7 +50,7 @@ User disconnects WS (app background / network loss)
 Client sends WS event: move { matchId, move: <game-specific> }
   Server validates via game plugin (applyMove)
   Writes updated state to Postgres
-  Checks Redis: opponent user:{opponentId}:ws present?
+  Checks Redis: ws:{opponentId} present (any value)?
     YES → send match:state { matchId, view } to opponent over WS
           send match:state { matchId, view } to mover over WS
     NO  → enqueue FCM push to opponent
@@ -61,12 +63,19 @@ Each client receives only their own player view. See [game-system.md#state-visib
 
 ## Presence Model (Redis)
 
-| Key | Meaning | Set when | Cleared when |
-|-----|---------|----------|--------------|
-| `user:{userId}:ws` | User has active WS connection | `handleConnection` | `handleDisconnect` |
-| `match:{matchId}:viewing:{userId}` | User has this match board open | `open_match` event | `close_match` event or `handleDisconnect` |
+Single key per user: `ws:{userId}`
 
-`opponent_connected` / `opponent_disconnected` reflect match-viewing presence, not just WS connection. A user can be connected globally (lobby) without being in any match scene.
+| Value | Meaning |
+|-------|---------|
+| absent / `null` | User offline (no WS connection) |
+| `"lobby"` | Connected, in lobby (no match scene open) |
+| `<matchId>` | Connected, viewing that match's board |
+
+Set on `handleConnection` → `"lobby"`. Updated on `open_match` → matchId. Reset to `"lobby"` on `close_match`. Deleted on `handleDisconnect`.
+
+On `open_match`: if current value is already a matchId (user navigated from another match), send `opponent_disconnected` to the old match's opponent before switching.
+
+`opponent_connected` / `opponent_disconnected` reflect match-viewing presence (`ws:{userId} === matchId`), not just WS connection.
 
 ---
 

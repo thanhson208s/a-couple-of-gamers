@@ -32,8 +32,8 @@ Covers match creation, invitation, joining, and abandonment — the shell of a m
 
 ## Invite Flow (vs Human)
 
-1. Creator calls `POST /v1/matches` → server creates match in `pending` state, generates invite code
-2. Creator shares invite code or deep link with opponent
+1. Creator calls `POST /v1/matches` → server creates match in `pending` state, generates invite code; response includes `inviteCode` + `deepLink` directly
+2. Creator shares the deep link with opponent (no extra request needed; `GET /v1/matches/:id/invite` exists only for resharing later)
 3. Opponent calls `POST /v1/matches/:id/join` with code → match transitions to `active`; invite code deleted
 4. Invite code is single-use; anyone with it can join (no identity check)
 
@@ -53,7 +53,7 @@ Covers match creation, invitation, joining, and abandonment — the shell of a m
 - [ ] `POST /v1/matches` — create match
 - [ ] `POST /v1/matches/:id/join` — join via invite code
 - [ ] `DELETE /v1/matches/:id` — abandon match (no penalty)
-- [ ] Invite code generation + deep link
+- [ ] Invite code generation + deep link (returned in `POST /v1/matches` response)
 
 **Client**
 - [ ] Create match flow (game + opponent type selection)

@@ -22,13 +22,12 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   handleConnection(_client: WebSocket) {
     // TODO: validate ws-ticket from query param
     // TODO: extract userId from ticket, attach to client
-    // TODO: set user:{userId}:ws in Redis
+    // TODO: set ws:{userId} = "lobby" in Redis
   }
 
   handleDisconnect(_client: WebSocket) {
-    // TODO: remove user:{userId}:ws from Redis
-    // TODO: remove all match:{matchId}:viewing:{userId} keys for this user
-    // TODO: send opponent_disconnected { matchId } to affected opponents
+    // TODO: read ws:{userId} — if value is a matchId, send opponent_disconnected to that match's opponent
+    // TODO: delete ws:{userId} from Redis
   }
 
   @SubscribeMessage('open_match')
@@ -36,9 +35,13 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() _client: WebSocket,
     @MessageBody() _data: { matchId: string },
   ) {
-    // TODO: set match:{matchId}:viewing:{userId} in Redis
-    // TODO: if opponent also has match:{matchId}:viewing:{opponentId}
-    //         → send opponent_connected { matchId, playerId } to opponent
+    // TODO: read current ws:{userId}
+    //   if current value is a matchId (navigated from another match):
+    //     → send opponent_disconnected { matchId: oldMatchId } to old match's opponent
+    // TODO: set ws:{userId} = matchId in Redis
+    // TODO: check ws:{opponentId} === matchId
+    //   YES → send opponent_connected { matchId, playerId: opponentId } to self
+    //         send opponent_connected { matchId, playerId: userId } to opponent
     throw new Error('not implemented');
   }
 
@@ -47,8 +50,8 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() _client: WebSocket,
     @MessageBody() _data: { matchId: string },
   ) {
-    // TODO: remove match:{matchId}:viewing:{userId} from Redis
-    // TODO: if opponent is connected → send opponent_disconnected { matchId, playerId } to opponent
+    // TODO: set ws:{userId} = "lobby" in Redis
+    // TODO: if opponent ws:{opponentId} is present → send opponent_disconnected { matchId } to opponent
     throw new Error('not implemented');
   }
 
@@ -59,7 +62,7 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     // TODO: validate userId is a player in matchId
     // TODO: call MatchesService.submitMove (validates via game plugin, writes Postgres)
-    // TODO: check user:{opponentId}:ws in Redis
+    // TODO: check ws:{opponentId} present (any value) in Redis
     //   YES → send match:state { matchId, view } to both players over WS
     //   NO  → send match:state { matchId, view } to mover; enqueue FCM to opponent
     throw new Error('not implemented');

@@ -10,7 +10,7 @@ export class RefreshToken {
   @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @Column({ type: 'uuid', name: 'user_id' })
+  @Column({ type: 'char', length: 10, name: 'user_id' })
   userId: string;
 
   @Column({ type: 'text', name: 'token_hash', unique: true })

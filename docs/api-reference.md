@@ -63,7 +63,7 @@ Error response shape (all endpoints):
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/v1/matches` | Create a new match. Body: `{ gameSlug, opponentType: 'human'|'ai' }` |
+| `POST` | `/v1/matches` | Create a new match. Body: `{ gameSlug, opponentType: 'human'|'ai' }`. Response includes `inviteCode` and `deepLink` for human matches — no separate invite request needed. |
 | `GET` | `/v1/matches` | List caller's active matches (pending + in-progress) |
 | `GET` | `/v1/matches/:id` | Get match state (returns caller's player view) |
 | `POST` | `/v1/matches/:id/join` | Accept an invite and join a pending match. Body: `{ inviteCode }` |
@@ -81,7 +81,7 @@ Human match moves are submitted via WebSocket only — see [WebSocket Events](#w
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/v1/matches/:id/invite` | Get or generate invite code + deep link for a pending match |
+| `GET` | `/v1/matches/:id/invite` | Re-fetch invite code + deep link for a pending match (reshare use case only — initial link is returned by `POST /v1/matches`) |
 
 ---
 
@@ -89,11 +89,11 @@ Human match moves are submitted via WebSocket only — see [WebSocket Events](#w
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/v1/users/me` | Get current user profile |
+| `GET` | `/v1/users/me` | Get current user profile. Response includes `id` — a 10-char server-generated alphanumeric identifier used in friend requests and player views. |
 | `PUT` | `/v1/users/me/device-token` | Register or update FCM device token. Body: `{ token, platform: 'ios'|'android' }` |
 | `DELETE` | `/v1/users/me` | Delete account and all associated data. See [requirements.md#account-deletion](requirements.md#account-deletion). |
 | `GET` | `/v1/users/me/rivals` | List all opponents with at least one completed match |
-| `GET` | `/v1/users/me/rivals/:opponentId` | Get rival stats vs a specific opponent, broken down by game |
+| `GET` | `/v1/users/me/rivals/:opponentId` | Get rival stats vs a specific opponent (`:opponentId` is the opponent's `tag`), broken down by game |
 
 ---
 
@@ -143,7 +143,7 @@ Connection: `wss://<host>/v1/ws?ticket=<ws-ticket>`
 Hosts: `acog.gootube.online` (production), `acoq.gootube.online` (staging)  
 Authentication: use a short-lived WS ticket obtained from `POST /v1/auth/ws-ticket`. See [security.md#websocket-authentication](security.md#websocket-authentication).
 
-The connection is **user-scoped and persistent** — opened once after login. All match events for all of the user's active matches arrive over this single connection. Each event includes `matchId` so the client can route it to the correct scene.
+The connection is **user-scoped and persistent** — opened once after login. All match events for all of the user's active matches arrive over this single connection. Each event includes `matchId` so the client can route it to the correct scene. Player identifiers in all events are `tag` values, not internal UUIDs.
 
 ### Client → Server
 
