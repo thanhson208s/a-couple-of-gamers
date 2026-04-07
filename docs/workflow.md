@@ -176,6 +176,7 @@ All secrets and config live in `.env.<environment>` files (never committed). Cop
 | `JWT_REFRESH_SECRET` | Signing key for refresh tokens (separate from access) |
 | `FCM_SERVICE_ACCOUNT` | Firebase service account JSON (stringified) |
 | `SENTRY_DSN` | Sentry project DSN for server |
+| `DEV_MODE` | Set to `true` to enable dev-only endpoints (password-less login, cheats). **Never set in staging or production.** |
 
 Full list in `.env.example`.
 

@@ -114,6 +114,7 @@ Client responsibilities:
 | `NotificationsModule` | FCM push dispatch on async turns; enqueues delayed reminder jobs to BullMQ |
 | `AdminModule` | Admin config endpoints (`/v1/admin/*`); serves static admin dashboard from `server/public/admin/`; protected by `X-Admin-Token` header |
 | `ConfigModule` | Serves `GET /v1/config`; reads from `config` table |
+| `DevModule` | Dev-only password-less login and cheat endpoints; `DevGuard` makes all routes return 404 on staging/prod |
 
 ---
 

@@ -3,9 +3,11 @@ import { JwtModule } from '@nestjs/jwt';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AdminGuard } from './guards/admin.guard';
+import { DevGuard } from './guards/dev.guard';
 import { GuestAuthGuard } from './guards/guest-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { OptionalAuthGuard } from './guards/optional-auth.guard';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
@@ -15,9 +17,10 @@ import { OptionalAuthGuard } from './guards/optional-auth.guard';
         signOptions: { expiresIn: '15m' },
       }),
     }),
+    UsersModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, AdminGuard, GuestAuthGuard, JwtAuthGuard, OptionalAuthGuard],
-  exports: [AuthService, JwtModule, AdminGuard, GuestAuthGuard, JwtAuthGuard, OptionalAuthGuard],
+  providers: [AuthService, AdminGuard, DevGuard, GuestAuthGuard, JwtAuthGuard, OptionalAuthGuard],
+  exports: [AuthService, JwtModule, AdminGuard, DevGuard, GuestAuthGuard, JwtAuthGuard, OptionalAuthGuard],
 })
 export class AuthModule {}

@@ -1,5 +1,6 @@
 ## 0. Mandatory Rules
 
+- **Docs First**: Always start from docs when planning a change.
 - **Simplicity First**: Keep changes as simple as possible. Minimal code impact.
 - **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
 - **Minimal Impact**: Only touch what's necessary. Avoid introducing bugs.

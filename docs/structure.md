@@ -1,6 +1,6 @@
 # Repo Structure
 
-Living map of the codebase. Update when files or directories are added or removed.
+Living map of the codebase. Update when files are added, removed, or renamed.
 
 ---
 
@@ -49,8 +49,8 @@ Direct children:
 
 | Path | Purpose |
 |------|---------|
-| `app.ts` | API server bootstrap — creates NestJS app, registers `ValidationPipe` globally, sets `/v1` global prefix, starts listening |
-| `app.module.ts` | Root module — imports all feature modules and wires global providers |
+| `app.ts` | API server bootstrap |
+| `app.module.ts` | Root module — imports all feature modules |
 | `app.health.ts` | `GET /health` controller — returns `{ status, db, cache }` |
 | `app.data.ts` | TypeORM `DataSource` config — used by both the app and the TypeORM CLI for migrations |
 | `worker.ts` | BullMQ worker bootstrap — starts a NestJS app with `WorkerModule` only, no HTTP listener |
@@ -66,40 +66,41 @@ Direct children:
 
 | File | Purpose |
 |------|---------|
-| `auth.module.ts` | Registers `JwtModule` (access token secret + 15 min TTL); provides and exports all guards and `AuthService` |
-| `auth.controller.ts` | `POST /v1/auth/social`, `/refresh`, `/ws-ticket`, `/guest-merge` |
-| `auth.service.ts` | Stub — social login, token refresh, WS ticket issuance, guest merge |
+| `auth.module.ts` | Auth module — JWT setup, all guards, `AuthService` |
+| `auth.controller.ts` | `/v1/auth/*` HTTP controller |
+| `auth.service.ts` | Auth business logic — social login, JWT issuance, WS tickets, dev login |
 | `guards/jwt-auth.guard.ts` | Verifies `Authorization: Bearer <token>`; attaches decoded payload to `req.user` |
 | `guards/guest-auth.guard.ts` | Requires `X-Guest-Id` header; attaches UUID to `req.guestId` |
 | `guards/optional-auth.guard.ts` | Tries JWT then guest header; never throws — for endpoints that serve both |
-| `guards/admin.guard.ts` | Checks `X-Admin-Token` header against `ADMIN_TOKEN` env var |
+| `guards/admin.guard.ts` | Prod: validates Cloudflare Access JWT. Dev fallback: checks `X-Admin-Token` header |
+| `guards/dev.guard.ts` | Returns 404 if `CF_TEAM_DOMAIN` is set or `DEV_MODE !== 'true'` |
 
 ### `users/`
 
 | File | Purpose |
 |------|---------|
-| `users.module.ts` | Exports `UsersService` |
-| `users.controller.ts` | `GET /v1/users/me`, `PUT /v1/users/me/device-token`, `DELETE /v1/users/me`, rivals endpoints |
-| `users.service.ts` | Stub — profile fetch, device token upsert, account deletion, rival stats |
+| `users.module.ts` | Users module — registers `User` entity repository, exports `UsersService` |
+| `users.controller.ts` | `/v1/users/me/*` HTTP controller |
+| `users.service.ts` | User business logic — profiles, device tokens, favorites, rivals, find-or-create |
 | `user.entity.ts` | `users` table — `id` (uuid), `provider`, `provider_id`, `display_name`, `created_at`; unique on `(provider, provider_id)` |
 
 ### `games/`
 
 | File | Purpose |
 |------|---------|
-| `games.module.ts` | Provides `PluginRegistry` and `GamesService` |
-| `games.controller.ts` | `GET /v1/games`, `GET /v1/games/:slug` |
-| `games.service.ts` | Stub — catalog list, single game fetch |
-| `plugin.registry.ts` | Injectable singleton — maps game slug → `GamePlugin` instance; `tictactoe` registered |
+| `games.module.ts` | Games module — provides `PluginRegistry` and `GamesService` |
+| `games.controller.ts` | `/v1/games/*` HTTP controller |
+| `games.service.ts` | Game catalog business logic |
+| `plugin.registry.ts` | Injectable singleton — maps game slug → `GamePlugin` instance |
 | `game.entity.ts` | `games` table — `id` (uuid), `slug` (unique), `name`, `is_active`, `is_preinstalled`, `bundle_url` |
 
 ### `matches/`
 
 | File | Purpose |
 |------|---------|
-| `matches.module.ts` | Imports `GamesModule` (needs `PluginRegistry` for move validation) |
-| `matches.controller.ts` | `POST /v1/matches`, `GET /v1/matches`, `GET /v1/matches/:id`, `POST /:id/join`, `DELETE /:id`, `POST /:id/moves`, `POST /:id/complete`, `GET /:id/invite` |
-| `matches.service.ts` | Stub — create, list, get, join, abandon, submit move, complete AI match |
+| `matches.module.ts` | Matches module — imports `GamesModule` for move validation |
+| `matches.controller.ts` | `/v1/matches/*` HTTP controller |
+| `matches.service.ts` | Match lifecycle business logic — create, join, moves, AI completion |
 | `match.entity.ts` | `matches` table — id, game_id (FK), status, state (jsonb), player1/2 id+guest_uuid, current_turn, winner, invite_code, timestamps |
 | `move.entity.ts` | `moves` table — id, match_id (FK), player_id, guest_uuid, move_data (jsonb), created_at |
 
@@ -107,31 +108,39 @@ Direct children:
 
 | File | Purpose |
 |------|---------|
-| `ws.module.ts` | Imports `MatchesModule` |
-| `ws.gateway.ts` | WebSocket gateway — handles `connect`/`disconnect`, `move` and `ping` messages; stubs for real-time broadcast |
+| `ws.module.ts` | WS module — imports `MatchesModule` |
+| `ws.gateway.ts` | WebSocket gateway — real-time move dispatch and player presence |
 
 ### `notifications/`
 
 | File | Purpose |
 |------|---------|
-| `notifications.module.ts` | Service-only module (no HTTP controller) |
-| `notifications.service.ts` | Stub — FCM dispatch, BullMQ job enqueue for reminders |
+| `notifications.module.ts` | Notifications module — service-only (no HTTP controller) |
+| `notifications.service.ts` | FCM push dispatch and BullMQ reminder job management |
 
 ### `config/`
 
 | File | Purpose |
 |------|---------|
-| `config.module.ts` | Exports `ConfigService` (renamed from `config`) |
-| `config.controller.ts` | `GET /v1/config` — no auth required |
-| `config.service.ts` | Stub — reads `config` table row |
+| `config.module.ts` | Config module — exports `ConfigService` |
+| `config.controller.ts` | `/v1/config` HTTP controller |
+| `config.service.ts` | Dynamic app config business logic |
 | `config.entity.ts` | `config` table — id (serial), config (jsonb), updated_at, updated_by |
+
+### `dev/`
+
+| File | Purpose |
+|------|---------|
+| `dev.module.ts` | Dev module — imports `AuthModule` and `MatchesModule` |
+| `dev.controller.ts` | `/v1/dev/cheat/*` HTTP controller — guarded by `DevGuard` |
+| `force-complete.dto.ts` | Request body for `POST /v1/dev/cheat/matches/:id/force-complete` |
 
 ### `admin/`
 
 | File | Purpose |
 |------|---------|
-| `admin.module.ts` | Imports `AuthModule` (for `AdminGuard`) and `ConfigModule`; serves static `/admin` via `ServeStaticModule` |
-| `admin.controller.ts` | `GET /v1/admin/config`, `PUT /v1/admin/config` — guarded by `AdminGuard` |
+| `admin.module.ts` | Admin module — imports `AuthModule` and `ConfigModule`; serves static admin dashboard |
+| `admin.controller.ts` | `/v1/admin/*` HTTP controller — guarded by `AdminGuard` |
 
 ---
 
@@ -139,9 +148,9 @@ Direct children:
 
 | File | Purpose |
 |------|---------|
-| `worker.module.ts` | Registers two BullMQ queues: `cleanup` (repeatable) and `reminders` (delayed) |
-| `processors/cleanup.processor.ts` | Queries stale matches and marks them `abandoned` — stub |
-| `processors/reminder.processor.ts` | Sends FCM turn reminder when delayed job fires — stub |
+| `worker.module.ts` | BullMQ worker module — registers `cleanup` and `reminders` queues |
+| `processors/cleanup.processor.ts` | Marks stale matches as `abandoned` |
+| `processors/reminder.processor.ts` | Dispatches FCM turn reminder when delayed job fires |
 
 ---
 
@@ -149,9 +158,9 @@ Direct children:
 
 | Path | Purpose |
 |------|---------|
-| `src/interface.ts` | `GamePlugin` TypeScript interface — 5 methods: `initialState`, `applyMove`, `getPlayerView`, `isGameOver`, `getWinner` |
+| `src/interface.ts` | `GamePlugin` TypeScript interface |
 | `src/index.ts` | Package entry point |
-| `tictactoe/src/index.ts` | `TicTacToePlugin` — reference implementation, methods stubbed |
+| `tictactoe/src/index.ts` | `TicTacToePlugin` — reference implementation |
 
 → Plugin contract and server authority model: [game-system.md](game-system.md)
 

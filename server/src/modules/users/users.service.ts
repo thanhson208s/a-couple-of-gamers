@@ -1,7 +1,20 @@
 import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { User } from './user.entity';
 
 @Injectable()
 export class UsersService {
+  constructor(@InjectRepository(User) private readonly users: Repository<User>) {}
+
+  async findOrCreate(provider: string, providerId: string, displayName: string): Promise<User> {
+    let user = await this.users.findOne({ where: { provider, providerId } });
+    if (!user) {
+      user = await this.users.save(this.users.create({ provider, providerId, displayName }));
+    }
+    return user;
+  }
+
   async getProfile() {
     throw new Error('not implemented');
   }

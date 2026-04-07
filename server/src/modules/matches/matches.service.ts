@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotImplementedException } from '@nestjs/common';
 
 @Injectable()
 export class MatchesService {
@@ -32,5 +32,9 @@ export class MatchesService {
 
   async getInvite(_matchId: string) {
     throw new Error('not implemented');
+  }
+
+  async devForceComplete(_matchId: string, _winner: 0 | 1 | 2): Promise<void> {
+    throw new NotImplementedException();
   }
 }

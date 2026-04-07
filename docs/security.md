@@ -6,6 +6,19 @@ Two-token JWT auth (access + refresh with rotation), one-time WS ticket pattern,
 
 ## Authentication
 
+### Dev Mode (Local Only)
+
+Dev mode provides a password-less login path and cheat endpoints for local development. It is controlled by two conditions — **both must be true** for dev endpoints to respond:
+
+1. `CF_TEAM_DOMAIN` is **not** set (the Cloudflare Access env var; present on staging and production)
+2. `DEV_MODE=true` is explicitly set in the environment
+
+If either condition fails, all dev endpoints return `404 Not Found`. The 404 (not 403) ensures the endpoints do not reveal their existence on non-dev environments.
+
+Dev endpoints are never rate-limited and bypass Firebase authentication. They must never appear in staging or production `.env` files.
+
+---
+
 ### Social Login via Firebase
 
 The client uses the Firebase SDK to run the OAuth flow with the chosen provider (Google/Apple/Facebook). Firebase issues a short-lived ID token to the client upon success. The client sends this ID token to `POST /v1/auth/social`. The server verifies it using the Firebase Admin SDK — no direct calls to provider APIs needed. Provider identity (`uid`, `email`, `displayName`) is extracted from the decoded token and used to find or create the user account.
