@@ -54,10 +54,19 @@ Direct children:
 | `app.module.ts` | Root module — imports all feature modules |
 | `app.health.ts` | `GET /health` controller — returns `{ status, db, cache }` |
 | `app.data.ts` | TypeORM `DataSource` config — used by both the app and the TypeORM CLI for migrations |
+| `app.guard.ts` | Global `AppGuard` subclass — tracks by `userId` or IP; skips non-HTTP contexts |
 | `worker.ts` | BullMQ worker bootstrap — starts a NestJS app with `WorkerModule` only, no HTTP listener |
 | `modules/` | Feature modules (see below) |
 | `worker/` | BullMQ job processors (see below) |
 | `migrations/` | TypeORM migration files — committed to repo, auto-run on deploy |
+
+---
+
+## `server/src/common/`
+
+| File | Purpose |
+|------|---------|
+| `redis/redis.module.ts` | `@Global()` module — provides `REDIS_CLIENT` (ioredis instance) to the whole app |
 
 ---
 
@@ -112,6 +121,8 @@ Direct children:
 |------|---------|
 | `ws.module.ts` | WS module — imports `MatchesModule` |
 | `ws.gateway.ts` | WebSocket gateway at `/v1/ws` — user-scoped persistent connection, move submission, real-time broadcast, Redis presence |
+| `ws.throttler.ts` | Redis INCR-based rate limiter for WS events (ws-throttle: 30/user/min) |
+| `ws.interceptor.ts` | `WsThrottlerInterceptor` + `@WsThrottle()` decorator — applies WS rate limiting to individual message handlers |
 
 ### `notifications/`
 

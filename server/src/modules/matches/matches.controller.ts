@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Delete, Param, Body } from '@nestjs/common';
+import { AppThrottle } from '../../app.guard';
 import { MatchesService } from './matches.service';
 
 @Controller('matches')
@@ -6,6 +7,7 @@ export class MatchesController {
   constructor(private readonly matchesService: MatchesService) {}
 
   @Post()
+  @AppThrottle({ ttl: 3_600_000, limit: 20 })
   createMatch(@Body() body: { gameSlug: string; opponentType: 'human' | 'ai' }) {
     return this.matchesService.createMatch(body);
   }

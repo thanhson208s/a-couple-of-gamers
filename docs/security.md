@@ -66,15 +66,22 @@ Tickets are single-use and expire in 30 seconds regardless of use.
 
 ## Rate Limiting
 
-Applied at the API server level (NestJS guard or middleware).
+Applied at the API server level via `AppGuard` (extends `@nestjs/throttler`) with Redis storage.
 
-| Endpoint / action | Limit | Window |
-|-------------------|-------|--------|
-| `POST /v1/auth/social` (login) | 10 requests | per IP per minute |
-| `POST /v1/auth/refresh` | 20 requests | per user per minute |
-| WS `move` event | 30 events | per user per minute |
-| `POST /v1/matches` (create) | 20 requests | per user per hour |
-| All other endpoints | 120 requests | per user per minute |
+| Endpoint / action | Limit | Window | Key |
+|-------------------|-------|--------|-----|
+| `POST /v1/auth/social` (login) | 10 requests | per minute | IP |
+| `POST /v1/auth/guest` | 120 requests | per minute | IP |
+| `POST /v1/auth/refresh` | 20 requests | per minute | IP (unauthenticated) |
+| WS event | 30 events | per minute | userId |
+| All other endpoints | 120 requests | per minute | userId (IP fallback) |
+| `GET /dev`, `/v1/dev/cheat/*` | exempt | — | — |
+
+**Implementation:**
+- Throttler `app-throttle` (120 req/user/min) is the global default for all HTTP endpoints; specific endpoints override via `@Throttle({ 'app-throttle': { ttl, limit } })`.
+- `AppGuard` tracks by `userId` for authenticated requests, falls back to IP for unauthenticated endpoints.
+- WS events are rate-limited by `WsInterceptor` (Redis INCR pattern) using the `ws-throttle` config (30 events/user/min by default); individual handlers can override via `@WsThrottle({ limit, ttl })`.
+- Dev endpoints are exempt via `@SkipThrottle()`.
 
 Rate limit state stored in Redis. Limits are conservative starting points — adjust based on observed usage.
 

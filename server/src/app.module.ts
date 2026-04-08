@@ -1,5 +1,11 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
+import { Redis } from 'ioredis';
+import { RedisModule, REDIS_CLIENT } from './common/redis/redis.module';
+import { AppGuard } from './app.guard';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { GamesModule } from './modules/games/games.module';
@@ -19,6 +25,17 @@ import { AppHealth as AppHealth } from './app.health';
       synchronize: false,
       autoLoadEntities: true,
     }),
+    RedisModule,
+    ThrottlerModule.forRootAsync({
+      inject: [REDIS_CLIENT],
+      useFactory: (redis: Redis) => ({
+        throttlers: [
+          { name: 'app-throttle', ttl: 60_000, limit: 120 },
+          { name: 'ws-throttle',   ttl: 60_000, limit: 30  },
+        ],
+        storage: new ThrottlerStorageRedisService(redis),
+      }),
+    }),
     AuthModule,
     UsersModule,
     GamesModule,
@@ -30,5 +47,8 @@ import { AppHealth as AppHealth } from './app.health';
     DevModule,
   ],
   controllers: [AppHealth],
+  providers: [
+    { provide: APP_GUARD, useClass: AppGuard },
+  ],
 })
 export class AppModule {}

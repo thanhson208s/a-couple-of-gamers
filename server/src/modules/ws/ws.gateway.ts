@@ -8,6 +8,7 @@ import {
   ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, WebSocket } from 'ws';
+import { WsThrottle } from './ws.interceptor';
 
 // Connection URL: wss://<host>/v1/ws?ticket=<ws-ticket>
 // User-scoped persistent connection — opened once after login.
@@ -56,7 +57,8 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('move')
-  handleMove(
+  @WsThrottle()
+  async handleMove(
     @ConnectedSocket() _client: WebSocket,
     @MessageBody() _data: { matchId: string; move: unknown },
   ) {
