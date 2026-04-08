@@ -1,3 +1,4 @@
+import { randomInt } from 'crypto';
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -27,7 +28,7 @@ export class UsersService {
     for (let attempt = 0; attempt < 5; attempt++) {
       const id = Array.from(
         { length: 10 },
-        () => CHARSET[Math.floor(Math.random() * CHARSET.length)],
+        () => CHARSET[randomInt(0, CHARSET.length)],
       ).join('');
       if (!(await this.users.existsBy({ id }))) return id;
     }
