@@ -149,7 +149,7 @@ export class CreateMatchDto {
 
 ## Module Communication
 
-- **Never** import another module's `.entity.ts` directly. Call its exported service instead.
+- **Never** import another module's `.entity.ts` directly. Call its exported service instead. Exception: TypeORM `@ManyToOne` relationships require the entity class reference — cross-module entity imports are acceptable in `.entity.ts` files only, not in services.
 - **Export** a provider only if another module needs to inject it. Default: don't export.
 - **Import `AuthModule`** in any module whose controller needs guards — `AuthModule` exports all four guards and `JwtModule`.
 
