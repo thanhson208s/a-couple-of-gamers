@@ -586,7 +586,17 @@ docker compose exec db psql -U postgres -c '\l'   # lists databases including "a
 
 ---
 
-### 5a. Inspect Postgres and Redis (optional)
+### 5a. Stop infrastructure
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local.yml down
+```
+
+Stops and removes containers but **preserves the DB volume** — data survives a restart.
+
+---
+
+### 5b. Inspect Postgres and Redis (optional)
 
 Two web UIs are included in the local stack — no extra installs needed.
 
@@ -632,17 +642,21 @@ npm run typeorm -w server -- migration:run -d server/src/app.data.ts
 
 Use this when entities changed significantly and you want a clean slate instead of an incremental migration:
 
+**If using Docker Compose for Postgres:**
 ```bash
-# Drop and recreate the database
-docker compose exec db psql -U postgres -c "DROP DATABASE acog;"
-docker compose exec db psql -U postgres -c "CREATE DATABASE acog;"
+docker exec a-couple-of-gamers-db-1 psql -U postgres -d acog -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+```
 
-# Delete all migration files (keep .gitkeep)
-find server/src/migrations -name "*.ts" -delete
+**If using a local Postgres installation:**
+```bash
+psql postgresql://postgres:postgres@localhost:5432/postgres -c "DROP DATABASE acog;"
+psql postgresql://postgres:postgres@localhost:5432/postgres -c "CREATE DATABASE acog;"
+```
+> Connect to the `postgres` default database (not `acog`) to drop/recreate it.
 
-# Regenerate from current entities and apply
-npm run typeorm -w server -- migration:generate server/src/migrations/InitialSchema -d server/src/app.data.ts
-npm run typeorm -w server -- migration:run -d server/src/app.data.ts
+```bash
+# Apply the current migration
+npm run typeorm -w server -- migration:run -d src/app.data.ts
 ```
 
 > **Never do this on staging or production.** Use incremental migrations (`migration:generate`) for any schema change after the first deploy.

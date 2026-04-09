@@ -17,14 +17,14 @@ export class Match {
   state: object;
 
   // Player 1 (creator) — exactly one of player1Id or player1GuestUuid is set
-  @Column({ type: 'uuid', name: 'player1_id', nullable: true })
+  @Column({ type: 'char', length: 10, name: 'player1_id', nullable: true })
   player1Id: string | null;
 
   @Column({ type: 'text', name: 'player1_guest_uuid', nullable: true })
   player1GuestUuid: string | null;
 
   // Player 2 (joiner) — all null until someone joins
-  @Column({ type: 'uuid', name: 'player2_id', nullable: true })
+  @Column({ type: 'char', length: 10, name: 'player2_id', nullable: true })
   player2Id: string | null;
 
   @Column({ type: 'text', name: 'player2_guest_uuid', nullable: true })
@@ -38,6 +38,9 @@ export class Match {
 
   @Column({ type: 'text', name: 'invite_code', nullable: true, unique: true })
   inviteCode: string | null;
+
+  @Column({ type: 'timestamptz', name: 'invite_code_expires_at', nullable: true })
+  inviteCodeExpiresAt: Date | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

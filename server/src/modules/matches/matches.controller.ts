@@ -1,20 +1,24 @@
-import { Controller, Get, Post, Delete, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Body, UseGuards } from '@nestjs/common';
 import { AppThrottle } from '../../app.guard';
+import { CurrentUser, JwtAuthGuard, JwtUser } from '../auth/guards/jwt-auth.guard';
 import { MatchesService } from './matches.service';
+import { CreateMatchDto } from './create-match.dto';
+import { JoinMatchDto } from './join-match.dto';
 
+@UseGuards(JwtAuthGuard)
 @Controller('matches')
 export class MatchesController {
   constructor(private readonly matchesService: MatchesService) {}
 
   @Post()
   @AppThrottle({ ttl: 3_600_000, limit: 20 })
-  createMatch(@Body() body: { gameSlug: string; opponentType: 'human' | 'ai' }) {
-    return this.matchesService.createMatch(body);
+  createMatch(@Body() dto: CreateMatchDto, @CurrentUser() user: JwtUser) {
+    return this.matchesService.createMatch(dto.gameSlug, dto.playerSlot, user.id);
   }
 
   @Get()
-  listActiveMatches() {
-    return this.matchesService.listActiveMatches();
+  listMatches(@CurrentUser() user: JwtUser) {
+    return this.matchesService.listMatches(user.id);
   }
 
   @Get(':id')
@@ -22,9 +26,9 @@ export class MatchesController {
     return this.matchesService.getMatch(id);
   }
 
-  @Post(':id/join')
-  joinMatch(@Param('id') id: string, @Body() body: { inviteCode: string }) {
-    return this.matchesService.joinMatch(id, body.inviteCode);
+  @Post('join')
+  joinMatch(@Body() dto: JoinMatchDto, @CurrentUser() user: JwtUser) {
+    return this.matchesService.joinMatch(dto.inviteCode, user.id);
   }
 
   @Delete(':id')

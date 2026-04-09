@@ -32,10 +32,10 @@ Covers match creation, invitation, joining, and abandonment — the shell of a m
 
 ## Invite Flow (vs Human)
 
-1. Creator calls `POST /v1/matches` → server creates match in `pending` state, generates invite code; response includes `inviteCode` + `deepLink` directly
-2. Creator shares the deep link with opponent (no extra request needed; `GET /v1/matches/:id/invite` exists only for resharing later)
-3. Opponent calls `POST /v1/matches/:id/join` with code → match transitions to `active`; invite code deleted
-4. Invite code is single-use; anyone with it can join (no identity check)
+1. Creator calls `POST /v1/matches` with `{ gameSlug, playerSlot: 1|2 }` → server creates match in `pending` state with the creator in the chosen slot; response includes `inviteCode` + `deepLink` + `expiresAt` directly
+2. Creator shares the deep link or code with opponent
+3. Opponent calls `POST /v1/matches/join` with `{ inviteCode }` — server fills the remaining slot → match transitions to `active`; invite code cleared
+4. Invite code is single-use and expires after 24 hours; anyone with it can join (no identity check)
 
 ## Abandonment
 
@@ -50,10 +50,10 @@ Covers match creation, invitation, joining, and abandonment — the shell of a m
 `[ ]` not started · `[~]` in progress · `[x]` done
 
 **Server**
-- [ ] `POST /v1/matches` — create match
-- [ ] `POST /v1/matches/:id/join` — join via invite code
+- [x] `POST /v1/matches` — create match
+- [x] `POST /v1/matches/join` — join via invite code (lookup by code, no match ID needed; code expires after 24h)
 - [ ] `DELETE /v1/matches/:id` — abandon match (no penalty)
-- [ ] Invite code generation + deep link (returned in `POST /v1/matches` response)
+- [x] Invite code generation + deep link + TTL (returned in `POST /v1/matches` response)
 
 **Client**
 - [ ] Create match flow (game + opponent type selection)
