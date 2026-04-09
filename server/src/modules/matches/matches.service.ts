@@ -11,7 +11,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { LessThanOrEqual, MoreThan, Repository } from 'typeorm';
 import { GamesService } from '../games/games.service';
-import { PluginRegistry } from '../games/plugin.registry';
+import { GamesRegistry } from '../games/games.registry';
 import { Match } from './match.entity';
 
 const INVITE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -31,15 +31,15 @@ export class MatchesService {
   constructor(
     @InjectRepository(Match) private readonly matches: Repository<Match>,
     private readonly gamesService: GamesService,
-    private readonly pluginRegistry: PluginRegistry,
+    private readonly gamesRegistry: GamesRegistry,
   ) {}
 
-  async createMatch(gameSlug: string, playerSlot: 1 | 2, callerId: string): Promise<object> {
+  async createMatch(gameSlug: string, playerSlot: 1 | 2, callerId: string, options?: Record<string, unknown>): Promise<object> {
     const game = await this.gamesService.findBySlug(gameSlug);
     if (!game) throw new NotFoundException(`Game not found: ${gameSlug}`);
 
     try {
-      this.pluginRegistry.get(game.slug);
+      this.gamesRegistry.get(game.slug);
     } catch (e) {
       throw new BadRequestException((e as Error).message);
     }
@@ -51,6 +51,7 @@ export class MatchesService {
       game,
       status: 'pending',
       state: {},
+      options: options ?? null,
       player1Id: playerSlot === 1 ? callerId : null,
       player2Id: playerSlot === 2 ? callerId : null,
       inviteCode,
@@ -83,8 +84,8 @@ export class MatchesService {
     const player1Id = match.player1Id ?? callerId;
     const player2Id = match.player2Id ?? callerId;
 
-    const plugin = this.pluginRegistry.get(match.game.slug);
-    const state = plugin.initialState([player1Id, player2Id]);
+    const plugin = this.gamesRegistry.get(match.game.slug);
+    const state = plugin.initialState((match.options as Record<string, unknown>) ?? undefined);
 
     match.status = 'active';
     match.player1Id = player1Id;

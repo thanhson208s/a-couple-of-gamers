@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsIn } from 'class-validator';
+import { IsString, IsNotEmpty, IsIn, IsObject, IsOptional } from 'class-validator';
 
 export class CreateMatchDto {
   @IsString()
@@ -7,4 +7,8 @@ export class CreateMatchDto {
 
   @IsIn([1, 2])
   playerSlot: 1 | 2;
+
+  @IsOptional()
+  @IsObject()
+  options?: Record<string, unknown>;
 }

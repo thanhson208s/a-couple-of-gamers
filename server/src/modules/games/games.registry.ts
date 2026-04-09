@@ -3,7 +3,7 @@ import { GamePlugin } from '@acog/game-logic';
 import { TicTacToePlugin } from '@acog/game-logic-tictactoe';
 
 @Injectable()
-export class PluginRegistry {
+export class GamesRegistry {
   private readonly plugins = new Map<string, GamePlugin>([
     ['tictactoe', new TicTacToePlugin()],
   ]);

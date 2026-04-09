@@ -16,6 +16,9 @@ export class Match {
   @Column({ type: 'jsonb' })
   state: object;
 
+  @Column({ type: 'jsonb', nullable: true })
+  options: object | null;
+
   // Player 1 (creator) — exactly one of player1Id or player1GuestUuid is set
   @Column({ type: 'char', length: 10, name: 'player1_id', nullable: true })
   player1Id: string | null;

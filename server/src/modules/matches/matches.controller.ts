@@ -13,7 +13,7 @@ export class MatchesController {
   @Post()
   @AppThrottle({ ttl: 3_600_000, limit: 20 })
   createMatch(@Body() dto: CreateMatchDto, @CurrentUser() user: JwtUser) {
-    return this.matchesService.createMatch(dto.gameSlug, dto.playerSlot, user.id);
+    return this.matchesService.createMatch(dto.gameSlug, dto.playerSlot, user.id, dto.options);
   }
 
   @Get()
