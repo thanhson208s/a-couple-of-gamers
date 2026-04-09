@@ -1,16 +1,16 @@
 import { Controller, Get, Put, Delete, Body, Param } from '@nestjs/common';
 import { UsersService } from './users.service';
 
-@Controller('users/me')
+@Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  @Get()
+  @Get('profile')
   getProfile() {
     return this.usersService.getProfile();
   }
 
-  @Delete()
+  @Delete('profile')
   deleteAccount() {
     return this.usersService.deleteAccount();
   }
