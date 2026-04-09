@@ -12,7 +12,6 @@ Four guards live in `modules/auth/guards/`. All are exported from `AuthModule` �
 |-------|---------|
 | `JwtAuthGuard` | Endpoint requires a logged-in user |
 | `GuestAuthGuard` | Endpoint requires a guest (device UUID) |
-| `OptionalAuthGuard` | Endpoint accepts either logged-in or guest — your handler decides |
 | `AdminAuthGuard` | Endpoint is admin-only (`X-Admin-Token` header) |
 | `DevAuthGuard` | Endpoint must only be reachable in local dev (blocked when `CF_TEAM_DOMAIN` is set or `DEV_MODE` is unset) |
 
@@ -31,7 +30,7 @@ At method level (one method only):
 ```typescript
 @Controller('matches')
 export class MatchesController {
-  @UseGuards(OptionalAuthGuard)
+  @UseGuards(JwtAuthGuard)
   @Get(':id')
   getMatch(@Req() req: Request) { ... }
 }
@@ -40,28 +39,7 @@ export class MatchesController {
 ### Accessing identity in handlers
 
 After `JwtAuthGuard` passes, the decoded JWT payload is on `req.user`.  
-After `GuestAuthGuard` passes, the guest UUID is on `req.guestId`.  
-After `OptionalAuthGuard` passes, check which one is set — both may be absent:
-
-```typescript
-getMatch(@Req() req: AppRequest) {
-  if (req.user) {
-    // logged-in: use req.user.sub (userId)
-  } else if (req.guestId) {
-    // guest: use req.guestId
-  } else {
-    // anonymous — handle or throw
-  }
-}
-```
-
-`AppRequest` type (add to a shared types file as needed):
-```typescript
-interface AppRequest extends Request {
-  user?: { sub: string; [key: string]: unknown };
-  guestId?: string;
-}
-```
+After `GuestAuthGuard` passes, the guest UUID is on `req.guestId`.
 
 ---
 
@@ -210,6 +188,48 @@ The module that injects a queue must also register it:
 - `process()` **must be idempotent** — BullMQ retries on throw, so duplicate execution must be safe.
 - Check whether the job is still relevant at the start of `process()` (e.g. match may have been completed since the job was enqueued).
 - Throw only for genuinely retriable failures (e.g. DB connection error). For expected no-ops (match already done), return silently.
+
+---
+
+## Testing
+
+Import test utilities from `src/common/test/helpers.ts`.
+
+### Service tests
+
+Mock the TypeORM repository with `mockRepository<Entity>()`. Provide it via `getRepositoryToken`:
+
+```typescript
+import { Test } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { mockRepository } from '../../common/test/helpers';
+
+const repo = mockRepository<Match>();
+const module = await Test.createTestingModule({
+  providers: [
+    MatchesService,
+    { provide: getRepositoryToken(Match), useValue: repo },
+    { provide: PluginRegistry, useValue: { get: jest.fn() } },
+  ],
+}).compile();
+```
+
+Mock other injected services inline — only stub the methods your unit under test actually calls:
+
+```typescript
+const usersService = { findById: jest.fn(), findOrCreate: jest.fn() };
+```
+
+### Guard tests
+
+Build a minimal `ExecutionContext` with `mockHttpContext(req)`:
+
+```typescript
+import { mockHttpContext } from '../../../common/test/helpers';
+
+const ctx = mockHttpContext({ headers: { authorization: 'Bearer <token>' } });
+guard.canActivate(ctx); // assert return value or thrown exception
+```
 
 ---
 

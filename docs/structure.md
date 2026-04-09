@@ -67,6 +67,7 @@ Direct children:
 | File | Purpose |
 |------|---------|
 | `redis/redis.module.ts` | `@Global()` module — provides `REDIS_CLIENT` (ioredis instance) to the whole app |
+| `test/helpers.ts` | Shared test utilities — `mockRepository<T>()` and `mockHttpContext()` for unit tests |
 
 ---
 
@@ -79,9 +80,10 @@ Direct children:
 | `auth.module.ts` | Auth module — JWT setup, all guards, `AuthService` |
 | `auth.controller.ts` | `/v1/auth/*` HTTP controller |
 | `auth.service.ts` | Auth business logic — social login, JWT issuance, WS tickets, dev login |
+| `auth.service.spec.ts` | Unit tests for `AuthService` |
 | `guards/jwt-auth.guard.ts` | Verifies `Authorization: Bearer <token>`; attaches decoded payload to `req.user` |
+| `guards/jwt-auth.guard.spec.ts` | Unit tests for `JwtAuthGuard` |
 | `guards/guest-auth.guard.ts` | Requires `X-Guest-Id` header; attaches UUID to `req.guestId` |
-| `guards/optional-auth.guard.ts` | Tries JWT then guest header; never throws — for endpoints that serve both |
 | `guards/admin-auth.guard.ts` | Prod: validates Cloudflare Access JWT. Dev fallback: checks `X-Admin-Token` header |
 | `guards/dev-auth.guard.ts` | Returns 404 if `CF_TEAM_DOMAIN` is set or `DEV_MODE !== 'true'` |
 | `refresh-token.entity.ts` | `refresh_tokens` table — id, user_id (FK), token_hash (SHA-256), expires_at, revoked_at |
@@ -93,6 +95,7 @@ Direct children:
 | `users.module.ts` | Users module — registers `User` entity repository, exports `UsersService` |
 | `users.controller.ts` | `/v1/users/me/*` HTTP controller |
 | `users.service.ts` | User business logic — profiles, device tokens, favorites, rivals, find-or-create |
+| `users.service.spec.ts` | Unit tests for `UsersService` |
 | `user.entity.ts` | `users` table — `id` (char 10, server-generated PK), `provider`, `provider_id`, `display_name`, `created_at`; unique on `(provider, provider_id)` |
 
 ### `games/`

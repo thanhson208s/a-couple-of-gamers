@@ -392,10 +392,10 @@ After generation, apply these manual changes:
 
 **`modules/auth/`** — add `guards/` subdirectory with four guards:
 ```
-guards/admin-auth.guard.ts         # checks X-Admin-Token header
+guards/admin-auth.guard.ts    # checks X-Admin-Token header
 guards/jwt-auth.guard.ts      # verifies Bearer token, attaches req.user
 guards/guest-auth.guard.ts    # requires X-Guest-Id header, attaches req.guestId
-guards/optional-auth.guard.ts # tries JWT then guest, never throws
+guards/dev-auth.guard.ts      # returns 404 outside local dev
 ```
 Register `JwtModule` in `auth.module.ts` and export all guards — see [structure.md#auth](structure.md#auth) for full module definition.
 

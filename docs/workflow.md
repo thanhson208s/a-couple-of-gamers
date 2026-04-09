@@ -71,7 +71,7 @@ After generation:
 
 1. **Register in `app.module.ts`** — add to the `imports` array.
 2. **Add entities** if the module owns DB tables — see [Adding an Entity](#adding-an-entity).
-3. **Add guards** if endpoints require auth — import `AuthModule` and apply `JwtAuthGuard`, `GuestAuthGuard`, or `OptionalAuthGuard` from `modules/auth/guards/`.
+3. **Add guards** if endpoints require auth — import `AuthModule` and apply `JwtAuthGuard`, `GuestAuthGuard`, `AdminAuthGuard`, or `DevAuthGuard` from `modules/auth/guards/`.
 4. **Export services** that other modules will inject — add to the `exports` array in the module decorator.
 5. **Update `docs/structure.md`** — add the new module to the server modules table.
 6. **Add a feature doc** if the module implements a user-facing feature — create `docs/features/<name>.md` following the template in `docs/features/README.md` and link it from `docs/requirements.md`.
