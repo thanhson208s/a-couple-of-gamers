@@ -38,8 +38,7 @@
 
   function authHeaders() {
     const s = DEV_STATE;
-    if (s.accessToken)   return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${s.accessToken}` };
-    if (s.guestId) return { 'Content-Type': 'application/json', 'X-Guest-Id': s.guestId };
+    if (s.accessToken) return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${s.accessToken}` };
     return { 'Content-Type': 'application/json' };
   }
 
@@ -48,7 +47,6 @@
     Object.assign(DEV_STATE, patch);
     if ('accessToken'  in patch) patch.accessToken  ? localStorage.setItem('devAccessToken',  patch.accessToken)  : localStorage.removeItem('devAccessToken');
     if ('refreshToken' in patch) patch.refreshToken ? localStorage.setItem('devRefreshToken', patch.refreshToken) : localStorage.removeItem('devRefreshToken');
-    if ('guestId'      in patch) patch.guestId      ? localStorage.setItem('devGuestId',      patch.guestId)      : localStorage.removeItem('devGuestId');
 
     updateIdentityBar();
     updateSceneVisibility();
@@ -58,14 +56,13 @@
 
   // ── identity bar ──────────────────────────────────────────────────────────
   function updateIdentityBar() {
-    const { accessToken, guestId, provider, providerId, displayName } = DEV_STATE;
+    const { accessToken, provider, providerId, displayName } = DEV_STATE;
     const label = document.getElementById('identity-label');
-    const btn   = document.getElementById('btn-logout');
-    if (accessToken) {
+    if (accessToken && provider === 'guest') {
+      label.innerHTML = `<span class="badge guest">guest</span> &nbsp;<span class="note">${providerId}</span>`;
+    } else if (accessToken) {
       label.innerHTML = `<span class="badge">JWT</span> &nbsp;${displayName ?? ''}` +
         ` &nbsp;<span class="note">${provider} / ${providerId}</span>`;
-    } else if (guestId) {
-      label.innerHTML = `<span class="badge guest">guest</span> &nbsp;<span class="note">${guestId}</span>`;
     } else {
       label.textContent = 'Not logged in';
     }
@@ -78,8 +75,15 @@
     document.getElementById('state-display').textContent = JSON.stringify(display, null, 2);
   }
 
-  document.getElementById('btn-logout').addEventListener('click', () => {
-    setState({ accessToken: null, refreshToken: null, id: null, guestId: null, provider: null, providerId: null, displayName: null });
+  document.getElementById('btn-logout').addEventListener('click', async () => {
+    if (DEV_STATE.refreshToken) {
+      await fetch('/v1/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: DEV_STATE.refreshToken }),
+      }).catch(() => {});
+    }
+    setState({ accessToken: null, refreshToken: null, id: null, provider: null, providerId: null, displayName: null });
   });
 
   // ── render ────────────────────────────────────────────────────────────────
@@ -171,7 +175,7 @@
         (ep.inputs || []).forEach(input => {
           if (!input.from) return;
           const el = document.querySelector(`#ep-${ep.id} [data-input-key="${input.key}"]`);
-          if (el && DEV_STATE[input.from] != null) el.value = DEV_STATE[input.from];
+          if (el) el.value = DEV_STATE[input.from] ?? '';
         });
       });
     });
@@ -250,7 +254,6 @@
   // ── init ──────────────────────────────────────────────────────────────────
   DEV_STATE.accessToken  = null;
   DEV_STATE.refreshToken = localStorage.getItem('devRefreshToken') || null;
-  DEV_STATE.guestId      = localStorage.getItem('devGuestId')      || null;
   localStorage.removeItem('devAccessToken');
 
   renderAll();

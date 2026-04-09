@@ -3,13 +3,12 @@
 // To add a scene:    add a new entry to the `scenes` array with a `showWhen` condition.
 
 window.DEV_STATE = {
-  accessToken:        null,  // JWT access accessToken — set by dev-login onSuccess
-  refreshToken: null,  // JWT refresh accessToken — set by dev-login onSuccess
-  id:           null,  // user UUID — set by dev-login onSuccess
-  guestId:      null,  // guest UUID — set by guest-login action
-  provider:     null,  // set by dev-login onSuccess
-  providerId:   null,  // set by dev-login onSuccess
-  displayName:  null,  // set by dev-login onSuccess
+  accessToken:  null,  // JWT access token — set by any login onSuccess
+  refreshToken: null,  // JWT refresh token — set by any login onSuccess
+  id:           null,  // user id — set by any login onSuccess
+  provider:     null,  // 'guest' | 'dev' | social provider — set by any login onSuccess
+  providerId:   null,  // set by any login onSuccess
+  displayName:  null,  // set by any login onSuccess
   matchId:      null,  // shared match ID — set by create-match onSuccess, pre-fills related inputs
 };
 
@@ -20,7 +19,7 @@ window.DEV_CONFIG = {
     {
       id: 'login',
       label: 'Login',
-      showWhen: (s) => !s.accessToken && !s.guestId,
+      showWhen: (s) => !s.accessToken,
       endpoints: [
         {
           id: 'dev-login',
@@ -48,14 +47,15 @@ window.DEV_CONFIG = {
         },
         {
           id: 'guest-login',
-          label: 'Guest login (JWT)',
+          label: 'Guest login',
           method: 'POST',
-          path: '/v1/auth/dev',
+          path: '/v1/auth/guest',
+          noAuth: true,
           inputs: [
             { key: 'guestId', label: 'Guest UUID', placeholder: 'leave empty to auto-generate' },
           ],
           body: (inputs) => ({ guestId: inputs.guestId.trim() || uuid4() }),
-          onSuccess: (data, _state, setState) => setState({ accessToken: data.accessToken, refreshToken: data.refreshToken, id: data.id, provider: data.provider, providerId: data.providerId, displayName: data.displayName, guestId: data.providerId }),
+          onSuccess: (data, _state, setState) => setState({ accessToken: data.accessToken, refreshToken: data.refreshToken, id: data.id, provider: data.provider, providerId: data.providerId, displayName: data.displayName }),
         },
       ],
     },
@@ -64,7 +64,7 @@ window.DEV_CONFIG = {
     {
       id: 'config',
       label: 'Config',
-      showWhen: (s) => !!(s.accessToken || s.guestId),
+      showWhen: (s) => !!s.accessToken,
       endpoints: [
         {
           id: 'get-config',
@@ -80,7 +80,7 @@ window.DEV_CONFIG = {
     {
       id: 'matches',
       label: 'Matches',
-      showWhen: (s) => !!(s.accessToken || s.guestId),
+      showWhen: (s) => !!s.accessToken,
       endpoints: [
         {
           id: 'list-matches',
@@ -145,7 +145,7 @@ window.DEV_CONFIG = {
     {
       id: 'moves',
       label: 'Moves',
-      showWhen: (s) => !!(s.accessToken || s.guestId),
+      showWhen: (s) => !!s.accessToken,
       endpoints: [
         {
           id: 'submit-move',
@@ -170,7 +170,7 @@ window.DEV_CONFIG = {
     {
       id: 'cheats',
       label: 'Dev Cheats',
-      showWhen: (s) => !!(s.accessToken || s.guestId),
+      showWhen: (s) => !!s.accessToken,
       endpoints: [
         {
           id: 'force-complete',
@@ -194,7 +194,7 @@ window.DEV_CONFIG = {
     {
       id: 'ws',
       label: 'WebSocket',
-      showWhen: (s) => !!(s.accessToken || s.guestId),
+      showWhen: (s) => !!s.accessToken,
       note: 'Flow: POST /v1/auth/ws-ticket → connect to wss://&lt;host&gt;/v1/matches/:id/ws?ticket=&lt;ticket&gt;. ' +
             'Events in: move. Events out: state, move_error, match_over, opponent_connected, opponent_disconnected.',
       endpoints: [],
