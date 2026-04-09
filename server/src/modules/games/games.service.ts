@@ -1,21 +1,36 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Game } from './game.entity';
+import { GamesRegistry } from './games.registry';
 
 @Injectable()
-export class GamesService {
+export class GamesService implements OnModuleInit {
   constructor(
     @InjectRepository(Game) private readonly games: Repository<Game>,
+    private readonly gamesRegistry: GamesRegistry,
   ) {}
 
-  async findBySlug(slug: string): Promise<Game | null> {
-    return this.games.findOne({ where: { slug, isActive: true } });
+  // On startup, ensure every registered slug has a row in the games table.
+  // Uses INSERT ... ON CONFLICT DO NOTHING so existing rows (name, enabled) are never overwritten.
+  async onModuleInit() {
+    for (const slug of this.gamesRegistry.slugs()) {
+      await this.games
+        .createQueryBuilder()
+        .insert()
+        .into(Game)
+        .values({ slug, name: slug, enabled: false })
+        .orIgnore()
+        .execute();
+    }
   }
 
-  async listGames() {
-    // TODO: query games table, include bundle metadata
-    return [];
+  async findBySlug(slug: string): Promise<Game | null> {
+    return this.games.findOne({ where: { slug, enabled: true } });
+  }
+
+  async listGames(): Promise<Game[]> {
+    return this.games.find();
   }
 
   async getGame(_slug: string) {

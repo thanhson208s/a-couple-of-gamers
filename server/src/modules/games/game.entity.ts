@@ -11,12 +11,14 @@ export class Game {
   @Column({ type: 'text' })
   name: string;
 
-  @Column({ type: 'boolean', name: 'is_active', default: true })
-  isActive: boolean;
-
-  @Column({ type: 'boolean', name: 'is_preinstalled', default: false })
-  isPreinstalled: boolean;
+  @Column({ type: 'boolean', name: 'enabled', default: false })
+  enabled: boolean;
 
   @Column({ type: 'text', name: 'bundle_url', nullable: true })
   bundleUrl: string | null;
+
+  @Column({ type: 'text', name: 'bundle_version', nullable: true })
+  bundleVersion: string | null;
+
+
 }
