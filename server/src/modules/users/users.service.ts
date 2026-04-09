@@ -12,6 +12,12 @@ export class UsersService {
     return this.users.findOne({ where: { id } });
   }
 
+  // Updates an existing guest user record to a social identity in-place.
+  // The user id and all associated matches are preserved unchanged.
+  async upgradeGuest(guestUserId: string, provider: string, providerId: string, displayName: string): Promise<User> {
+    throw new Error('not implemented');
+  }
+
   async findOrCreate(provider: string, providerId: string, displayName: string): Promise<User> {
     let user = await this.users.findOne({ where: { provider, providerId } });
     if (!user) {

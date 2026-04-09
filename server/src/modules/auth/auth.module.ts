@@ -6,7 +6,6 @@ import { AuthService } from './auth.service';
 import { RefreshToken } from './refresh-token.entity';
 import { AdminAuthGuard } from './guards/admin-auth.guard';
 import { DevAuthGuard } from './guards/dev-auth.guard';
-import { GuestAuthGuard } from './guards/guest-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { UsersModule } from '../users/users.module';
 
@@ -22,7 +21,7 @@ import { UsersModule } from '../users/users.module';
     UsersModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, AdminAuthGuard, DevAuthGuard, GuestAuthGuard, JwtAuthGuard],
-  exports: [AuthService, JwtModule, AdminAuthGuard, DevAuthGuard, GuestAuthGuard, JwtAuthGuard],
+  providers: [AuthService, AdminAuthGuard, DevAuthGuard, JwtAuthGuard],
+  exports: [AuthService, JwtModule, AdminAuthGuard, DevAuthGuard, JwtAuthGuard],
 })
 export class AuthModule {}

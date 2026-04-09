@@ -22,7 +22,7 @@ export class AuthService {
 
   async devLogin(accountId: string): Promise<{ accessToken: string; refreshToken: string; id: string; provider: string; providerId: string; displayName: string }> {
     const user = await this.usersService.findOrCreate('dev', accountId, `dev_${accountId}`);
-    const accessToken = this.jwtService.sign({ sub: user.id });
+    const accessToken = this.jwtService.sign({ sub: user.id, type: AuthService.tokenType(user.provider) });
     const refreshToken = await this.issueRefreshToken(user.id);
     return { accessToken, refreshToken, id: user.id, provider: user.provider, providerId: user.providerId, displayName: user.displayName };
   }
@@ -34,7 +34,7 @@ export class AuthService {
     }
 
     const user = await this.usersService.findOrCreate('guest', guestId, `guest_${guestId}`);
-    const accessToken = this.jwtService.sign({ sub: user.id });
+    const accessToken = this.jwtService.sign({ sub: user.id, type: AuthService.tokenType(user.provider) });
     const refreshToken = await this.issueRefreshToken(user.id);
     return { accessToken, refreshToken, id: user.id, provider: user.provider, providerId: user.providerId, displayName: user.displayName };
   }
@@ -57,11 +57,22 @@ export class AuthService {
     if (!user) throw new UnauthorizedException();
 
     const newRefreshToken = await this.issueRefreshToken(token.userId);
-    const accessToken = this.jwtService.sign({ sub: user.id });
+    const accessToken = this.jwtService.sign({ sub: user.id, type: AuthService.tokenType(user.provider) });
     return { accessToken, refreshToken: newRefreshToken, id: user.id, provider: user.provider, providerId: user.providerId, displayName: user.displayName };
   }
 
-  async socialLogin(_idToken: string) {
+  extractGuestUserId(authorization: string | undefined): string | undefined {
+    if (!authorization?.startsWith('Bearer ')) return undefined;
+    const payload = this.jwtService.decode(authorization.slice(7));
+    if (typeof payload !== 'object' || payload === null) return undefined;
+    if ((payload as Record<string, unknown>)['type'] !== 'guest') return undefined;
+    const sub = (payload as Record<string, unknown>)['sub'];
+    return typeof sub === 'string' ? sub : undefined;
+  }
+
+  // Issues type:'social' access token.
+  // If guestUserId present and (provider, uid) not yet taken: upgrades the guest record in-place.
+  async socialLogin(_idToken: string, _guestUserId?: string) {
     throw new Error('not implemented');
   }
 
@@ -69,8 +80,10 @@ export class AuthService {
     throw new Error('not implemented');
   }
 
-  async guestMerge() {
-    throw new Error('not implemented');
+  static tokenType(provider: string): 'guest' | 'dev' | 'social' {
+    if (provider === 'guest') return 'guest';
+    if (provider === 'dev') return 'dev';
+    return 'social';
   }
 
   private async issueRefreshToken(userId: string): Promise<string> {
