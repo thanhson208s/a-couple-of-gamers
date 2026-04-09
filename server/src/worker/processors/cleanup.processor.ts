@@ -1,14 +1,19 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
+import { MatchesService } from '../../modules/matches/matches.service';
 
-// Repeatable job: marks matches as abandoned if updated_at is older
-// than the inactivity threshold (e.g. 30 days).
-// Registered as a repeatable job on worker startup.
+// Repeatable job: deletes stale matches on a fixed schedule.
+// Covers both expired-invite pending matches and inactivity-threshold matches.
+// Registered by CleanupScheduler on worker startup.
 @Processor('cleanup')
 export class CleanupProcessor extends WorkerHost {
-  async process(_job: Job) {
-    // TODO: query matches WHERE status IN ('pending','active') AND updated_at < threshold
-    // TODO: set status = 'abandoned' for each stale match
-    throw new Error('not implemented');
+  constructor(private readonly matchesService: MatchesService) {
+    super();
+  }
+
+  async process(job: Job): Promise<void> {
+    if (job.name === 'stale-matches') {
+      await this.matchesService.cleanupStaleMatches();
+    }
   }
 }

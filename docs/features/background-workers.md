@@ -14,14 +14,15 @@ The daily Postgres backup is **not** a BullMQ job — it is an OS cron script on
 
 ## Inactive Match Cleanup Worker
 
-**Type:** BullMQ repeatable job (runs on a fixed schedule, e.g. hourly)
+**Type:** BullMQ repeatable job (`cleanup` queue, `stale-matches` job, every 24 hours)  
+**Registered by:** `WorkerModule.onModuleInit`  
+**Processed by:** `CleanupProcessor` → `MatchesService.cleanupStaleMatches()`
 
-**Logic:**
-1. Query Postgres for matches where `updated_at` is older than the inactivity threshold (TBD)
-2. Hard-delete matching rows; cascades to `match_players` and `moves` tables
-3. No stats recorded — inactive deletion is not a forfeit
+Single job handles two cases in sequence:
+1. `pending` matches where `invite_code_expires_at < NOW()` (invite expired after 24 h)
+2. `active` matches where `updated_at < NOW() − 30 days` (inactivity threshold)
 
-**Applies to:** both `pending` matches (no opponent joined yet) and `active` matches (play stalled)
+No stats recorded — cleanup deletion is not a forfeit.
 
 See [requirements.md#inactive-match-cleanup](../requirements.md#inactive-match-cleanup) for behavior rules.
 
@@ -46,7 +47,7 @@ See [requirements.md#inactive-match-cleanup](../requirements.md#inactive-match-c
 `[ ]` not started · `[~]` in progress · `[x]` done
 
 **Server**
-- [ ] Inactive match cleanup (BullMQ repeatable job)
+- [x] Stale match cleanup (BullMQ repeatable, every 24 h — `stale-matches` job registered in `WorkerModule`, processed by `CleanupProcessor`)
 - [ ] Turn reminder dispatch (BullMQ delayed job; cancel on move)
 
 ---
