@@ -131,7 +131,7 @@ export class CreateMatchDto {
 - **Import `AuthModule`** in any module whose controller needs guards — `AuthModule` exports all four guards and `JwtModule`.
 
 ```typescript
-// ✓ matches.module.ts imports GamesModule to use PluginRegistry
+// ✓ matches.module.ts imports GamesModule to use GamesRegistry
 @Module({
   imports: [GamesModule],
   ...
@@ -208,7 +208,7 @@ const module = await Test.createTestingModule({
   providers: [
     MatchesService,
     { provide: getRepositoryToken(Match), useValue: repo },
-    { provide: PluginRegistry, useValue: { get: jest.fn() } },
+    { provide: GamesRegistry, useValue: { get: jest.fn() } },
   ],
 }).compile();
 ```

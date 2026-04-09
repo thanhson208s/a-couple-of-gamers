@@ -210,7 +210,7 @@ const module = await Test.createTestingModule({
   providers: [
     MatchesService,
     { provide: getRepositoryToken(Match), useValue: mockRepository() },
-    { provide: PluginRegistry, useValue: { get: jest.fn() } },
+    { provide: GamesRegistry, useValue: { get: jest.fn() } },
   ],
 }).compile();
 ```

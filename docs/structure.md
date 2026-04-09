@@ -101,10 +101,10 @@ Direct children:
 
 | File | Purpose |
 |------|---------|
-| `games.module.ts` | Games module — provides `PluginRegistry` and `GamesService` |
+| `games.module.ts` | Games module — provides `GamesRegistry` and `GamesService` |
 | `games.controller.ts` | `/v1/games/*` HTTP controller |
 | `games.service.ts` | Game catalog business logic |
-| `plugin.registry.ts` | Injectable singleton — maps game slug → `GamePlugin` instance |
+| `games.registry.ts` | Injectable singleton — maps game slug → `GamePlugin` instance |
 | `game.entity.ts` | `games` table — `id` (uuid), `slug` (unique), `name`, `is_active`, `is_preinstalled`, `bundle_url` |
 
 ### `matches/`

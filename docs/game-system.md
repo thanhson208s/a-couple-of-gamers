@@ -9,27 +9,39 @@ TypeScript `GamePlugin` interface (5 methods), server authority model, open vs h
 Every game is a TypeScript module that implements this interface. The server calls these methods; the client only renders.
 
 ```typescript
+interface GameOptions {
+  [key: string]: unknown   // game-specific fields (e.g. difficulty, selected roles)
+}
+
 interface GamePlugin {
-  // Return the initial game state for a new match (before any moves)
-  initialState(playerIds: string[]): GameState
+  // Return the initial game state for a new match (before any moves).
+  // options is game-specific and optional — omit for defaults.
+  // Passed from the body of POST /v1/matches and stored on the match record.
+  initialState(options?: GameOptions): GameState
 
   // Apply a move and return the new state. Throw if move is invalid.
-  applyMove(state: GameState, move: Move, playerId: string): GameState
+  // playerIndex is 0-based: 0 = first player (player1), 1 = second player (player2).
+  // The server maps playerId → playerIndex before calling this method.
+  applyMove(state: GameState, move: Move, playerIndex: number): GameState
 
   // Return the subset of state visible to a specific player.
-  // For open-information games, return full state unchanged.
+  // playerIndex is 0-based. For open-information games, return full state unchanged.
   // For hidden-information games, strip opponent's private data.
-  getPlayerView(state: GameState, playerId: string): PlayerView
+  getPlayerView(state: GameState, playerIndex: number): PlayerView
 
-  // Return true if the game has ended (win, loss, draw, or forfeit)
+  // Return true if the game has ended (win, loss, draw, or forfeit).
   isGameOver(state: GameState): boolean
 
-  // Return the winning playerId, or null for draw. Call only when isGameOver is true.
-  getWinner(state: GameState): string | null
+  // Return the winning player index (0 or 1), or null for a draw.
+  // Only call when isGameOver() is true.
+  // The server maps the returned index back to a playerId.
+  getWinner(state: GameState): number | null
 }
 ```
 
-`GameState` and `Move` are game-specific shapes. The server stores `GameState` as JSONB — no cross-game schema coupling.
+`GameOptions`, `GameState`, and `Move` are game-specific shapes. The server stores `GameState` as JSONB and `GameOptions` as JSONB on the match record — no cross-game schema coupling.
+
+The server is responsible for all playerId ↔ playerIndex mapping: `player1Id` = index 0, `player2Id` = index 1.
 
 ---
 
@@ -42,7 +54,8 @@ interface GamePlugin {
 
 ```
 Client submits move
-  → Server calls plugin.applyMove(currentState, move, playerId)
+  → Server resolves playerIndex (0 if player1, 1 if player2)
+  → Server calls plugin.applyMove(currentState, move, playerIndex)
   → On success: persist new state, broadcast player views
   → On throw: return error to submitting client, state unchanged
 ```

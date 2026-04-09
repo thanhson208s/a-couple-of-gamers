@@ -80,22 +80,25 @@ mkdir -p packages/game-logic/src
 
 **`packages/game-logic/src/interface.ts`** — the `GamePlugin` contract:
 ```typescript
-export interface GameState { [key: string]: unknown; }
-export interface Move      { [key: string]: unknown; }
-export interface PlayerView{ [key: string]: unknown; }
+export interface GameState   { [key: string]: unknown; }
+export interface Move        { [key: string]: unknown; }
+export interface PlayerView  { [key: string]: unknown; }
+export interface GameOptions { [key: string]: unknown; }
 
 export interface GamePlugin {
-  initialState(playerIds: string[]): GameState;
-  applyMove(state: GameState, move: Move, playerId: string): GameState;
-  getPlayerView(state: GameState, playerId: string): PlayerView;
+  initialState(options?: GameOptions): GameState;
+  applyMove(state: GameState, move: Move, playerIndex: number): GameState;
+  getPlayerView(state: GameState, playerIndex: number): PlayerView;
   isGameOver(state: GameState): boolean;
-  getWinner(state: GameState): string | null;
+  getWinner(state: GameState): number | null;
 }
 ```
 
+See [game-system.md](game-system.md) for the full contract semantics (`GameOptions`, playerIndex mapping, etc.).
+
 **`packages/game-logic/src/index.ts`**
 ```typescript
-export type { GamePlugin, GameState, Move, PlayerView } from './interface';
+export type { GamePlugin, GameOptions, GameState, Move, PlayerView } from './interface';
 ```
 
 **Verify:** `npm run build --workspace=packages/game-logic` produces `packages/game-logic/dist/`.
@@ -135,28 +138,11 @@ mkdir -p packages/game-logic/tictactoe/src
 
 **`packages/game-logic/tictactoe/tsconfig.json`** — identical to the base package tsconfig.
 
-**`packages/game-logic/tictactoe/src/index.ts`** — stub class:
-```typescript
-import type { GamePlugin, GameState, Move, PlayerView } from '@acog/game-logic';
-
-export class TicTacToePlugin implements GamePlugin {
-  initialState(_playerIds: string[]): GameState {
-    throw new Error('not implemented');
-  }
-  applyMove(_state: GameState, _move: Move, _playerId: string): GameState {
-    throw new Error('not implemented');
-  }
-  getPlayerView(state: GameState, _playerId: string): PlayerView {
-    return state as PlayerView; // open-information game
-  }
-  isGameOver(_state: GameState): boolean {
-    throw new Error('not implemented');
-  }
-  getWinner(_state: GameState): string | null {
-    throw new Error('not implemented');
-  }
-}
-```
+**`packages/game-logic/tictactoe/src/index.ts`** — fully implemented (see source for details). Key points:
+- State uses player indices (`0 | 1`) for board cells, `currentTurn`, and `winner` — no player IDs stored
+- `initialState` ignores options (no TicTacToe variants)
+- `getPlayerView` returns full state unchanged (open-information game)
+- `winner: 'draw'` is the draw sentinel; `getWinner` maps it to `null` per the interface contract
 
 **Verify:** `npm run build --workspace=packages/game-logic/tictactoe` produces `packages/game-logic/tictactoe/dist/`.
 
@@ -399,10 +385,10 @@ guards/dev-auth.guard.ts      # returns 404 outside local dev
 ```
 Register `JwtModule` in `auth.module.ts` and export all guards — see [structure.md#auth](structure.md#auth) for full module definition.
 
-**`modules/games/`** — add `plugin.registry.ts` alongside the service:
+**`modules/games/`** — add `games.registry.ts` alongside the service:
 ```typescript
 @Injectable()
-export class PluginRegistry {
+export class GamesRegistry {
   private readonly plugins = new Map<string, GamePlugin>([
     ['tictactoe', new TicTacToePlugin()],
   ]);

@@ -59,6 +59,7 @@ player1_id          UUID             -- NULL if guest; set by creator
 player1_guest_uuid  TEXT             -- NULL if logged-in; set by creator
 player2_id          UUID             -- NULL if guest or not yet joined
 player2_guest_uuid  TEXT             -- NULL if logged-in or not yet joined
+options             JSONB            -- game-specific creation options (e.g. difficulty); NULL if omitted
 current_turn        INT              -- 1 or 2; NULL when pending or game over
 winner              INT              -- 1, 2, or 0 (draw); NULL if not finished
 invite_code         TEXT UNIQUE      -- short alphanumeric; NULL after opponent joins or match is cancelled
