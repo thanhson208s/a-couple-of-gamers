@@ -10,8 +10,7 @@ Four guards live in `modules/auth/guards/`. All are exported from `AuthModule` â
 
 | Guard | Use when |
 |-------|---------|
-| `JwtAuthGuard` | Endpoint requires a logged-in user |
-| `GuestAuthGuard` | Endpoint requires a guest (device UUID) |
+| `JwtAuthGuard` | Endpoint requires an authenticated user (social or guest JWT) |
 | `AdminAuthGuard` | Endpoint is admin-only (`X-Admin-Token` header) |
 | `DevAuthGuard` | Endpoint must only be reachable in local dev (blocked when `CF_TEAM_DOMAIN` is set or `DEV_MODE` is unset) |
 

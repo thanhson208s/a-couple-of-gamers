@@ -6,7 +6,7 @@
 
 ## Overview
 
-The client uses the Firebase SDK to run the OAuth flow for the chosen provider (Google/Apple/Facebook). Firebase issues a Firebase ID token to the client. The client sends that ID token to `POST /v1/auth/social`; the server verifies it with the Firebase Admin SDK, extracts the user identity, then issues its own JWT pair (access + refresh). If a guest UUID is present on the request, guest data is merged first. See [guest-auth.md](guest-auth.md) for the merge flow.
+The client uses the Firebase SDK to run the OAuth flow for the chosen provider (Google/Apple/Facebook). Firebase issues a Firebase ID token to the client. The client sends that ID token to `POST /v1/auth/social`; the server verifies it with the Firebase Admin SDK, extracts the user identity, then issues its own JWT pair (access + refresh). If the caller holds a guest JWT (`type:'guest'`) and no social account exists yet for that provider identity, the guest user record is upgraded in-place. See [guest-auth.md](guest-auth.md) for the upgrade flow.
 
 ---
 
@@ -17,11 +17,16 @@ Godot client
   → Firebase SDK: signInWithProvider(google|apple|facebook)
   → Firebase issues ID token to client
 
-Client → POST /v1/auth/social  { idToken: "<firebase-id-token>" }
+Client → POST /v1/auth/social
+    Authorization: Bearer <guest-jwt>   ← optional; present only when upgrading from guest
+    Body: { idToken: "<firebase-id-token>" }
   → Server: admin.auth().verifyIdToken(idToken)
   → Decoded token contains: uid, email, displayName, provider
-  → Find or create user by (provider, uid)
-  → Issue access token + refresh token
+  → Check if social account exists for (provider, uid)
+      Exists     → log in; guest JWT ignored
+      Not exists → if guest JWT present: UPDATE guest user record (provider, provider_id, display_name)
+                   otherwise: INSERT new user
+  → Issue social access token + refresh token (type:'social')
   ← Return JWT pair to client
 ```
 
@@ -45,7 +50,7 @@ Client → POST /v1/auth/social  { idToken: "<firebase-id-token>" }
 **Server**
 - [ ] `POST /v1/auth/social` — verify Firebase ID token, upsert user, issue JWT
 - [x] `POST /v1/auth/refresh` — refresh token rotation (opaque token, SHA-256 hash stored in `refresh_tokens`; reuse detection wipes session)
-- [ ] Guest→account merge on social login (transfer in-progress matches)
+- [ ] Guest upgrade: detect `type:'guest'` bearer, UPDATE guest user record in-place (see [guest-auth.md](guest-auth.md))
 
 **Client**
 - [ ] Google / Apple / Facebook OAuth flow via Firebase SDK

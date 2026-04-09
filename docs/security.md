@@ -44,6 +44,16 @@ Refresh token expires or is revoked → client must log in again
 
 Refresh token rotation: each use issues a new refresh token and invalidates the old one. Detected reuse of an invalidated refresh token revokes the entire session.
 
+Access tokens carry a `type` claim to distinguish identity kind:
+
+| `type` value | Issued by | Meaning |
+|--------------|-----------|---------|
+| `'guest'` | `POST /v1/auth/guest` | Guest user; limited to pre-login flows |
+| `'social'` | `POST /v1/auth/social` | Fully authenticated social account |
+| `'dev'` | `POST /v1/auth/dev` | Dev-only login; never present on staging/prod |
+
+Derived from `user.provider` via `AuthService.tokenType()` — also applied when `POST /v1/auth/refresh` re-issues an access token. `JwtAuthGuard` can inspect the `type` claim to restrict endpoints that require a real account.
+
 ### WebSocket Authentication
 
 **Problem:** Passing a JWT as a query param (`?token=...`) causes the token to appear in server access logs and reverse proxy logs.

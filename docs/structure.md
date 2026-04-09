@@ -83,7 +83,6 @@ Direct children:
 | `auth.service.spec.ts` | Unit tests for `AuthService` |
 | `guards/jwt-auth.guard.ts` | Verifies `Authorization: Bearer <token>`; attaches decoded payload to `req.user` |
 | `guards/jwt-auth.guard.spec.ts` | Unit tests for `JwtAuthGuard` |
-| `guards/guest-auth.guard.ts` | Requires `X-Guest-Id` header; attaches UUID to `req.guestId` |
 | `guards/admin-auth.guard.ts` | Prod: validates Cloudflare Access JWT. Dev fallback: checks `X-Admin-Token` header |
 | `guards/dev-auth.guard.ts` | Returns 404 if `CF_TEAM_DOMAIN` is set or `DEV_MODE !== 'true'` |
 | `refresh-token.entity.ts` | `refresh_tokens` table — id, user_id (FK), token_hash (SHA-256), expires_at, revoked_at |

@@ -16,9 +16,8 @@ Clients should send their version in a header: `X-Client-Version: <semver>`. The
 
 ## Auth Conventions
 
-All requests must include one of:
-- `Authorization: Bearer <access-token>` — logged-in user
-- `X-Guest-Id: <uuid>` — guest (device UUID)
+Authenticated requests (both social and guest) use:
+- `Authorization: Bearer <access-token>`
 
 Error response shape (all endpoints):
 ```json
@@ -33,11 +32,10 @@ Error response shape (all endpoints):
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/v1/auth/social` | Verify a Firebase ID token and return access + refresh tokens. Body: `{ idToken }` |
+| `POST` | `/v1/auth/guest` | Issue guest JWT. Body: `{ guestId: <uuid> }`. Returns access + refresh tokens with `type:'guest'` claim. |
+| `POST` | `/v1/auth/social` | Verify a Firebase ID token and return access + refresh tokens. Body: `{ idToken }`. If `Authorization: Bearer <guest-jwt>` is present, guest data is merged into the new account. |
 | `POST` | `/v1/auth/refresh` | Exchange refresh token for new access token. Body: `{ refreshToken }` |
 | `POST` | `/v1/auth/ws-ticket` | Issue a short-lived one-time WS ticket. Requires valid JWT. |
-| `POST` | `/v1/auth/guest-merge` | Merge guest data into authenticated account. Requires JWT + `X-Guest-Id`. |
-| `POST` | `/v1/auth/guest` | Issue guest JWT. Requires X-Guest-Id: <uuid>. |
 
 ---
 
