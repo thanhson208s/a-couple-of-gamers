@@ -99,7 +99,7 @@ Human match moves are submitted via WebSocket only — see [WebSocket Events](#w
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/v1/config` | Returns app config merged with game catalog. No auth required. Each entry under `games` includes config fields (`enabled`) and bundle metadata (`bundleUrl`, `bundleVersion`, `bundleSizeBytes`, `isPreinstalled`). |
+| `GET` | `/v1/config` | Returns app config merged with game catalog. No auth required. Each entry under `games` includes config fields (`enabled`) and bundle metadata (`bundleUrl`, `bundleVersion`). |
 
 ---
 

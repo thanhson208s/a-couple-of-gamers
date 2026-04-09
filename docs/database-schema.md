@@ -35,18 +35,10 @@ _Rotation: each use revokes the old row and inserts a new one. Reuse of a revoke
 ```sql
 id               UUID PRIMARY KEY DEFAULT gen_random_uuid()
 slug             TEXT NOT NULL UNIQUE   -- e.g. 'tictactoe', 'battleship'
-name             TEXT NOT NULL
-description      TEXT
-cover_image_url  TEXT
-min_players      INT NOT NULL DEFAULT 2
-max_players      INT NOT NULL DEFAULT 2
-has_hidden_info  BOOLEAN NOT NULL DEFAULT false
-is_active        BOOLEAN NOT NULL DEFAULT true   -- toggle to hide games from lobby
-is_preinstalled  BOOLEAN NOT NULL DEFAULT false  -- bundled in the app package; no download needed
-bundle_url       TEXT             -- R2 CDN URL for the Cocos Asset Bundle (NULL if preinstalled)
-bundle_version   TEXT             -- version string; client compares against local to detect updates
-bundle_size_bytes INT             -- shown during download
-min_app_version  TEXT             -- minimum hot-update app version required to run this game
+name             TEXT NOT NULL          -- initially set to slug; update via admin
+enabled           BOOLEAN NOT NULL DEFAULT false  -- inactive until explicitly enabled by admin
+bundle_url        TEXT             -- R2 CDN URL for the Cocos Asset Bundle; NULL until first CI publish
+bundle_version    TEXT             -- version string; client compares against local to detect updates
 ```
 
 ### `matches`

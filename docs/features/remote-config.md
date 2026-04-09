@@ -14,18 +14,15 @@ A single config document stored in Postgres controls which games are visible in 
 
 ```json
 {
-  "version": "1",
   "games": {
-    "tictactoe":  { "enabled": true,  "bundleUrl": "...", "bundleVersion": "1.0.0", "bundleSizeBytes": 102400, "isPreinstalled": true  },
-    "battleship": { "enabled": false, "bundleUrl": "...", "bundleVersion": "1.0.0", "bundleSizeBytes": 204800, "isPreinstalled": false },
-    "kingdomino": { "enabled": true,  "bundleUrl": "...", "bundleVersion": "1.0.0", "bundleSizeBytes": 307200, "isPreinstalled": false }
+    "tictactoe":  { "enabled": true,  "bundleUrl": "...", "bundleVersion": "1.0.0" },
+    "battleship": { "enabled": false, "bundleUrl": "...", "bundleVersion": "1.0.0" },
+    "kingdomino": { "enabled": true,  "bundleUrl": null,  "bundleVersion": null }
   }
 }
 ```
 
-`bundleUrl`, `bundleVersion`, `bundleSizeBytes`, and `isPreinstalled` come from the `games` table and are merged into the response at serve time. The admin `PUT /v1/admin/config` payload only manages `enabled` flags and feature flags — bundle metadata is not part of the stored config.
-
-`version` is a monotonically increasing string; bump it on every save. Additional top-level keys (feature flags, etc.) can be added without schema changes.
+`enabled` reflects `games.enabled`. `bundleUrl` and `bundleVersion` come from `games.bundle_url` and `games.bundle_version` — both null until the first CI bundle publish. All fields are sourced from the `games` table at serve time — no separate stored config document is needed for the game catalog. Additional top-level keys (feature flags, etc.) can be added via the `config` table when required.
 
 ---
 
@@ -71,7 +68,7 @@ Re-enabling the game restores its lobby visibility immediately on the user's nex
 `[ ]` not started · `[~]` in progress · `[x]` done
 
 **Server**
-- [ ] `GET /v1/config` — serve `config` table merged with bundle metadata from `games` table
+- [x] `GET /v1/config` — serve game catalog from `games` table (`enabled`, `bundleUrl`, `bundleVersion`)
 - [ ] Admin dashboard (`/admin`) + `PUT /v1/admin/config` endpoints
 
 **Client**

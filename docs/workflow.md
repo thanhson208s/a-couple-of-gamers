@@ -108,12 +108,13 @@ npx typeorm migration:generate src/migrations/<MigrationName> -d src/app.data.ts
 ## Adding a New Game
 
 1. Create the shared game plugin in `packages/game-logic/<slug>/` implementing the `GamePlugin` interface — see [game-system.md](game-system.md)
-2. Import and register the plugin in `GamesModule` (server) and in the Cocos client's game loader
-3. Create the Cocos Creator scene and assets under `client/games/<slug>/` (this is the Asset Bundle)
-4. Create the AI component at `client/games/<slug>/AiPlayer.ts` (imports from `packages/game-logic/<slug>/`)
-5. Insert a row into the `games` table via migration (set `is_preinstalled` or leave `bundle_url` for CI to populate)
+2. Register the slug in `GamesRegistry` (`server/src/modules/games/games.registry.ts`) — a row is auto-created in the `games` table (`enabled = false`) on next server start
+3. Import the plugin in the Cocos client's game loader
+4. Create the Cocos Creator scene and assets under `client/games/<slug>/` (this is the Asset Bundle)
+5. Create the AI component at `client/games/<slug>/AiPlayer.ts` (imports from `packages/game-logic/<slug>/`)
 6. Add the game to the catalog table in [game-system.md#game-catalog](game-system.md#game-catalog)
 7. CI will build and upload the bundle to R2 on the next `dev` merge or `client/games/<slug>/` change
+8. Activate the game via admin — set `enabled = true` on the `games` row once the bundle is live
 
 ---
 

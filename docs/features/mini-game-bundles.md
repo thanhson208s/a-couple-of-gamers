@@ -6,7 +6,7 @@
 
 ## Overview
 
-Each game is a self-contained Cocos Creator Asset Bundle. Some games are preinstalled (bundled at app build time); others are downloaded on demand. After download, games are cached locally and playable offline (for vs AI). The server tracks bundle versions; the client compares on launch and prompts for updates.
+Each game is a self-contained Cocos Creator Asset Bundle, downloaded on demand and cached locally. Games are playable offline once downloaded (for vs AI). The server tracks bundle versions; the client compares on launch and prompts for updates.
 
 ---
 
@@ -27,13 +27,12 @@ Each bundle is built independently and uploaded to `game-bundles/<env>/<slug>/` 
 
 ```
 App launch → GET /v1/config
-  → Response includes: bundleUrl, bundleVersion, bundleSizeBytes, isPreinstalled per game
+  → Response includes: enabled, bundleUrl, bundleVersion, per game
   → Note: bundle metadata is cached at Cloudflare for up to 5 minutes; freshness after a CI/CD bundle publish is eventually consistent within that window
-  → For each game:
-      isPreinstalled = true  → always playable, skip download check
-      local version == server version  → already up to date
-      local version < server version  → show update indicator
-      not downloaded  → show Download button
+  → For each enabled game:
+      not downloaded locally  → show Download button
+      local version == bundleVersion  → already up to date, show Play
+      local version != bundleVersion  → show Update indicator
 ```
 
 ---
@@ -42,7 +41,7 @@ App launch → GET /v1/config
 
 ```
 User taps Download (or Update)
-  → Show progress bar (bytes downloaded / bundleSizeBytes)
+  → Show progress bar (files downloaded / total files)
   → Download bundle from bundleUrl (R2 CDN, direct)
   → Decompress and write to local cache
   → Update local version record
@@ -75,7 +74,7 @@ If a game is disabled via remote config, it is hidden from the lobby. Its local 
 `[ ]` not started · `[~]` in progress · `[x]` done
 
 **Server**
-- [ ] `bundle_url`, `bundle_version`, `bundle_size_bytes`, `is_preinstalled` columns in `games` table
+- [x] `bundle_url`, `bundle_version` columns in `games` table
 
 **Client**
 - [ ] Bundle version check on launch; show Download / Update indicator
@@ -88,7 +87,7 @@ If a game is disabled via remote config, it is hidden from the lobby. Its local 
 
 ## Related
 
-- DB columns: [database-schema.md#games](../database-schema.md#games) (`bundle_url`, `bundle_version`, `bundle_size_bytes`, `is_preinstalled`)
+- DB columns: [database-schema.md#games](../database-schema.md#games) (`bundle_url`, `bundle_version`)
 - R2 paths: [infrastructure.md#asset-pipeline-r2](../infrastructure.md#asset-pipeline-r2)
 - Publishing workflow: [workflow.md#publishing-a-mini-game-bundle](../workflow.md#publishing-a-mini-game-bundle)
 - Lobby download states: [game-lobby.md](game-lobby.md)

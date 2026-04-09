@@ -26,8 +26,7 @@ Each game tile shows one of four states, derived from comparing the local bundle
 
 | State | Condition | UI |
 |-------|-----------|----|
-| `preinstalled` | `isPreinstalled = true` | Play button always enabled |
-| `downloaded` | local version == server version | Play button enabled |
+| `up-to-date` | local version == server version | Play button enabled |
 | `update-available` | local version < server version | Play button enabled (old version); update badge shown |
 | `not-downloaded` | no local bundle | Download button shown |
 
@@ -39,7 +38,7 @@ Update check runs once per launch after `GET /v1/config` completes.
 
 ```
 User taps Download (or update badge)
-  → Show progress bar (bytes downloaded / bundleSizeBytes)
+  → Show progress bar (files downloaded / total files)
   → Download bundle from bundleUrl (R2 CDN, direct — no NestJS proxy)
   → Decompress and write to local cache
   → Update local version record
