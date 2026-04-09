@@ -54,6 +54,13 @@ Access tokens carry a `type` claim to distinguish identity kind:
 
 Derived from `user.provider` via `AuthService.tokenType()` — also applied when `POST /v1/auth/refresh` re-issues an access token. `JwtAuthGuard` can inspect the `type` claim to restrict endpoints that require a real account.
 
+After `JwtAuthGuard` runs, the verified payload is available as `JwtUser { sub: string; type: string }` on the request. Use the `@CurrentUser()` decorator (exported from `guards/jwt-auth.guard.ts`) in controllers to access it without importing Express types:
+
+```typescript
+@Get('me')
+getProfile(@CurrentUser() user: JwtUser) { ... }
+```
+
 ### WebSocket Authentication
 
 **Problem:** Passing a JWT as a query param (`?token=...`) causes the token to appear in server access logs and reverse proxy logs.

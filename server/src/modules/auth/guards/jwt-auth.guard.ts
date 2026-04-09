@@ -3,6 +3,7 @@ import {
   ExecutionContext,
   Injectable,
   UnauthorizedException,
+  createParamDecorator,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 
@@ -27,3 +28,14 @@ function extractBearer(header: string | undefined): string | null {
   if (!header?.startsWith('Bearer ')) return null;
   return header.slice(7);
 }
+
+export interface JwtUser {
+  id: string;
+  type: string;
+}
+
+export const CurrentUser = createParamDecorator(
+  (_data: unknown, ctx: ExecutionContext): JwtUser => {
+    return ctx.switchToHttp().getRequest().user;
+  },
+);

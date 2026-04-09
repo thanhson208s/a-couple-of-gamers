@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { UsersService } from '../users/users.service';
+import { JwtUser } from './guards/jwt-auth.guard';
 import { RefreshToken } from './refresh-token.entity';
 
 const REFRESH_TOKEN_TTL_DAYS = 30;
@@ -22,7 +23,7 @@ export class AuthService {
 
   async devLogin(accountId: string): Promise<{ accessToken: string; refreshToken: string; id: string; provider: string; providerId: string; displayName: string }> {
     const user = await this.usersService.findOrCreate('dev', accountId, `dev_${accountId}`);
-    const accessToken = this.jwtService.sign({ sub: user.id, type: AuthService.tokenType(user.provider) });
+    const accessToken = this.jwtService.sign({ id: user.id, type: AuthService.tokenType(user.provider) } satisfies JwtUser);
     const refreshToken = await this.issueRefreshToken(user.id);
     return { accessToken, refreshToken, id: user.id, provider: user.provider, providerId: user.providerId, displayName: user.displayName };
   }
@@ -34,7 +35,7 @@ export class AuthService {
     }
 
     const user = await this.usersService.findOrCreate('guest', guestId, `guest_${guestId}`);
-    const accessToken = this.jwtService.sign({ sub: user.id, type: AuthService.tokenType(user.provider) });
+    const accessToken = this.jwtService.sign({ id: user.id, type: AuthService.tokenType(user.provider) } satisfies JwtUser);
     const refreshToken = await this.issueRefreshToken(user.id);
     return { accessToken, refreshToken, id: user.id, provider: user.provider, providerId: user.providerId, displayName: user.displayName };
   }
@@ -57,17 +58,16 @@ export class AuthService {
     if (!user) throw new UnauthorizedException();
 
     const newRefreshToken = await this.issueRefreshToken(token.userId);
-    const accessToken = this.jwtService.sign({ sub: user.id, type: AuthService.tokenType(user.provider) });
+    const accessToken = this.jwtService.sign({ id: user.id, type: AuthService.tokenType(user.provider) } satisfies JwtUser);
     return { accessToken, refreshToken: newRefreshToken, id: user.id, provider: user.provider, providerId: user.providerId, displayName: user.displayName };
   }
 
   extractGuestUserId(authorization: string | undefined): string | undefined {
     if (!authorization?.startsWith('Bearer ')) return undefined;
-    const payload = this.jwtService.decode(authorization.slice(7));
-    if (typeof payload !== 'object' || payload === null) return undefined;
-    if ((payload as Record<string, unknown>)['type'] !== 'guest') return undefined;
-    const sub = (payload as Record<string, unknown>)['sub'];
-    return typeof sub === 'string' ? sub : undefined;
+    const payload = this.jwtService.decode(authorization.slice(7)) as JwtUser | null;
+    if (!payload || typeof payload !== 'object') return undefined;
+    if (payload.type !== 'guest') return undefined;
+    return typeof payload.id === 'string' ? payload.id : undefined;
   }
 
   // Issues type:'social' access token.
