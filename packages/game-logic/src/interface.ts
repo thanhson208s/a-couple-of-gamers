@@ -14,22 +14,32 @@ export interface PlayerView {
   [key: string]: unknown;
 }
 
+// Game-specific options passed at match creation (e.g. difficulty, selected roles).
+// Each game defines what fields it expects; unknown fields are ignored.
+export interface GameOptions {
+  [key: string]: unknown;
+}
+
 export interface GamePlugin {
   // Return the initial game state for a new match (before any moves).
-  initialState(playerIds: string[]): GameState;
+  // options is game-specific (e.g. difficulty, selected roles). Omit for defaults.
+  initialState(options?: GameOptions): GameState;
 
   // Apply a move and return the new state. Throw if move is invalid.
-  applyMove(state: GameState, move: Move, playerId: string): GameState;
+  // playerIndex is 0-based: 0 = first player, 1 = second player.
+  // The server maps playerId → playerIndex before calling this method.
+  applyMove(state: GameState, move: Move, playerIndex: number): GameState;
 
   // Return the subset of state visible to a specific player.
   // For open-information games, return full state unchanged.
   // For hidden-information games, strip opponent's private data.
-  getPlayerView(state: GameState, playerId: string): PlayerView;
+  getPlayerView(state: GameState, playerIndex: number): PlayerView;
 
   // Return true if the game has ended (win, loss, draw, or forfeit).
   isGameOver(state: GameState): boolean;
 
-  // Return the winning playerId, or null for a draw.
+  // Return the winning player index (0 or 1), or null for a draw.
   // Only call when isGameOver() is true.
-  getWinner(state: GameState): string | null;
+  // The server maps the returned index back to a playerId.
+  getWinner(state: GameState): number | null;
 }

@@ -1,1 +1,1 @@
-export type { GamePlugin, GameState, Move, PlayerView } from './interface';
+export type { GamePlugin, GameOptions, GameState, Move, PlayerView } from './interface';
