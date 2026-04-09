@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Game } from './game.entity';
@@ -35,5 +35,12 @@ export class GamesService implements OnModuleInit {
 
   async getGame(_slug: string) {
     throw new Error('not implemented');
+  }
+
+  async enableGame(slug: string, enabled: boolean) {
+    const game = await this.games.findOne({ where: { slug } });
+    if (!game) throw new NotFoundException(`Game not found: ${slug}`);
+    game.enabled = enabled;
+    return this.games.save(game);
   }
 }

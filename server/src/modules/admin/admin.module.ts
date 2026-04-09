@@ -4,10 +4,12 @@ import { join } from 'path';
 import { AdminController } from './admin.controller';
 import { AuthModule } from '../auth/auth.module';
 import { ConfigModule } from '../config/config.module';
+import { GamesModule } from '../games/games.module';
 
 @Module({
   imports: [
     ConfigModule,
+    GamesModule,
     AuthModule,
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', '..', '..', '..', 'public', 'admin'),
