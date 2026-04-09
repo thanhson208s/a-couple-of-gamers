@@ -34,6 +34,11 @@ export class AuthController {
     return this.authService.refresh(body.refreshToken);
   }
 
+  @Post('logout')
+  logout(@Body() body: { refreshToken: string }) {
+    return this.authService.logout(body.refreshToken);
+  }
+
   @Post('ws-ticket')
   issueWsTicket() {
     // Requires JWT auth guard (to be added)

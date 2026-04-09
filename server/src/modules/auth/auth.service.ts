@@ -94,6 +94,14 @@ export class AuthService {
     return raw;
   }
 
+  async logout(rawToken: string): Promise<void> {
+    const hash = sha256(rawToken);
+    const token = await this.refreshTokens.findOne({ where: { tokenHash: hash, revokedAt: IsNull() } });
+    if (token) {
+      await this.refreshTokens.update(token.id, { revokedAt: new Date() });
+    }
+  }
+
   private async revokeAllTokens(userId: string): Promise<void> {
     await this.refreshTokens.update({ userId, revokedAt: IsNull() }, { revokedAt: new Date() });
   }
