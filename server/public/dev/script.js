@@ -94,10 +94,13 @@ window.DEV_CONFIG = {
           method: 'POST',
           path: '/v1/matches',
           inputs: [
-            { key: 'gameSlug',     label: 'Game slug', placeholder: 'tictactoe' },
-            { key: 'opponentType', label: 'Opponent',  type: 'select', options: ['human', 'ai'] },
+            { key: 'gameSlug',   label: 'Game slug',   placeholder: 'tictactoe' },
+            { key: 'playerSlot', label: 'Player slot', type: 'select', options: [
+              { value: '1', label: '1 — goes first' },
+              { value: '2', label: '2 — goes second' },
+            ]},
           ],
-          body: (inputs) => ({ gameSlug: inputs.gameSlug, opponentType: inputs.opponentType }),
+          body: (inputs) => ({ gameSlug: inputs.gameSlug, playerSlot: parseInt(inputs.playerSlot, 10) }),
           onSuccess: (data, _state, setState) => setState({ matchId: data.id }),
         },
         {
@@ -113,10 +116,9 @@ window.DEV_CONFIG = {
           id: 'join-match',
           label: 'Join match',
           method: 'POST',
-          path: (inputs) => `/v1/matches/${inputs.matchId}/join`,
+          path: '/v1/matches/join',
           inputs: [
-            { key: 'matchId',    label: 'Match ID',    from: 'matchId' },
-            { key: 'inviteCode', label: 'Invite code', placeholder: 'code' },
+            { key: 'inviteCode', label: 'Invite code', placeholder: '4-char code' },
           ],
           body: (inputs) => ({ inviteCode: inputs.inviteCode }),
         },
