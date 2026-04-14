@@ -50,7 +50,6 @@ The server is responsible for all playerId ↔ playerIndex mapping: `player1Id` 
 - Server is the only entity that calls `applyMove`
 - Client submits a `Move` object (game-specific payload); server validates and applies it
 - Client never receives a state it didn't earn via a valid move sequence
-- This applies equally to AI moves: the AI (running in Godot) calls the same move submission API as a human player
 
 ```
 Client submits move
@@ -93,16 +92,3 @@ The game plugin is a **shared TypeScript package** at `packages/game-logic/<slug
 - For vs Human matches: server uses the same plugin from `packages/game-logic/<slug>/` to validate every move — unchanged
 
 AI complexity is per-game and up to the implementer. The shared plugin must produce identical results on both runtimes.
-
----
-
-## Game Catalog
-
-| Game | Hidden Info | State Complexity | AI Difficulty Estimate | Notes |
-|------|-------------|-----------------|----------------------|-------|
-| Tic-tac-toe | No | Very low (3×3 grid) | Trivial (minimax, small tree) | Good first implementation |
-| Battleship | Yes (ship positions) | Low-medium (10×10 grids × 2) | Easy (random + targeting heuristic) | Requires `getPlayerView` filtering |
-| Kingdomino | No | Medium (grid + tile bag) | Medium (greedy heuristic) | Tile drafting adds randomness |
-| Azul | No | Medium (factory display + boards) | Medium-hard (many decision points) | Complex state shape |
-| Patchwork | No | Medium (quilt boards + time track) | Medium (spatial reasoning) | Button economy adds depth |
-| _Future games_ | TBD | TBD | TBD | Add rows here as games are added |

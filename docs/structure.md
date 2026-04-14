@@ -2,6 +2,8 @@
 
 Living map of the codebase. Update when files are added, removed, or renamed.
 
+**Exclude:** *.dto.ts, *.spec.ts
+
 ---
 
 ## Root
@@ -12,7 +14,7 @@ a-couple-of-gamers/
 ├── client/                  # Cocos Creator project
 ├── packages/
 │   └── game-logic/          # Shared TypeScript game plugin (@acog/game-logic)
-├── docs/                    # All design and reference docs
+├── docs/                    # All design and reference docs, containing this file
 ├── .github/workflows/       # CI (lint/test) and deploy (VPS + R2) pipelines
 ├── docker-compose.yml               # Base service definitions
 ├── docker-compose.local.yml         # Local dev overrides
@@ -20,7 +22,6 @@ a-couple-of-gamers/
 ├── docker-compose.prod-app.yml      # Production app VPS (NestJS + Caddy)
 ├── docker-compose.prod-data.yml     # Production data VPS (Postgres + Redis)
 ├── Caddyfile                # Reverse proxy: auto TLS, WS upgrade, HTTP→HTTPS
-├── STRUCTURE.md             # (this file, now at docs/structure.md)
 └── .env.example             # Environment variable template
 ```
 
@@ -35,7 +36,7 @@ Direct children:
 | `src/` | TypeScript source — see breakdown below |
 | `dist/` | Compiled JS output (gitignored; produced by `nest build`) |
 | `public/admin/` | Static HTML for the admin dashboard, embedded in the Docker image |
-| `public/dev/` | Dev console (`GET /dev`) — `index.html` (renderer) + `config.js` (scenes/endpoints), embedded in the Docker image |
+| `public/dev/` | Dev console (`GET /dev`) — `index.html` (renderer) + `script.js` (scenes/endpoints) + `style.css`, embedded in the Docker image |
 | `Dockerfile` | Multi-stage build: `builder` compiles TS, `runtime` runs `dist/` |
 | `package.json` | Dependencies and npm scripts (`start`, `start:dev`, `build`, `test`, `typeorm`) |
 | `tsconfig.json` | Base TypeScript config (strict mode, ES2021 target) |
@@ -79,23 +80,20 @@ Direct children:
 |------|---------|
 | `auth.module.ts` | Auth module — JWT setup, all guards, `AuthService` |
 | `auth.controller.ts` | `/v1/auth/*` HTTP controller |
-| `auth.service.ts` | Auth business logic — social login, JWT issuance, WS tickets, dev login |
-| `auth.service.spec.ts` | Unit tests for `AuthService` |
+| `auth.service.ts` | Auth business logic |
 | `guards/jwt-auth.guard.ts` | Verifies `Authorization: Bearer <token>`; attaches decoded payload to `req.user` |
-| `guards/jwt-auth.guard.spec.ts` | Unit tests for `JwtAuthGuard` |
 | `guards/admin-auth.guard.ts` | Prod: validates Cloudflare Access JWT. Dev fallback: checks `X-Admin-Token` header |
 | `guards/dev-auth.guard.ts` | Returns 404 if `CF_TEAM_DOMAIN` is set or `DEV_MODE !== 'true'` |
-| `refresh-token.entity.ts` | `refresh_tokens` table — id, user_id (FK), token_hash (SHA-256), expires_at, revoked_at |
+| `refresh-token.entity.ts` | `refresh_tokens` table |
 
 ### `users/`
 
 | File | Purpose |
 |------|---------|
 | `users.module.ts` | Users module — registers `User` entity repository, exports `UsersService` |
-| `users.controller.ts` | `/v1/users/me/*` HTTP controller |
-| `users.service.ts` | User business logic — profiles, device tokens, favorites, rivals, find-or-create |
-| `users.service.spec.ts` | Unit tests for `UsersService` |
-| `user.entity.ts` | `users` table — `id` (char 10, server-generated PK), `provider`, `provider_id`, `display_name`, `created_at`; unique on `(provider, provider_id)` |
+| `users.controller.ts` | `/v1/users/*` HTTP controller |
+| `users.service.ts` | User business logic |
+| `user.entity.ts` | `users` table |
 
 ### `games/`
 
@@ -105,7 +103,7 @@ Direct children:
 | `games.controller.ts` | `/v1/games/*` HTTP controller |
 | `games.service.ts` | Game catalog business logic |
 | `games.registry.ts` | Injectable singleton — maps game slug → `GamePlugin` instance |
-| `game.entity.ts` | `games` table — `id` (uuid), `slug` (unique), `name`, `enabled` (default false), `bundle_url`, `bundle_version` |
+| `game.entity.ts` | `games` table |
 
 ### `matches/`
 
@@ -113,9 +111,9 @@ Direct children:
 |------|---------|
 | `matches.module.ts` | Matches module — imports `GamesModule` for move validation |
 | `matches.controller.ts` | `/v1/matches/*` HTTP controller |
-| `matches.service.ts` | Match lifecycle business logic — create, join, moves, AI completion |
-| `match.entity.ts` | `matches` table — id, game_id (FK), status, state (jsonb), player1/2 id+guest_uuid, current_turn, winner, invite_code, timestamps |
-| `move.entity.ts` | `moves` table — id, match_id (FK), player_id, guest_uuid, move_data (jsonb), created_at |
+| `matches.service.ts` | Match lifecycle business logic |
+| `match.entity.ts` | `matches` table |
+| `move.entity.ts` | `moves` table |
 
 ### `ws/`
 
@@ -140,7 +138,7 @@ Direct children:
 | `config.module.ts` | Config module — exports `ConfigService` |
 | `config.controller.ts` | `/v1/config` HTTP controller |
 | `config.service.ts` | Dynamic app config business logic |
-| `config.entity.ts` | `config` table — id (serial), config (jsonb), updated_at, updated_by |
+| `config.entity.ts` | `config` table |
 
 ### `dev/`
 
@@ -148,7 +146,6 @@ Direct children:
 |------|---------|
 | `dev.module.ts` | Dev module — imports `AuthModule` and `MatchesModule` |
 | `dev.controller.ts` | `GET /dev` (console page) + `/v1/dev/cheat/*` API endpoints — all guarded by `DevAuthGuard` |
-| `force-complete.dto.ts` | Request body for `POST /v1/dev/cheat/matches/:id/force-complete` |
 
 ### `admin/`
 

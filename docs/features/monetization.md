@@ -12,7 +12,7 @@ All monetization is client-side except for the `is_ad_free` flag, which is store
 
 ## Components
 
-**Banner ads** — shown during active gameplay; hidden when `is_ad_free = true`. Managed entirely in the Godot client via the ad SDK.
+**Banner ads** — shown during active gameplay; hidden when `is_ad_free = true`. Managed entirely in the Cocos client via the ad SDK.
 
 **Interstitial ads** — triggered by [match-completion.md](match-completion.md) after the results screen; skipped when `is_ad_free = true`.
 

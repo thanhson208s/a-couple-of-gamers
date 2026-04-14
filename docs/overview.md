@@ -24,12 +24,10 @@ What this project is, tech stack choices with rationale, target platforms, and s
 | ORM | TypeORM | NestJS-native; parameterized queries by default; built-in migration system |
 | Primary database | PostgreSQL | Relational; game state stored as JSONB for per-game flexibility |
 | Object storage | Cloudflare R2 | Daily DB backups; hot update assets; mini game bundles (CDN) |
-| Shared game plugin | TypeScript package (`packages/game-logic/`) | Game logic shared between server (vs Human validation) and client (vs AI offline play) |
-| Admin dashboard | Static HTML served by NestJS at `/admin` | Internal UI for remote config management; protected by admin token |
 | Push notifications | Firebase Cloud Messaging (FCM) | Covers iOS (via APNs bridge) and Android from a single API |
 | Authentication | Firebase Authentication | OAuth flow handling (Google/Apple/Facebook) on client; ID token verification via Admin SDK on server |
-| Analytics | Firebase Analytics | Client-side event tracking in Godot |
-| Error tracking | Sentry | Server exceptions and Godot client crashes |
+| Analytics | Firebase Analytics + Game Analytics | Client-side event tracking in Cocos |
+| Error tracking | Sentry | Server exceptions and Cocos client crashes |
 | Reverse proxy | Caddy | Automatic HTTPS (Let's Encrypt), WebSocket upgrade headers, HTTP→HTTPS redirect — zero cert management |
 | CI/CD | GitHub Actions | Lint → test → build → deploy pipeline |
 | Container runtime | Docker Compose | Per-environment service definitions |
@@ -43,4 +41,3 @@ What this project is, tech stack choices with rationale, target platforms, and s
 | Platforms | iOS, Android |
 | Expected CCU | ~100 |
 | Expected DAU | ~500 |
-| Project type | Self-learning — correctness and clarity over performance |

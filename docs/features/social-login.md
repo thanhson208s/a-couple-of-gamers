@@ -13,7 +13,7 @@ The client uses the Firebase SDK to run the OAuth flow for the chosen provider (
 ## Flow
 
 ```
-Godot client
+Cocos client
   → Firebase SDK: signInWithProvider(google|apple|facebook)
   → Firebase issues ID token to client
 

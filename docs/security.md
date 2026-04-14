@@ -19,12 +19,6 @@ Dev endpoints are never rate-limited and bypass Firebase authentication. They mu
 
 ---
 
-### Social Login via Firebase
-
-The client uses the Firebase SDK to run the OAuth flow with the chosen provider (Google/Apple/Facebook). Firebase issues a short-lived ID token to the client upon success. The client sends this ID token to `POST /v1/auth/social`. The server verifies it using the Firebase Admin SDK — no direct calls to provider APIs needed. Provider identity (`uid`, `email`, `displayName`) is extracted from the decoded token and used to find or create the user account.
-
----
-
 ### JWT Lifecycle
 
 Two-token model: short-lived access token + long-lived refresh token.
@@ -54,7 +48,7 @@ Access tokens carry a `type` claim to distinguish identity kind:
 
 Derived from `user.provider` via `AuthService.tokenType()` — also applied when `POST /v1/auth/refresh` re-issues an access token. `JwtAuthGuard` can inspect the `type` claim to restrict endpoints that require a real account.
 
-After `JwtAuthGuard` runs, the verified payload is available as `JwtUser { sub: string; type: string }` on the request. Use the `@CurrentUser()` decorator (exported from `guards/jwt-auth.guard.ts`) in controllers to access it without importing Express types:
+After `JwtAuthGuard` runs, the verified payload is available as `JwtUser { id: string; type: string }` on the request. Use the `@CurrentUser()` decorator (exported from `guards/jwt-auth.guard.ts`) in controllers to access it:
 
 ```typescript
 @Get('me')

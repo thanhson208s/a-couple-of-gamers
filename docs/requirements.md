@@ -184,7 +184,7 @@ When the last valid move is accepted by the server:
 
 - **Availability** — staging environment validates all changes before production; see [infrastructure.md#deployment-topology](infrastructure.md#deployment-topology)
 - **Backup** — daily automated Postgres dump to Cloudflare R2; see [infrastructure.md#backup](infrastructure.md#backup)
-- **Error monitoring** — Sentry captures server exceptions and Godot client crashes
+- **Error monitoring** — Sentry captures server exceptions and Cocos client crashes
 - **Analytics** — Firebase Analytics tracks key client events (match started, game completed, IAP, etc.)
 - **API versioning** — all routes prefixed `/v1/`; old mobile clients supported until an explicit sunset; see [api-reference.md#versioning](api-reference.md#versioning)
 - **Health check** — `GET /health` endpoint returns service status for uptime monitoring

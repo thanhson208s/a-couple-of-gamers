@@ -60,7 +60,7 @@ Request flow diagram, all internal services (NestJS app, worker, Postgres, Redis
 
 External (not in request path):
   Cloudflare R2  ←── daily Postgres dump (OS cron on prod-data VPS)
-  Sentry         ←── NestJS unhandled exceptions + Godot client crashes
+  Sentry         ←── NestJS unhandled exceptions + Cocos client crashes
 ```
 
 ---
@@ -85,55 +85,16 @@ External (not in request path):
 | **Cloudflare DNS Proxy** | DNS proxy for all client traffic; DDoS protection; hides origin VPS IP; client-facing TLS termination at edge | All HTTP/WS traffic from clients; Caddy authenticates to Cloudflare via Origin Certificate (Full strict SSL mode) |
 | **Cloudflare R2** | Daily Postgres backups; hot update assets (main app); mini game bundles (CDN for client downloads) | Backups: OS cron on prod-data VPS. Hot update + bundles: CI/CD asset publish job. Client fetches directly from R2 CDN URL. |
 | **Sentry** | Error tracking and crash reporting | NestJS API Server (unhandled exceptions); Cocos Creator client (crashes via Sentry JavaScript SDK) |
-| **Firebase Authentication** | OAuth provider handling (Google/Apple/Facebook); issues ID tokens to the client | Godot client (Firebase SDK for OAuth flow); NestJS API Server (Admin SDK for ID token verification) |
-| **Firebase Analytics** | Client-side event tracking (match started, game completed, IAP, etc.) | Godot client only |
+| **Firebase Authentication** | OAuth provider handling (Google/Apple/Facebook); issues ID tokens to the client | Cocos client (Firebase SDK for OAuth flow); NestJS API Server (Admin SDK for ID token verification) |
+| **Firebase Analytics** | Client-side app event tracking (IAP, install) | Cocos client only |
+| **Game Analytics** | Client-side game event tracking (for balance game design) | Cocos client only |
+| **Firebase Remote Config** | Changing app parameters without needing an app update (e.g Holiday theme) | Cocos client only |
+| **Revenue Cat** | Handle cross-platform in-app purchase, receipt, refund, acknowledge | Cocos client only |
+| **Google Admob** | Responsible for fetching and showing ads | Cocos client only |
 
 ### Client
 
-Cocos Creator targeting iOS and Android, written in TypeScript. The client is render-only — it has no game state authority. All move validation and state transitions happen server-side via the game plugin interface. See [game-system.md](game-system.md).
-
-Client responsibilities:
-- Lobby scenes (catalog, favorites, active match list + badge)
-- Match scene (board rendering, move input; handles async and real-time paths transparently)
-- AI node (per-game local logic; submits moves via the same API as human players)
-- Local SQLite cache for guest match history and offline browsing
-- Auth flow (guest UUID, social login, guest→account merge)
-- Ad and IAP management
-
----
-
-## Server Modules
-
-| Module | Responsibility |
-|--------|---------------|
-| `AuthModule` | Social login (Google/Apple/Facebook), guest UUID validation, JWT issuance, WS ticket issuance |
-| `UsersModule` | User profiles, `is_ad_free` flag, guest→account merge, device token management |
-| `GamesModule` | Game catalog, game plugin registry |
-| `MatchesModule` | Match lifecycle: create, invite, join, complete |
-| `WsGateway` | Persistent user-scoped WS connection (`/v1/ws`); move submission, real-time state broadcast, player presence in Redis |
-| `NotificationsModule` | FCM push dispatch on async turns; enqueues delayed reminder jobs to BullMQ |
-| `AdminModule` | Admin config endpoints (`/v1/admin/*`); serves static admin dashboard from `server/public/admin/`; protected by `X-Admin-Token` header |
-| `ConfigModule` | Serves `GET /v1/config`; reads from `config` table |
-| `DevModule` | Dev-only password-less login and cheat endpoints; `DevAuthGuard` makes all routes return 404 on staging/prod |
-
----
-
-## Key Architectural Decisions
-
-**Cloudflare DNS proxy** — All client traffic routes through Cloudflare's edge before reaching Caddy. This provides DDoS protection and hides the origin VPS IP at zero cost. Caddy uses a Cloudflare Origin Certificate (not Let's Encrypt) to satisfy Full strict SSL mode — no ACME, no 90-day renewal.
-
-**NestJS over Colyseus** — Colyseus is optimized for persistent real-time rooms; async-first play fights against its room lifecycle. At 100 CCU its performance advantages are irrelevant. NestJS gives full control over state management.
-
-**Global persistent WebSocket, WS-only move submission** — The client opens a single user-scoped WS connection (`/v1/ws`) immediately after login and keeps it alive. All human match moves are submitted over this connection. If the opponent is also connected (Redis presence), the server broadcasts the new state over WS; if not, it falls back to FCM push. This eliminates the REST move endpoint for human matches and makes the async/real-time distinction transparent to the client.
-
-**Client-side AI** — AI logic runs locally in the Cocos Creator client as a per-game TypeScript component and submits moves through the same API as human players. The server validates all moves regardless of source. This eliminates server-side AI infrastructure. Consequence: AI games require a running client.
-
-**Postgres JSONB for game state** — Each game has a different state shape. JSONB lets each game plugin own its state structure without requiring schema migrations per game.
-
-**Server is state authority** — Clients render only. All move validation and state transitions happen server-side via the game plugin interface. See [game-system.md](game-system.md).
-
-**Separate API server and worker processes** — The NestJS codebase has two entry points: the API server (HTTP/WS) and the worker (no HTTP). They run as separate containers sharing Redis. Background jobs never compete with request handling.
-
-**Shared TypeScript game plugin** — Game logic lives in `packages/game-logic/` and is imported by both the NestJS server (for vs Human move validation) and the Cocos Creator client (for vs AI offline play). One implementation, two runtimes.
-
-**Client authority for offline AI matches** — AI matches run entirely client-side using the shared game plugin; the server records the final result but does not validate individual moves. This is safe because there is no opponent to cheat against in a single-player AI match.
+Cocos Creator targeting iOS and Android, written in TypeScript, is responsible for:
+- Scene rendering: lobby, matches, profiles
+- AI node: contains AI logic for each
+- Ads and IAP management

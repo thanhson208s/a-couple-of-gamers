@@ -40,6 +40,8 @@ Examples:
 
 ## Database Migrations
 
+### Normal run (migration files already exist)
+
 ```bash
 # Generate a new migration (from server/ directory)
 # Requires the local DB to be running — TypeORM diffs entities against the current schema
@@ -56,6 +58,25 @@ npm run typeorm -- migration:revert -d src/app.data.ts
 
 Migrations run automatically on deploy (step 4 of CI/CD). See [infrastructure.md#database-migrations](infrastructure.md#database-migrations).
 
+### Wipe and reinitialise (local dev only)
+
+Use this when entities changed significantly and you want a clean slate instead of an incremental migration:
+
+**If using Docker Compose for Postgres:**
+```bash
+docker exec a-couple-of-gamers-db-1 psql -U postgres -d acog -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+```
+
+> Connect to the `postgres` default database (not `acog`) to drop/recreate it.
+
+```bash
+# Generate a new migration then apply it
+npm run typeorm -- migration:generate src/migrations/<MigrationName> -d src/app.data.ts
+npm run typeorm -w server -- migration:run -d src/app.data.ts
+```
+
+> **Never do this on staging or production.** Use incremental migrations (`migration:generate`) for any schema change after the first deploy.
+
 ---
 
 ## Adding a Module
@@ -71,7 +92,7 @@ After generation:
 
 1. **Register in `app.module.ts`** — add to the `imports` array.
 2. **Add entities** if the module owns DB tables — see [Adding an Entity](#adding-an-entity).
-3. **Add guards** if endpoints require auth — import `AuthModule` and apply `JwtAuthGuard`, `GuestAuthGuard`, `AdminAuthGuard`, or `DevAuthGuard` from `modules/auth/guards/`.
+3. **Add guards** if endpoints require auth — import `AuthModule` and apply `JwtAuthGuard`, `AdminAuthGuard`, or `DevAuthGuard` from `modules/auth/guards/`.
 4. **Export services** that other modules will inject — add to the `exports` array in the module decorator.
 5. **Update `docs/structure.md`** — add the new module to the server modules table.
 6. **Add a feature doc** if the module implements a user-facing feature — create `docs/features/<name>.md` following the template in `docs/features/README.md` and link it from `docs/requirements.md`.
@@ -96,7 +117,7 @@ modules/config/
 
 If module A needs to query module B's entity, import module B and call its service — no direct cross-module entity references.
 
-After adding an entity, generate a migration:
+After adding, removing or updating an entity, generate a migration:
 
 ```bash
 cd server
@@ -110,11 +131,10 @@ npx typeorm migration:generate src/migrations/<MigrationName> -d src/app.data.ts
 1. Create the shared game plugin in `packages/game-logic/<slug>/` implementing the `GamePlugin` interface — see [game-system.md](game-system.md)
 2. Register the slug in `GamesRegistry` (`server/src/modules/games/games.registry.ts`) — a row is auto-created in the `games` table (`enabled = false`) on next server start
 3. Import the plugin in the Cocos client's game loader
-4. Create the Cocos Creator scene and assets under `client/games/<slug>/` (this is the Asset Bundle)
-5. Create the AI component at `client/games/<slug>/AiPlayer.ts` (imports from `packages/game-logic/<slug>/`)
-6. Add the game to the catalog table in [game-system.md#game-catalog](game-system.md#game-catalog)
-7. CI will build and upload the bundle to R2 on the next `dev` merge or `client/games/<slug>/` change
-8. Activate the game via admin — set `enabled = true` on the `games` row once the bundle is live
+4. Create the Cocos Creator scene and assets under `client/res/games/<slug>/` (this is the Asset Bundle)
+5. Create the AI component at `client/src/games/<slug>/AiPlayer.ts` (imports from `packages/game-logic/<slug>/`)
+6. CI will build and upload the bundle to R2 on the next `dev` merge or `client/res/games/<slug>/` change
+7. Activate the game via admin — set `enabled = true` on the `games` row once the bundle is live
 
 ---
 
@@ -124,9 +144,9 @@ Hot updates are automatic — no manual step needed. Any merge to `dev` or push 
 
 ---
 
-## Publishing a Mini Game Bundle
+## Publishing a Game Bundle
 
-Pushing changes to `client/games/<slug>/` on `dev` or `main` triggers a bundle-only publish for that game. CI builds the bundle and uploads to `game-bundles/<env>/<slug>/`. After the upload, bump `bundle_version` in the `games` table row for that slug (via a migration or direct update on the target environment).
+Pushing changes to `client/res/games/<slug>/` on `dev` or `main` triggers a bundle-only publish for that game. CI builds the bundle and uploads to `game-bundles/<env>/<slug>/`. After the upload, bump `bundle_version` in the `games` table row for that slug (via a migration or direct update on the target environment).
 
 ---
 
@@ -217,8 +237,6 @@ const module = await Test.createTestingModule({
 ```
 
 **Guards** — test `canActivate()` with mock `ExecutionContext`. Confirm it returns `true` on valid input and throws on invalid.
-
-**Controllers** — only if the controller has non-trivial logic (rare). Use `@nestjs/testing` `Test.createTestingModule` with a mocked service.
 
 Processors and gateways are tested via integration tests (out of scope until the project has an integration test setup).
 
