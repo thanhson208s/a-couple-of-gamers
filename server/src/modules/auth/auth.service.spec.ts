@@ -1,4 +1,4 @@
-import { UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { UnauthorizedException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
@@ -8,10 +8,8 @@ import { UsersService } from '../users/users.service';
 import { User } from '../users/user.entity';
 import { mockRepository } from '../../common/test/helpers';
 
-const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
-
 function makeUser(overrides: Partial<User> = {}): User {
-  return { id: 'ABCD123456', provider: 'guest', providerId: VALID_UUID, displayName: 'guest_abc', ...overrides } as User;
+  return { id: 'ABCD123456', provider: 'anonymous', providerId: 'firebase-uid-123', displayName: 'Guest', ...overrides } as User;
 }
 
 function makeRefreshToken(overrides: Partial<RefreshToken> = {}): RefreshToken {
@@ -29,12 +27,12 @@ describe('AuthService', () => {
   let service: AuthService;
   let refreshTokensRepo: ReturnType<typeof mockRepository<RefreshToken>>;
   let usersService: jest.Mocked<Pick<UsersService, 'findOrCreate' | 'findById'>>;
-  let jwtService: jest.Mocked<Pick<JwtService, 'sign' | 'decode'>>;
+  let jwtService: jest.Mocked<Pick<JwtService, 'sign'>>;
 
   beforeEach(async () => {
     refreshTokensRepo = mockRepository<RefreshToken>();
     usersService = { findOrCreate: jest.fn(), findById: jest.fn() };
-    jwtService = { sign: jest.fn().mockReturnValue('access_token'), decode: jest.fn() };
+    jwtService = { sign: jest.fn().mockReturnValue('access_token') };
 
     // issueRefreshToken calls create() then save()
     refreshTokensRepo.create.mockImplementation((data) => ({ ...data } as RefreshToken));
@@ -68,21 +66,9 @@ describe('AuthService', () => {
     });
   });
 
-  describe('guestLogin', () => {
-    it('returns tokens for a valid UUID', async () => {
-      const user = makeUser();
-      usersService.findOrCreate.mockResolvedValue(user);
-
-      const result = await service.guestLogin(VALID_UUID);
-
-      expect(usersService.findOrCreate).toHaveBeenCalledWith('guest', VALID_UUID, `guest_${VALID_UUID}`);
-      expect(result.accessToken).toBe('access_token');
-      expect(typeof result.refreshToken).toBe('string');
-    });
-
-    it('throws BadRequestException for a non-UUID guest ID', async () => {
-      await expect(service.guestLogin('not-a-uuid')).rejects.toThrow(BadRequestException);
-      expect(usersService.findOrCreate).not.toHaveBeenCalled();
+  describe('login', () => {
+    it('is not yet implemented', async () => {
+      await expect(service.login('some-id-token')).rejects.toThrow('not implemented');
     });
   });
 
@@ -155,26 +141,6 @@ describe('AuthService', () => {
       await service.logout('unknown-token');
 
       expect(refreshTokensRepo.update).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('extractGuestUserId', () => {
-    it('returns the user id for a guest JWT', () => {
-      jwtService.decode.mockReturnValue({ id: 'ABCD123456', type: 'guest' });
-      expect(service.extractGuestUserId('Bearer some_token')).toBe('ABCD123456');
-    });
-
-    it('returns undefined when the authorization header is absent', () => {
-      expect(service.extractGuestUserId(undefined)).toBeUndefined();
-    });
-
-    it('returns undefined when token type is not "guest"', () => {
-      jwtService.decode.mockReturnValue({ id: 'ABCD123456', type: 'dev' });
-      expect(service.extractGuestUserId('Bearer some_token')).toBeUndefined();
-    });
-
-    it('returns undefined when the header is not a Bearer token', () => {
-      expect(service.extractGuestUserId('Basic abc')).toBeUndefined();
     });
   });
 });

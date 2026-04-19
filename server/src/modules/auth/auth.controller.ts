@@ -1,8 +1,9 @@
-import { Controller, Post, Body, Headers, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import { AppThrottle } from '../../app.guard';
 import { AuthService } from './auth.service';
 import { DevAuthGuard } from './guards/dev-auth.guard';
+import { LoginDto } from './login.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -15,17 +16,10 @@ export class AuthController {
     return this.authService.devLogin(body.accountId);
   }
 
-  @Post('guest')
-  guestLogin(@Body() body: { guestId: string }) {
-    return this.authService.guestLogin(body.guestId);
-  }
-
-  @Post('social')
-  @AppThrottle({ ttl: 60_000, limit: 10 })
-  socialLogin(@Headers('authorization') authorization: string | undefined, @Body() body: { idToken: string }) {
-    // If caller carries a guest JWT (type:'guest'), its sub is extracted for merge
-    const guestUserId = this.authService.extractGuestUserId(authorization);
-    return this.authService.socialLogin(body.idToken, guestUserId);
+  @Post('login')
+  @AppThrottle({ ttl: 60_000, limit: 20 })
+  login(@Body() dto: LoginDto) {
+    return this.authService.login(dto.idToken);
   }
 
   @Post('refresh')

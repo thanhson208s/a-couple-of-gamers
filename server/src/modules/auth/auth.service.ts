@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'crypto';
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, NotImplementedException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
@@ -28,16 +28,10 @@ export class AuthService {
     return { accessToken, refreshToken, id: user.id, provider: user.provider, providerId: user.providerId, displayName: user.displayName };
   }
 
-  async guestLogin(guestId: string): Promise<{ accessToken: string; refreshToken: string; id: string; provider: string; providerId: string; displayName: string }> {
-    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!UUID_REGEX.test(guestId)) {
-      throw new BadRequestException('Invalid guest UUID format');
-    }
-
-    const user = await this.usersService.findOrCreate('guest', guestId, `guest_${guestId}`);
-    const accessToken = this.jwtService.sign({ id: user.id, type: AuthService.tokenType(user.provider) } satisfies JwtUser);
-    const refreshToken = await this.issueRefreshToken(user.id);
-    return { accessToken, refreshToken, id: user.id, provider: user.provider, providerId: user.providerId, displayName: user.displayName };
+  // Verifies Firebase ID token, upserts user by provider_id (Firebase UID), issues JWT.
+  // sign_in_provider='anonymous' → type:'anonymous'; social providers → type:'social'
+  async login(_idToken: string): Promise<{ accessToken: string; refreshToken: string; id: string; provider: string; providerId: string; displayName: string }> {
+    throw new NotImplementedException();
   }
 
   async refresh(rawToken: string): Promise<{ accessToken: string; refreshToken: string; id: string; provider: string; providerId: string; displayName: string }> {
@@ -62,26 +56,12 @@ export class AuthService {
     return { accessToken, refreshToken: newRefreshToken, id: user.id, provider: user.provider, providerId: user.providerId, displayName: user.displayName };
   }
 
-  extractGuestUserId(authorization: string | undefined): string | undefined {
-    if (!authorization?.startsWith('Bearer ')) return undefined;
-    const payload = this.jwtService.decode(authorization.slice(7)) as JwtUser | null;
-    if (!payload || typeof payload !== 'object') return undefined;
-    if (payload.type !== 'guest') return undefined;
-    return typeof payload.id === 'string' ? payload.id : undefined;
-  }
-
-  // Issues type:'social' access token.
-  // If guestUserId present and (provider, uid) not yet taken: upgrades the guest record in-place.
-  async socialLogin(_idToken: string, _guestUserId?: string) {
-    throw new Error('not implemented');
-  }
-
   async issueWsTicket() {
     throw new Error('not implemented');
   }
 
-  static tokenType(provider: string): 'guest' | 'dev' | 'social' {
-    if (provider === 'guest') return 'guest';
+  static tokenType(provider: string): 'anonymous' | 'dev' | 'social' {
+    if (provider === 'anonymous') return 'anonymous';
     if (provider === 'dev') return 'dev';
     return 'social';
   }

@@ -12,17 +12,17 @@ export class UsersService {
     return this.users.findOne({ where: { id } });
   }
 
-  // Updates an existing guest user record to a social identity in-place.
-  // The user id and all associated matches are preserved unchanged.
-  async upgradeGuest(guestUserId: string, provider: string, providerId: string, displayName: string): Promise<User> {
+  // Finds user by provider_id (Firebase UID). If found, updates provider + displayName.
+  // If not found, creates a new user. Used by POST /v1/auth/login for all Firebase sign-in types.
+  async findOrUpsertByFirebaseUid(uid: string, provider: string, displayName: string): Promise<User> {
     throw new Error('not implemented');
   }
 
   async findOrCreate(provider: string, providerId: string, displayName: string): Promise<User> {
-    let user = await this.users.findOne({ where: { provider, providerId } });
+    let user = await this.users.findOne({ where: { providerId } });
     if (!user) {
       const id = await this.generateId();
-      user = await this.users.save(this.users.create({ id, provider, providerId, displayName }));
+      user = await this.users.save(this.users.create({ id, provider, providerId: providerId, displayName }));
     }
     return user;
   }

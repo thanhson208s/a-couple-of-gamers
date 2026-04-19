@@ -1,7 +1,7 @@
 import { Entity, PrimaryColumn, Column, CreateDateColumn, Unique } from 'typeorm';
 
 @Entity('users')
-@Unique(['provider', 'providerId'])
+@Unique(['providerId'])
 export class User {
   // 10-char server-generated ID. Used as PK, JWT sub, and client-facing identifier.
   // Charset: A-Z + 2-9 (base32, no ambiguous chars). Generated in UsersService.generateId().
