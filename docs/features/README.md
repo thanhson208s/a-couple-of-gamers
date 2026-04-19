@@ -45,9 +45,7 @@ Links to api-reference.md and database-schema.md sections
 
 | File | Covers |
 |------|--------|
-| [guest-auth.md](guest-auth.md) | Guest UUID, device storage, server state, guest→account merge |
-| [social-login.md](social-login.md) | OAuth provider token exchange, JWT issuance, refresh token rotation |
-| [account-deletion.md](account-deletion.md) | Cascade delete order, transaction safety |
+| [account-management.md](account-management.md) | Firebase login (anonymous + social), account upgrade, account deletion |
 | [game-lobby.md](game-lobby.md) | Catalog caching, favorites sync, active match list, "your turn" badge |
 | [match-lifecycle.md](match-lifecycle.md) | Match state machine, invite flow, abandonment |
 | [vs-ai.md](vs-ai.md) | AI session flow, state persistence, quit/resume |

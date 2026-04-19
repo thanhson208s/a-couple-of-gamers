@@ -16,7 +16,7 @@ Clients should send their version in a header: `X-Client-Version: <semver>`. The
 
 ## Auth Conventions
 
-Authenticated requests (both social and guest) use:
+Authenticated requests (anonymous and social) use:
 - `Authorization: Bearer <access-token>`
 
 Error response shape (all endpoints):
@@ -32,8 +32,7 @@ Error response shape (all endpoints):
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/v1/auth/guest` | Issue guest JWT. Body: `{ guestId: <uuid> }`. Returns access + refresh tokens with `type:'guest'` claim. |
-| `POST` | `/v1/auth/social` | Verify a Firebase ID token and return access + refresh tokens. Body: `{ idToken }`. If `Authorization: Bearer <guest-jwt>` is present, guest data is merged into the new account. |
+| `POST` | `/v1/auth/login` | Verify a Firebase ID token and return access + refresh tokens. Body: `{ idToken }`. Works for both anonymous (`signInAnonymously`) and social (`google.com`, `apple.com`, `facebook.com`) Firebase users. Returns `type:'anonymous'` or `type:'social'` depending on the Firebase `sign_in_provider`. If the Firebase UID matches an existing anonymous user and the token is now a social provider, the record is upgraded in-place. |
 | `POST` | `/v1/auth/refresh` | Exchange refresh token for new access token. Body: `{ refreshToken }` |
 | `POST` | `/v1/auth/ws-ticket` | Issue a short-lived one-time WS ticket. Requires valid JWT. |
 

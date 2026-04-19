@@ -42,11 +42,11 @@ Access tokens carry a `type` claim to distinguish identity kind:
 
 | `type` value | Issued by | Meaning |
 |--------------|-----------|---------|
-| `'guest'` | `POST /v1/auth/guest` | Guest user; limited to pre-login flows |
-| `'social'` | `POST /v1/auth/social` | Fully authenticated social account |
+| `'anonymous'` | `POST /v1/auth/login` | Anonymous (guest-tier) user; feature limits apply |
+| `'social'` | `POST /v1/auth/login` | Fully linked social account (Google/Apple/Facebook) |
 | `'dev'` | `POST /v1/auth/dev` | Dev-only login; never present on staging/prod |
 
-Derived from `user.provider` via `AuthService.tokenType()` — also applied when `POST /v1/auth/refresh` re-issues an access token. `JwtAuthGuard` can inspect the `type` claim to restrict endpoints that require a real account.
+Derived from `user.provider` via `AuthService.tokenType()` — also applied when `POST /v1/auth/refresh` re-issues an access token. `JwtAuthGuard` can inspect the `type` claim to restrict endpoints that require a social account.
 
 After `JwtAuthGuard` runs, the verified payload is available as `JwtUser { id: string; type: string }` on the request. Use the `@CurrentUser()` decorator (exported from `guards/jwt-auth.guard.ts`) in controllers to access it:
 
@@ -81,8 +81,7 @@ Applied at the API server level via `AppGuard` (extends `@nestjs/throttler`) wit
 
 | Endpoint / action | Limit | Window | Key |
 |-------------------|-------|--------|-----|
-| `POST /v1/auth/social` (login) | 10 requests | per minute | IP |
-| `POST /v1/auth/guest` | 120 requests | per minute | IP |
+| `POST /v1/auth/login` | 20 requests | per minute | IP |
 | `POST /v1/auth/refresh` | 20 requests | per minute | IP (unauthenticated) |
 | WS event | 30 events | per minute | userId |
 | All other endpoints | 120 requests | per minute | userId (IP fallback) |
