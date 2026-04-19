@@ -11,6 +11,7 @@ config_version=5
 [application]
 
 config/name="A Couple of Gamers"
+run/main_scene="uid://b2qoicoxoeasv"
 config/features=PackedStringArray("4.6", "Mobile")
 config/icon="res://icon.svg"
 
@@ -21,6 +22,15 @@ Firebase="*uid://cvb26atjckwlq"
 [debug]
 
 settings/gdscript/always_track_call_stacks=true
+
+[display]
+
+window/size/viewport_width=720
+window/size/viewport_height=1280
+window/size/window_width_override=360
+window/size/window_height_override=640
+window/stretch/mode="canvas_items"
+window/stretch/aspect="keep_width"
 
 [editor_plugins]
 
