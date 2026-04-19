@@ -14,7 +14,7 @@ Four guards live in `modules/auth/guards/`. All are exported from `AuthModule` �
 | `AdminAuthGuard` | Endpoint is admin-only (`X-Admin-Token` header) |
 | `DevAuthGuard` | Endpoint must only be reachable in local dev (blocked when `CF_TEAM_DOMAIN` is set or `DEV_MODE` is unset) |
 
-Endpoints with no guard are **public** — no auth checked at all (e.g. `GET /v1/config`, `GET /health`).
+Endpoints with no guard are **public** — no auth checked at all (e.g. `GET /health`).
 
 ### Applying guards
 
@@ -37,8 +37,7 @@ export class MatchesController {
 
 ### Accessing identity in handlers
 
-After `JwtAuthGuard` passes, the decoded JWT payload is on `req.user`.  
-After `GuestAuthGuard` passes, the guest UUID is on `req.guestId`.
+After `JwtAuthGuard` passes, the decoded JWT payload is on `req.user`.
 
 ---
 
