@@ -212,33 +212,7 @@ npm run test:cov      # with coverage report
 npm run test:watch    # watch mode during development
 ```
 
-### File naming
-
-Test files live alongside the file they test and must end in `.spec.ts`:
-
-```
-modules/matches/
-├── matches.service.ts
-├── matches.service.spec.ts   ← unit tests for the service
-```
-
-### What to test per layer
-
-**Services** — the core logic layer. Mock all dependencies (repositories, other services, queues):
-
-```typescript
-const module = await Test.createTestingModule({
-  providers: [
-    MatchesService,
-    { provide: getRepositoryToken(Match), useValue: mockRepository() },
-    { provide: GamesRegistry, useValue: { get: jest.fn() } },
-  ],
-}).compile();
-```
-
-**Guards** — test `canActivate()` with mock `ExecutionContext`. Confirm it returns `true` on valid input and throws on invalid.
-
-Processors and gateways are tested via integration tests (out of scope until the project has an integration test setup).
+→ File naming convention, what to test per layer, and test helper usage: [conventions.md — Testing](conventions.md#testing)
 
 ---
 

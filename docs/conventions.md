@@ -237,13 +237,4 @@ guard.canActivate(ctx); // assert return value or thrown exception
 
 - File naming: `<resource>.entity.ts` in the module directory that owns the table
 - Class naming: `PascalCase` matching the table concept — e.g. `MatchPlayer`, `RivalStat`
-- Always generate migrations via CLI after writing or changing an entity — never hand-write SQL:
-
-```bash
-cd server
-npx typeorm migration:generate src/migrations/<PascalCaseName> -d src/app.data.ts
-```
-
-Migration naming: describe what changed — e.g. `AddRivalStatsIndex`, `CreateInitialSchema`, `AddBundleVersionToGames`.
-
-Review the generated SQL before committing — TypeORM's diff is usually correct but always worth a check.
+→ Migration generation command and naming rules: [workflow.md — Adding an Entity](workflow.md#adding-an-entity)
