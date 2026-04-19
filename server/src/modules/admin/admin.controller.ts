@@ -2,7 +2,7 @@ import { Controller, Get, Put, Body, UseGuards } from '@nestjs/common';
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 import { ConfigService } from '../config/config.service';
 import { GamesService } from '../games/games.service';
-import { EnableGameDto } from '../games/enable-game.dto';
+import { EnableGameDto } from './enable-game.dto';
 
 @Controller('admin')
 @UseGuards(AdminAuthGuard)
