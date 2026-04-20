@@ -32,13 +32,6 @@ Offline AI match using a local Cocos component; result reported to server on com
 
 ---
 
-## vs Human Match
-→ [features/match-session.md](features/match-session.md)
-
-Async-by-default human matches with automatic real-time upgrade when both players are online.
-
----
-
 ## Match Completion
 → [features/match-completion.md](features/match-completion.md)
 

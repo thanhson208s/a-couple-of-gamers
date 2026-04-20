@@ -49,7 +49,6 @@ Links to api-reference.md and database-schema.md sections
 | [game-lobby.md](game-lobby.md) | Catalog caching, favorites sync, active match list, "your turn" badge |
 | [match-lifecycle.md](match-lifecycle.md) | Match state machine, invite flow, abandonment |
 | [vs-ai.md](vs-ai.md) | AI session flow, state persistence, quit/resume |
-| [match-session.md](match-session.md) | Human match async path, real-time auto-upgrade, reconnection, presence |
 | [match-completion.md](match-completion.md) | End-of-game detection, rival stats update, results screen, rematch |
 | [push-notifications.md](push-notifications.md) | Device token management, FCM dispatch, stale token cleanup |
 | [rival-history.md](rival-history.md) | Denormalized stats counters, update on completion |
