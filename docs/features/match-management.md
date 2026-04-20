@@ -43,6 +43,20 @@ Covers match creation, invitation, joining, abandonment, and completion for huma
 - Match transitions to `abandoned`; no stats recorded
 - Opponent sees the match disappear on next refresh (no push notification required, though one may be added later)
 
+## Inactive Match Cleanup
+
+**Type:** BullMQ repeatable job (`cleanup` queue, `stale-matches` job, every 24 h)  
+**Registered by:** `WorkerModule.onModuleInit`  
+**Processed by:** `CleanupProcessor` → `MatchesService.cleanupStaleMatches()`
+
+Single job handles two cases in sequence:
+1. `pending` matches where `invite_code_expires_at < NOW()` (invite expired after 24 h)
+2. `active` matches where `updated_at < NOW() − 30 days` (inactivity threshold)
+
+No stats recorded — cleanup deletion is not a forfeit.
+
+---
+
 ## Completion (Server-Driven)
 
 1. Player submits move → server calls `applyMove` → calls `isGameOver`
@@ -63,6 +77,7 @@ Covers match creation, invitation, joining, abandonment, and completion for huma
 `[ ]` not started · `[~]` in progress · `[x]` done
 
 **Server**
+- [x] Stale match cleanup (BullMQ repeatable, every 24 h — `stale-matches` job registered in `WorkerModule`, processed by `CleanupProcessor`)
 - [x] `POST /v1/matches` — create match
 - [x] `POST /v1/matches/join` — join via invite code (lookup by code, no match ID needed; code expires after 24h)
 - [ ] `DELETE /v1/matches/:id` — abandon match (no penalty)
@@ -85,4 +100,4 @@ Covers match creation, invitation, joining, abandonment, and completion for huma
 - DB: [database-schema.md#matches](../database-schema.md#matches), [database-schema.md#rival_stats](../database-schema.md#rival_stats)
 - Game plugin: [game-system.md#game-plugin-interface](../game-system.md#game-plugin-interface)
 - WS event on completion: [api-reference.md#websocket-events](../api-reference.md#websocket-events) (`match_over`)
-- Inactive cleanup: [background-workers.md](background-workers.md)
+- DB index used by cleanup: [database-schema.md#matches](../database-schema.md#matches) (`matches(updated_at)`)

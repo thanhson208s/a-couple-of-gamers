@@ -53,13 +53,6 @@ Banner and interstitial ads, remove-ads IAP, donations, and affiliate links.
 
 ---
 
-## Background Workers
-→ [features/background-workers.md](features/background-workers.md)
-
-Inactive match cleanup (scheduled) and turn reminder dispatch (delayed job).
-
----
-
 ## Hot Update
 → [features/hot-update.md](features/hot-update.md)
 

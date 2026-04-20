@@ -204,7 +204,7 @@ Player A ──WS: move { matchId }──► WsGateway
                                      │ check Redis: opponent viewing this match? NO
                                    ──┤ append to match:replay:{matchId}:{playerBId}
                                    ──┤ send match:state (view A) ──► Player A
-                                     └ enqueue FCM push (if opponent absent) ──► FCM ──► Player B device
+                                     └ enqueue notify job (short delay) ──► [delay expires] ──► FCM ──► Player B device
 ```
 
 **Entering a match scene**
@@ -227,6 +227,8 @@ Player A ──WS: open_match { matchId }──► WsGateway
 - [ ] WS `open_match`: GETDEL replay buffer → send `match:replay` if non-empty, then `match:state`; set presence; send `opponent_connected` to opponent
 - [ ] WS `close_match` + disconnect: flush state to Postgres, clear presence, send `opponent_disconnected` to affected opponents
 - [ ] WS `move`: load via `getStateFromCache`, validate via plugin, `persistState`; if opponent viewing → broadcast WS; else → append to replay buffer + enqueue FCM
+- [ ] Move notification dispatch (BullMQ short-delay job; cancel on `open_match` within delay window)
+- [ ] Turn reminder dispatch (BullMQ delayed job; cancel on opponent move)
 - [ ] `getStateFromCache`: Redis read-through, Postgres fallback on miss
 - [ ] `persistState`: Redis-first write; flush to Postgres at checkpoints (game over, `close_match`, disconnect)
 - [ ] `clearStateFromCache`: called on match complete / abandon
@@ -237,6 +239,40 @@ Player A ──WS: open_match { matchId }──► WsGateway
 - [ ] Submit all human moves via WS `move` event
 - [ ] Handle `match:replay` (animate opponent moves before showing current board)
 - [ ] Handle `match:state`, `match:over`, `opponent_connected`, `opponent_disconnected`
+
+---
+
+## Push Notifications
+
+### Move Notification (BullMQ Short-Delay Job)
+
+When a move is applied and the opponent is not viewing the match, the API server enqueues a short-delay BullMQ job to dispatch the FCM push. The delay absorbs temporary disconnections — if the opponent reconnects within the window, the job is cancelled before firing.
+
+**Type:** BullMQ delayed job (`notifications` queue); one job enqueued per move submission (when opponent not viewing)
+
+**Logic:**
+1. After `persistState`, if `ws:{opponentId} !== matchId` → enqueue delayed job with a short delay (TBD, e.g. 30 s), keyed by `notify:<matchId>:<opponentId>`
+2. If the opponent sends `open_match` before the delay expires → cancel the pending job
+3. If the delay expires and opponent still not viewing → worker dispatches FCM push to opponent
+4. **Stale token:** if FCM returns `UNREGISTERED`, the server deletes that token
+
+**Payload:** `{ matchId, event: 'your_turn' }` — enough for the client to route to the match screen on tap
+
+This replaces the inline FCM dispatch shown in the Move Flow diagram (async path).
+
+### Turn Reminder (BullMQ Delayed Job)
+
+**Type:** BullMQ delayed job; one job enqueued per move submission
+
+**Logic:**
+1. After a move is applied, `NotificationsModule` enqueues a delayed job targeting the opponent with delay = reminder interval (TBD)
+2. If the opponent submits a move before the delay expires → the pending reminder job is cancelled
+3. If the delay expires with no move → worker sends one FCM push to the opponent
+4. No further reminders until the turn changes again (new move resets the cycle)
+
+**Cancellation mechanism:** the job is identified by a stable key (`reminder:<matchId>:<playerId>`) so it can be located and removed when the turn changes.
+
+**Payload:** same shape as move notification — `{ matchId, event: 'turn_reminder' }`.
 
 ---
 
@@ -251,4 +287,4 @@ Some games have distinct phases where the set of valid actions changes (e.g. Bat
 - WS events: [api-reference.md#websocket-events](api-reference.md#websocket-events)
 - WS auth: [security.md#websocket-authentication](security.md#websocket-authentication)
 - DB tables: [database-schema.md#matches](database-schema.md#matches)
-- Turn reminder after inactivity: [features/background-workers.md](features/background-workers.md)
+- Push notification infrastructure: [features/push-notifications.md](features/push-notifications.md)
