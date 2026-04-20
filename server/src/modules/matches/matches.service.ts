@@ -4,12 +4,16 @@ import {
   ConflictException,
   ForbiddenException,
   GoneException,
+  Inject,
   Injectable,
   NotImplementedException,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LessThanOrEqual, MoreThan, Repository } from 'typeorm';
+import type Redis from 'ioredis';
+import { REDIS_CLIENT } from '../../common/redis/redis.module';
+import type { GameState } from '../../logic';
 import { GamesService } from '../games/games.service';
 import { GamesRegistry } from '../games/games.registry';
 import { Match } from './match.entity';
@@ -32,6 +36,7 @@ export class MatchesService {
     @InjectRepository(Match) private readonly matches: Repository<Match>,
     private readonly gamesService: GamesService,
     private readonly gamesRegistry: GamesRegistry,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   async createMatch(gameSlug: string, playerSlot: 1 | 2, callerId: string, options?: Record<string, unknown>): Promise<object> {
@@ -130,6 +135,26 @@ export class MatchesService {
 
   async getInvite(_matchId: string) {
     throw new Error('not implemented');
+  }
+
+  // ---
+  // Match state cache (Redis key: match:state:{matchId}, TTL: sliding 1 h)
+  // Redis is the fast path; Postgres is flushed at session boundaries (game over, close_match, disconnect).
+  // See: docs/game-system.md#match-state-cache
+
+  // Return the current game state. Reads from Redis; on miss loads from Postgres and repopulates.
+  private async getStateFromCache(_matchId: string): Promise<GameState> {
+    throw new NotImplementedException();
+  }
+
+  // Write state to Redis immediately. Flush to Postgres at session boundary checkpoints.
+  private async persistState(_matchId: string, _state: GameState): Promise<void> {
+    throw new NotImplementedException();
+  }
+
+  // Remove the match state entry from Redis. Call on match completion or abandonment.
+  private async clearStateFromCache(_matchId: string): Promise<void> {
+    throw new NotImplementedException();
   }
 
   async cleanupStaleMatches(): Promise<void> {
