@@ -12,8 +12,6 @@ Living map of the codebase. Update when files are added, removed, or renamed.
 a-couple-of-gamers/
 ├── server/                  # NestJS API server + BullMQ worker
 ├── client/                  # Cocos Creator project
-├── packages/
-│   └── game-logic/          # Shared TypeScript game plugin (@acog/game-logic)
 ├── docs/                    # All design and reference docs, containing this file
 ├── .github/workflows/       # CI (lint/test) and deploy (VPS + R2) pipelines
 ├── docker-compose.yml               # Base service definitions
@@ -60,6 +58,19 @@ Direct children:
 | `modules/` | Feature modules (see below) |
 | `worker/` | BullMQ job processors (see below) |
 | `migrations/` | TypeORM migration files — committed to repo, auto-run on deploy |
+| `logic/` | Game plugin interface and implementations (server-internal) |
+
+---
+
+## `server/src/logic/`
+
+| File | Purpose |
+|------|---------|
+| `interface.ts` | `GamePlugin` TypeScript interface and shared types (`GameState`, `Move`, `PlayerView`, `GameOptions`) |
+| `index.ts` | Re-exports all types from `interface.ts` |
+| `*/index.ts` | Games reference implementation |
+
+→ Plugin contract and server authority model: [game-system.md](game-system.md)
 
 ---
 
@@ -163,18 +174,6 @@ Direct children:
 | `worker.module.ts` | BullMQ worker module — registers `cleanup` and `reminders` queues |
 | `processors/cleanup.processor.ts` | Marks stale matches as `abandoned` |
 | `processors/reminder.processor.ts` | Dispatches FCM turn reminder when delayed job fires |
-
----
-
-## `packages/game-logic/`
-
-| Path | Purpose |
-|------|---------|
-| `src/interface.ts` | `GamePlugin` TypeScript interface |
-| `src/index.ts` | Package entry point |
-| `tictactoe/src/index.ts` | `TicTacToePlugin` — reference implementation |
-
-→ Plugin contract and server authority model: [game-system.md](game-system.md)
 
 ---
 

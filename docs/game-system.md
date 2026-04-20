@@ -83,12 +83,12 @@ Some games have distinct phases where the set of valid actions changes (e.g. Bat
 
 ## AI Integration
 
-The game plugin is a **shared TypeScript package** at `packages/game-logic/<slug>/`. It runs on both the server (for vs Human move validation) and the Cocos Creator client (for vs AI offline play).
+The game plugin lives at `server/src/logic/<slug>/`. It runs on both the server (for vs Human move validation) and the Cocos Creator client (for vs AI offline play).
 
-- AI logic lives in `client/games/<slug>/AiPlayer.ts` and imports the shared plugin from `packages/game-logic/<slug>/`
+- AI logic will live in `client/games/<slug>/AiPlayer.ts` and import the plugin when the client is scaffolded
 - For vs AI matches: the entire game runs client-side — `AiPlayer.ts` calls `applyMove` locally, no server contact during play
 - AI reads the current `PlayerView`, computes a `Move`, and applies it via the local plugin instance
 - On match end, client reports the result to `POST /v1/matches/:id/complete`; server records without re-validating
-- For vs Human matches: server uses the same plugin from `packages/game-logic/<slug>/` to validate every move — unchanged
+- For vs Human matches: server uses the plugin from `server/src/logic/<slug>/` to validate every move
 
 AI complexity is per-game and up to the implementer. The shared plugin must produce identical results on both runtimes.

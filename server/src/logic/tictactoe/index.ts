@@ -1,4 +1,4 @@
-import type { GameOptions, GamePlugin, GameState, Move, PlayerView } from '@acog/game-logic';
+import type { GameOptions, GamePlugin, GameState, Move, PlayerView } from '../';
 
 // TicTacToe-specific state shape — uses player indices (0 | 1), never player IDs.
 interface TicTacToeState extends GameState {

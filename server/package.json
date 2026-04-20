@@ -15,7 +15,6 @@
     "typeorm": "node --env-file=../.env.local ../node_modules/.bin/typeorm-ts-node-commonjs"
   },
   "dependencies": {
-    "@acog/game-logic": "*",
     "@nest-lab/throttler-storage-redis": "^1.2.0",
     "@nestjs/bullmq": "^10.0.0",
     "@nestjs/common": "^10.0.0",

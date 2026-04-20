@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { GamePlugin } from '@acog/game-logic';
-import { TicTacToePlugin } from '@acog/game-logic-tictactoe';
+import { GamePlugin } from '../../logic';
+import { TicTacToePlugin } from '../../logic/tictactoe';
 
 @Injectable()
 export class GamesRegistry {
