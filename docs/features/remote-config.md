@@ -53,7 +53,7 @@ Served by NestJS at `/admin` as static HTML files embedded in the Docker image (
 
 ---
 
-## Interaction with Mini Game Bundles
+## Interaction with Game Bundles
 
 Disabling a game hides it from the lobby. It does **not**:
 - Delete the user's locally cached bundle

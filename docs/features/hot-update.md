@@ -8,7 +8,7 @@
 
 The main app bundle (lobby, UI, core flows) is updated without an app store release using Cocos Creator's built-in hot update system. On launch, the client checks a remote version manifest; if a newer version exists, it downloads only the changed files before rendering.
 
-Mini game bundles are **not** part of the hot update — they are versioned and distributed separately through the bundle download system.
+Game bundles are **not** part of the hot update — they are versioned and distributed separately through the bundle download system.
 
 ---
 

@@ -23,7 +23,7 @@ What this project is, tech stack choices with rationale, target platforms, and s
 | Job queue | BullMQ (via Redis) | Persistent delayed and repeatable jobs in a separate worker service |
 | ORM | TypeORM | NestJS-native; parameterized queries by default; built-in migration system |
 | Primary database | PostgreSQL | Relational; game state stored as JSONB for per-game flexibility |
-| Object storage | Cloudflare R2 | Daily DB backups; hot update assets; mini game bundles (CDN) |
+| Object storage | Cloudflare R2 | Daily DB backups; hot update assets; game bundles (CDN) |
 | Push notifications | Firebase Cloud Messaging (FCM) | Covers iOS (via APNs bridge) and Android from a single API |
 | Authentication | Firebase Authentication | OAuth flow handling (Google/Apple/Facebook) on client; ID token verification via Admin SDK on server |
 | Analytics | Firebase Analytics + Game Analytics | Client-side event tracking in Cocos |

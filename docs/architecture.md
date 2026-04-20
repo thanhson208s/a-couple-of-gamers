@@ -83,7 +83,7 @@ External (not in request path):
 |---------|---------|--------------|
 | **FCM** | Push notifications to iOS (via APNs bridge) and Android | NestJS API Server (inline, on move submission) and Worker (turn reminders) |
 | **Cloudflare DNS Proxy** | DNS proxy for all client traffic; DDoS protection; hides origin VPS IP; client-facing TLS termination at edge | All HTTP/WS traffic from clients; Caddy authenticates to Cloudflare via Origin Certificate (Full strict SSL mode) |
-| **Cloudflare R2** | Daily Postgres backups; hot update assets (main app); mini game bundles (CDN for client downloads) | Backups: OS cron on prod-data VPS. Hot update + bundles: CI/CD asset publish job. Client fetches directly from R2 CDN URL. |
+| **Cloudflare R2** | Daily Postgres backups; hot update assets (main app); game bundles (CDN for client downloads) | Backups: OS cron on prod-data VPS. Hot update + bundles: CI/CD asset publish job. Client fetches directly from R2 CDN URL. |
 | **Sentry** | Error tracking and crash reporting | NestJS API Server (unhandled exceptions); Cocos Creator client (crashes via Sentry JavaScript SDK) |
 | **Firebase Authentication** | OAuth provider handling (Google/Apple/Facebook); issues ID tokens to the client | Cocos client (Firebase SDK for OAuth flow); NestJS API Server (Admin SDK for ID token verification) |
 | **Firebase Analytics** | Client-side app event tracking (IAP, install) | Cocos client only |

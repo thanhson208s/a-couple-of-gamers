@@ -1,4 +1,4 @@
-# Mini Game Bundles
+# Game Bundles
 
 **Requires reading:** [requirements.md#game-bundles](../requirements.md#game-bundles) | [infrastructure.md#asset-pipeline-r2](../infrastructure.md#asset-pipeline-r2)
 
