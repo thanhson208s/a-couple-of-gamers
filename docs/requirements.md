@@ -18,10 +18,10 @@ Browse the game catalog, manage favorites, and view active matches with turn sta
 
 ---
 
-## Match Lifecycle
-→ [features/match-lifecycle.md](features/match-lifecycle.md)
+## Match Management
+→ [features/match-management.md](features/match-management.md)
 
-Create and join human matches via invite code or deep link; abandon matches at any time.
+Create and join human matches via invite code or deep link; abandon or complete matches; update rival stats on completion.
 
 ---
 
@@ -29,13 +29,6 @@ Create and join human matches via invite code or deep link; abandon matches at a
 → [features/vs-ai.md](features/vs-ai.md)
 
 Offline AI match using a local Cocos component; result reported to server on completion.
-
----
-
-## Match Completion
-→ [features/match-completion.md](features/match-completion.md)
-
-Record result, update rival stats, show results screen, offer rematch.
 
 ---
 

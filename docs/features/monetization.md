@@ -14,7 +14,7 @@ All monetization is client-side except for the `is_ad_free` flag, which is store
 
 **Banner ads** — shown during active gameplay; hidden when `is_ad_free = true`. Managed entirely in the Cocos client via the ad SDK.
 
-**Interstitial ads** — triggered by [match-completion.md](match-completion.md) after the results screen; skipped when `is_ad_free = true`.
+**Interstitial ads** — triggered by [match-management.md](match-management.md) after the results screen; skipped when `is_ad_free = true`.
 
 **Remove ads IAP** — client initiates purchase via the platform store; on success, calls the server to set `is_ad_free = true`. Flag is returned in `GET /v1/users/me` so all devices sync on login.
 

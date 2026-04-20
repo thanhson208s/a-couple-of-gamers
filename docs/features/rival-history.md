@@ -33,4 +33,4 @@ Rival stats are a denormalized win/loss/draw counter per (user, opponent, game) 
 
 - Endpoints: [api-reference.md#users](../api-reference.md#users) (`/v1/users/me/rivals`, `/v1/users/me/rivals/:opponentId`)
 - DB: [database-schema.md#rival_stats](../database-schema.md#rival_stats)
-- Updated by: [match-completion.md](match-completion.md)
+- Updated by: [match-management.md](match-management.md)

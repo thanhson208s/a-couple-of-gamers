@@ -1,12 +1,12 @@
-# Match Lifecycle
+# Match Management
 
-**Requires reading:** [requirements.md#match-lifecycle](../requirements.md#match-lifecycle)
+**Requires reading:** [requirements.md#match-management](../requirements.md#match-management)
 
 ---
 
 ## Overview
 
-Covers match creation, invitation, joining, and abandonment — the shell of a match independent of its gameplay. A match moves through states: `pending` → `active` → `completed` | `abandoned`. Gameplay (move submission, real-time session) is a separate concern handled in [vs-ai.md](vs-ai.md) and [match-session.md](match-session.md).
+Covers match creation, invitation, joining, abandonment, and completion for human vs human matches. A match moves through states: `pending` → `active` → `completed` | `abandoned`. Gameplay (move submission, real-time session) is a separate concern; see [game-system.md](../game-system.md).
 
 ---
 
@@ -30,7 +30,7 @@ Covers match creation, invitation, joining, and abandonment — the shell of a m
     └────────────┘  └────────────┘
 ```
 
-## Invite Flow (vs Human)
+## Invite Flow
 
 1. Creator calls `POST /v1/matches` with `{ gameSlug, playerSlot: 1|2 }` → server creates match in `pending` state with the creator in the chosen slot; response includes `inviteCode` + `deepLink` + `expiresAt` directly
 2. Creator shares the deep link or code with opponent
@@ -43,6 +43,19 @@ Covers match creation, invitation, joining, and abandonment — the shell of a m
 - Match transitions to `abandoned`; no stats recorded
 - Opponent sees the match disappear on next refresh (no push notification required, though one may be added later)
 
+## Completion (Server-Driven)
+
+1. Player submits move → server calls `applyMove` → calls `isGameOver`
+2. If game is over: record `winner_id` (null for draw), transition match status to `completed`
+3. Update `rival_stats` for both players
+4. Return final player view with `matchStatus: 'completed'` to the submitting player; broadcast to both via WS if both connected
+
+## Client-Side Steps
+
+1. Client shows results screen (winner/draw/score)
+2. Interstitial ad shown after results screen (unless `is_ad_free = true`)
+3. Player can tap "Return to lobby" or "Rematch" (rematch creates a new match with same game + opponent)
+
 ---
 
 ## Tasks
@@ -54,16 +67,22 @@ Covers match creation, invitation, joining, and abandonment — the shell of a m
 - [x] `POST /v1/matches/join` — join via invite code (lookup by code, no match ID needed; code expires after 24h)
 - [ ] `DELETE /v1/matches/:id` — abandon match (no penalty)
 - [x] Invite code generation + deep link + TTL (returned in `POST /v1/matches` response)
+- [ ] End-of-game detection on move accept; transition match to `completed`
+- [ ] Upsert `rival_stats` for both players
 
 **Client**
 - [ ] Create match flow (game + opponent type selection)
 - [ ] Invite code share sheet + deep link handling
 - [ ] Abandon match action
+- [ ] Results screen (winner / draw)
+- [ ] Rematch flow
 
 ---
 
 ## Related
 
 - Endpoints: [api-reference.md#matches](../api-reference.md#matches), [api-reference.md#invites](../api-reference.md#invites)
-- DB: [database-schema.md#matches](../database-schema.md#matches)
+- DB: [database-schema.md#matches](../database-schema.md#matches), [database-schema.md#rival_stats](../database-schema.md#rival_stats)
+- Game plugin: [game-system.md#game-plugin-interface](../game-system.md#game-plugin-interface)
+- WS event on completion: [api-reference.md#websocket-events](../api-reference.md#websocket-events) (`match_over`)
 - Inactive cleanup: [background-workers.md](background-workers.md)
