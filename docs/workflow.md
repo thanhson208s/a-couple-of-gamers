@@ -124,6 +124,10 @@ cd server
 npx typeorm migration:generate src/migrations/<MigrationName> -d src/app.data.ts
 ```
 
+Review the generated SQL before committing — TypeORM's diff is usually correct but always worth a check.
+
+See migration naming rules: [convetions.md — Entity & Migration Conventions](conventions.md#entity-&-migration-conventions)
+
 ---
 
 ## Adding a New Game

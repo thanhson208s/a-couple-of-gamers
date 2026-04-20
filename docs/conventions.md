@@ -237,4 +237,4 @@ guard.canActivate(ctx); // assert return value or thrown exception
 
 - File naming: `<resource>.entity.ts` in the module directory that owns the table
 - Class naming: `PascalCase` matching the table concept — e.g. `MatchPlayer`, `RivalStat`
-→ Migration generation command and naming rules: [workflow.md — Adding an Entity](workflow.md#adding-an-entity)
+- Migration naming: describe what changed — e.g. `AddRivalStatsIndex`, `CreateInitialSchema`, `AddBundleVersionToGames`.
