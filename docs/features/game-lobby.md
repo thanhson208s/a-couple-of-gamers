@@ -69,7 +69,7 @@ User taps Download (or update badge)
 
 - Catalog + bundle metadata endpoint: [api-reference.md#config](../api-reference.md#config)
 - Remote config (enabled/disabled games): [remote-config.md](remote-config.md)
-- Bundle download system: [mini-game-bundles.md](mini-game-bundles.md)
+- Bundle download system: [game-bundles.md](game-bundles.md)
 - Favorites endpoints: [api-reference.md#favorites](../api-reference.md#favorites)
 - Active match list: [api-reference.md#matches](../api-reference.md#matches)
 - DB: [database-schema.md#games](../database-schema.md#games), [database-schema.md#user_favorites](../database-schema.md#user_favorites)

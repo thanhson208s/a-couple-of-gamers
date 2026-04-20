@@ -1,6 +1,6 @@
 # Mini Game Bundles
 
-**Requires reading:** [requirements.md#mini-game-bundles](../requirements.md#mini-game-bundles) | [infrastructure.md#asset-pipeline-r2](../infrastructure.md#asset-pipeline-r2)
+**Requires reading:** [requirements.md#game-bundles](../requirements.md#game-bundles) | [infrastructure.md#asset-pipeline-r2](../infrastructure.md#asset-pipeline-r2)
 
 ---
 
@@ -89,6 +89,6 @@ If a game is disabled via remote config, it is hidden from the lobby. Its local 
 
 - DB columns: [database-schema.md#games](../database-schema.md#games) (`bundle_url`, `bundle_version`)
 - R2 paths: [infrastructure.md#asset-pipeline-r2](../infrastructure.md#asset-pipeline-r2)
-- Publishing workflow: [workflow.md#publishing-a-mini-game-bundle](../workflow.md#publishing-a-mini-game-bundle)
+- Publishing workflow: [workflow.md#publishing-a-game-bundle](../workflow.md#publishing-a-game-bundle)
 - Lobby download states: [game-lobby.md](game-lobby.md)
 - Offline vs AI play: [vs-ai.md](vs-ai.md)

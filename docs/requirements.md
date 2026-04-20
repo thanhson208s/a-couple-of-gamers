@@ -82,7 +82,7 @@ OTA app update via Cocos AssetsManager on launch, without an app store release.
 ---
 
 ## Mini Game Bundles
-→ [features/mini-game-bundles.md](features/mini-game-bundles.md)
+→ [features/game-bundles.md](features/game-bundles.md)
 
 Per-game Asset Bundle download, version check on launch, and offline caching.
 

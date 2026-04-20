@@ -63,4 +63,4 @@ The manifest upload is the last step — clients only see the new version once t
 
 - R2 paths: [infrastructure.md#asset-pipeline-r2](../infrastructure.md#asset-pipeline-r2)
 - CI/CD jobs: [infrastructure.md#cicd](../infrastructure.md#cicd)
-- Game bundles (separate system): [mini-game-bundles.md](mini-game-bundles.md)
+- Game bundles (separate system): [game-bundles.md](game-bundles.md)

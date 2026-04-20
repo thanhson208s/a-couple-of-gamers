@@ -62,5 +62,5 @@ AI match state is stored on the device, not on the server during play.
 
 - Game plugin interface: [game-system.md#game-plugin-interface](../game-system.md#game-plugin-interface)
 - AI completion endpoint: [api-reference.md#matches-ai-completion](../api-reference.md#matches-ai-completion)
-- Bundle download (required before play): [mini-game-bundles.md](mini-game-bundles.md)
+- Bundle download (required before play): [game-bundles.md](game-bundles.md)
 - DB: [database-schema.md#match_players](../database-schema.md#match_players) (`is_ai` flag for the AI seat)
