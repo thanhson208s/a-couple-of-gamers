@@ -171,9 +171,10 @@ Direct children:
 
 | File | Purpose |
 |------|---------|
-| `worker.module.ts` | BullMQ worker module — registers `cleanup` and `reminders` queues |
+| `worker.module.ts` | BullMQ worker module — registers `cleanup`, `reminders`, and `notifications` queues |
 | `processors/cleanup.processor.ts` | Marks stale matches as `abandoned` |
 | `processors/reminder.processor.ts` | Dispatches FCM turn reminder when delayed job fires |
+| `processors/notify.processor.ts` | Dispatches FCM move notification after short-delay grace window |
 
 ---
 

@@ -4,6 +4,7 @@ import { Queue } from 'bullmq';
 import { MatchesModule } from '../modules/matches/matches.module';
 import { ReminderProcessor } from './processors/reminder.processor';
 import { CleanupProcessor } from './processors/cleanup.processor';
+import { NotifyProcessor } from './processors/notify.processor';
 
 const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // every 24 hours
 
@@ -15,10 +16,11 @@ const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // every 24 hours
     BullModule.registerQueue(
       { name: 'reminders' },
       { name: 'cleanup' },
+      { name: 'notifications' },
     ),
     MatchesModule,
   ],
-  providers: [ReminderProcessor, CleanupProcessor],
+  providers: [ReminderProcessor, CleanupProcessor, NotifyProcessor],
 })
 export class WorkerModule implements OnModuleInit {
   constructor(@InjectQueue('cleanup') private readonly cleanupQueue: Queue) {}

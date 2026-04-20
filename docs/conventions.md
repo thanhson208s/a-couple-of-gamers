@@ -144,7 +144,7 @@ If two modules need each other (circular dependency), extract the shared logic i
 
 ## BullMQ Jobs
 
-Queues are registered in `worker.module.ts`: `reminders` (delayed) and `cleanup` (repeatable).
+Queues are registered in `worker.module.ts`: `notifications` (short-delay move notifications), `reminders` (delayed turn reminders), and `cleanup` (repeatable).
 
 ### Enqueueing from a service
 
