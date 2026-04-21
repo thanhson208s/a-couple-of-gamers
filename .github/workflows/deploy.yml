@@ -69,7 +69,8 @@ jobs:
           echo "TODO: run hot-update manifest tool against previous project.manifest"
 
       - name: Upload hot-update assets to R2 (placeholder)
-        run: echo "TODO: rclone copy hot-update/assets r2:${{ secrets.R2_BUCKET_NAME }}/hot-update/${{ steps.env.outputs.env }}/assets/"
+        run: |
+          echo "TODO: rclone copy hot-update/assets r2:${{ secrets.R2_BUCKET_NAME }}/hot-update/${{ steps.env.outputs.env }}/assets/"
 
       - name: Purge manifest CDN cache
         run: |
