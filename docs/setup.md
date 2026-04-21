@@ -470,7 +470,7 @@ When scaffolding the client:
 1. Open Cocos Creator → **New Project** → select `client/` as the project path, choose the 2D template
 2. Commit the generated project files (`.gitignore` the `temp/` and `local/` directories)
 3. Install the Firebase SDK plugin from the Cocos Store or as a package
-4. Place `GoogleService-Info.plist` (iOS) and `google-services.json` (Android) from [setup.md#6c-client-sdk-config](#6c-client-sdk-config) into the platform directories
+4. Place `GoogleService-Info.plist` (iOS) and `google-services.json` (Android) from the Firebase console into the platform directories
 5. Set the API base URL constant to `http://localhost:3000` for local, overridden per build target in CI
 
 Each game then follows the steps in [workflow.md — Adding a New Game](workflow.md#adding-a-new-game).

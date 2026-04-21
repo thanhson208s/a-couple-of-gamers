@@ -477,11 +477,7 @@ Two deployment targets run as parallel jobs on each trigger: the **VPS** (NestJS
 2. Run hot-update manifest tool → generate version diff against previous manifest
 3. Upload changed assets to R2 `hot-update/<env>/`
 4. Build all game bundles and compute a content hash per slug
-5. **Game-bundle publish** (serialized by GitHub Actions `concurrency: group: bundle-publish-${env}`):
-   - Upload each bundle to `game-bundles/<env>/<slug>/<hash>/` with skip-if-exists semantics (matching hash already present → no-op)
-   - Compose the full manifest in memory and `PUT` it to `game-bundles/<env>/manifest.json` (single atomic object write — this is the "transaction")
-   - Prune: list each `game-bundles/<env>/<slug>/*/` and delete any `<version>/` folder not referenced in the new manifest
-   - CI never writes to Postgres; the manifest is the sole source of truth. See [features/games-management.md#source-of-truth](features/games-management.md#source-of-truth).
+5. **Game-bundle publish** — per-slug content-hash, skip-if-exists upload to R2, atomic `PUT` of the manifest, and prune of orphaned bundle versions. Full steps, concurrency config, and retry semantics: [workflow.md#publishing-a-game-bundle](workflow.md#publishing-a-game-bundle).
 
 **Self-hosted runner setup** — install on each VPS that receives deploys (prod-app and staging):
 

@@ -1,6 +1,6 @@
 # Games Management
 
-**Requires reading:** [requirements.md#games-management](../requirements.md#games-management) | [hot-update.md](hot-update.md) | [config-management.md](config-management.md) | [infrastructure.md#asset-pipeline-r2](../infrastructure.md#asset-pipeline-r2)
+**Requires reading:** [requirements.md#games-management](../requirements.md#games-management) | [hot-update.md](hot-update.md) | [config-management.md](config-management.md) | [infrastructure.md#cloudflare-r2](../infrastructure.md#cloudflare-r2)
 
 ---
 
@@ -33,7 +33,7 @@ The bundle manifest on R2 is the **sole** source of truth for bundle version + U
 
 - `manifest.json` is a single R2 object; a `PUT` is atomic — readers see either the old or the new contents, never a partial mix.
 - CI composes the full manifest in memory from its build output, so the publish has no read-modify-write against R2.
-- The workflow is serialized per environment via a GitHub Actions `concurrency: group: bundle-publish-${env}` lock, so two overlapping publishes can't race on the manifest.
+- The workflow is serialized per environment via a GitHub Actions `concurrency: { group: bundle-publish-${env}, cancel-in-progress: true }` lock, so two overlapping publishes can't race on the manifest — the latest run wins.
 - If the manifest `PUT` fails, the manifest is unchanged and its previous bundle URLs are still intact on R2 (bundles live at immutable content-hashed paths). Retry is always safe.
 
 Example manifest shape (served from `https://acob.gootube.online/game-bundles/production/manifest.json`):
@@ -154,14 +154,14 @@ User taps Play (only reachable when status == 2 / enabled)
 - [ ] Per-slug bundle build + upload (skip-if-exists) to `game-bundles/<env>/<slug>/<hash>/` on `client/res/games/**` change
 - [ ] Compose and `PUT` `game-bundles/<env>/manifest.json` (single atomic object write — the "transaction")
 - [ ] Prune `<slug>/<version>/` folders not referenced by the new manifest
-- [ ] `concurrency: group: bundle-publish-${env}` on the publish job
+- [ ] `concurrency: { group: bundle-publish-${env}, cancel-in-progress: true }` on the publish job
 
 ---
 
 ## Related
 
 - DB: [database-schema.md#games](../database-schema.md#games)
-- R2 paths: [infrastructure.md#asset-pipeline-r2](../infrastructure.md#asset-pipeline-r2)
+- R2 paths: [infrastructure.md#cloudflare-r2](../infrastructure.md#cloudflare-r2)
 - Publishing workflow: [workflow.md#publishing-a-game-bundle](../workflow.md#publishing-a-game-bundle)
 - Admin status control + `/v1/config` shape: [config-management.md](config-management.md)
 - Metadata delivery: [hot-update.md](hot-update.md)

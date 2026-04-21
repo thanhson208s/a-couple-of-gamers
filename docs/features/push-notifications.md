@@ -14,7 +14,7 @@ FCM is used for all push notifications. The client registers a device token on l
 
 - Client calls `PUT /v1/users/device` after login and on app launch if the OS has rotated the token
 - A user can have multiple tokens (multiple devices); all are notified unless the token is stale
-- Stale token detection: FCM returns `NOT_REGISTERED` → server deletes that token
+- Stale token detection: FCM returns `UNREGISTERED` → server deletes that token
 
 ## Payload
 

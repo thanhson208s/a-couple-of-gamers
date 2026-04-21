@@ -1,6 +1,6 @@
 # Hot Update
 
-**Requires reading:** [requirements.md#hot-update](../requirements.md#hot-update) | [infrastructure.md#asset-pipeline-r2](../infrastructure.md#asset-pipeline-r2)
+**Requires reading:** [requirements.md#hot-update](../requirements.md#hot-update) | [infrastructure.md#cloudflare-r2](../infrastructure.md#cloudflare-r2)
 
 ---
 
@@ -63,6 +63,6 @@ The manifest upload is the last step — clients only see the new version once t
 
 ## Related
 
-- R2 paths: [infrastructure.md#asset-pipeline-r2](../infrastructure.md#asset-pipeline-r2)
+- R2 paths: [infrastructure.md#cloudflare-r2](../infrastructure.md#cloudflare-r2)
 - CI/CD jobs: [infrastructure.md#cicd](../infrastructure.md#cicd)
 - Game bundles (separate system): [games-management.md](games-management.md)

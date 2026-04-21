@@ -1,6 +1,6 @@
 # vs AI Session
 
-**Requires reading:** [requirements.md#vs-ai-match](../requirements.md#vs-ai-match) | [game-system.md#ai-integration](../game-system.md#ai-integration)
+**Requires reading:** [requirements.md#vs-ai-match](../requirements.md#vs-ai-match)
 
 ---
 

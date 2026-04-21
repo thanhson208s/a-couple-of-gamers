@@ -2,7 +2,7 @@
 
 > **[DRAFT — pending approval]** This schema is a proposal. Review and confirm before any implementation begins.
 
-All Postgres table definitions (users, games, matches, match_players, moves, rival_stats, user_favorites, device_tokens, notifications), proposed indexes, and data ownership map (Postgres vs Redis vs device SQLite).
+All Postgres table definitions (users, refresh_tokens, games, matches, moves, rival_stats, user_favorites, device_tokens, notifications, config), proposed indexes, and data ownership map (Postgres vs Redis vs device SQLite).
 
 ---
 

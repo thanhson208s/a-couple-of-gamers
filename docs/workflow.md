@@ -56,7 +56,7 @@ npm run typeorm -- migration:run -d src/app.data.ts
 npm run typeorm -- migration:revert -d src/app.data.ts
 ```
 
-Migrations run automatically on deploy (step 4 of CI/CD). See [infrastructure.md#database-migrations](infrastructure.md#database-migrations).
+Migrations run automatically on deploy (step 4 of CI/CD). See [infrastructure.md#cicd](infrastructure.md#cicd).
 
 ### Wipe and reinitialise (local dev only)
 
@@ -202,19 +202,7 @@ Sessions expire after a set TTL (configurable in Bastion settings). Create a new
 
 ## Environment Variables
 
-All secrets and config live in `.env.<environment>` files (never committed). Copy `.env.example` to get started. Key variables:
-
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | Postgres connection string |
-| `REDIS_URL` | Redis connection string |
-| `JWT_ACCESS_SECRET` | Signing key for access tokens (min 256-bit) |
-| `JWT_REFRESH_SECRET` | Signing key for refresh tokens (separate from access) |
-| `FCM_SERVICE_ACCOUNT` | Firebase service account JSON (stringified) |
-| `SENTRY_DSN` | Sentry project DSN for server |
-| `DEV_MODE` | Set to `true` to enable dev-only endpoints (password-less login, cheats). **Never set in staging or production.** |
-
-Full list in `.env.example`.
+All secrets and config live in `.env.<environment>` files (never committed). Copy `.env.example` to get started. Full list and descriptions: [infrastructure.md#secrets--environment](infrastructure.md#secrets--environment).
 
 ---
 

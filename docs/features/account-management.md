@@ -99,4 +99,4 @@ All steps run in a single DB transaction. If any step fails, the entire deletion
 - Auth endpoints: [api-reference.md#auth](../api-reference.md#auth)
 - Deletion endpoint: `DELETE /v1/users/profile` → [api-reference.md#users](../api-reference.md#users)
 - JWT lifecycle: [security.md#jwt-lifecycle](../security.md#jwt-lifecycle)
-- DB tables affected by deletion: `users`, `matches`, `match_players`, `rival_stats`, `user_favorites`, `device_tokens` → [database-schema.md](../database-schema.md)
+- DB tables affected by deletion: `users`, `matches`, `rival_stats`, `user_favorites`, `device_tokens` → [database-schema.md](../database-schema.md)

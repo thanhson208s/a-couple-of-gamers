@@ -50,7 +50,7 @@ Covers match creation, invitation, joining, abandonment, and completion for huma
 **Processed by:** `CleanupProcessor` → `MatchesService.cleanupStaleMatches()`
 
 Single job handles two cases in sequence:
-1. `pending` matches where `invite_code_expires_at < NOW()` (invite expired after 24 h)
+1. `pending` matches where `created_at + INTERVAL '24 hours' < NOW()` (invite expired after 24 h)
 2. `active` matches where `updated_at < NOW() − 30 days` (inactivity threshold)
 
 No stats recorded — cleanup deletion is not a forfeit.
