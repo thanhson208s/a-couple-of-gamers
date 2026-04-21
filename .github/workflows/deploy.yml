@@ -74,7 +74,12 @@ jobs:
             --data "{\"files\":[\"https://acob.gootube.online/hot-update/${{ steps.env.outputs.env }}/version.manifest\",\"https://acob.gootube.online/hot-update/${{ steps.env.outputs.env }}/project.manifest\"]}"
 
       - name: Build game bundles (placeholder)
-        run: echo "TODO: build each client/games/<slug>/ bundle"
+        run: echo "TODO: for each changed client/games/<slug>/, build bundle and compute <new-version>"
 
-      - name: Upload game bundles to R2 (placeholder)
-        run: echo "TODO: rclone copy game-bundles r2:${{ secrets.R2_BUCKET_NAME }}/game-bundles/${{ steps.env.outputs.env }}/"
+      - name: Publish game bundles to R2 + DB (placeholder)
+        run: |
+          echo "TODO (per changed slug, in order — see docs/features/games-management.md#publish-consistency):"
+          echo "  1. read prev := SELECT remote_version FROM games WHERE slug = <slug>"
+          echo "  2. rclone copy <bundle> r2:${{ secrets.R2_BUCKET_NAME }}/game-bundles/${{ steps.env.outputs.env }}/<slug>/<new-version>/"
+          echo "  3. UPDATE games SET remote_url='<versioned-url>', remote_version='<new-version>' WHERE slug=<slug>"
+          echo "  4. prune: delete every game-bundles/${{ steps.env.outputs.env }}/<slug>/<version>/ except <new-version> and <prev>"

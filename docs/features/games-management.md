@@ -23,7 +23,7 @@ The remote bundle contains **only** the INGAME scene, scripts, and assets — no
 | Per-game metadata (display name, icons, banners, intro/rule images) | Client (hot-updated) | Same hot update as catalog |
 | Per-game `remote_url` + `remote_version` | Server (`games` table) | CI/CD on bundle publish |
 | Per-game `status` | Server (`games` table) | Admin dashboard — see [config-management.md](config-management.md) |
-| Game bundle (scene + scripts + assets) | R2 `game-bundles/<env>/<slug>/` | CI/CD on bundle publish |
+| Game bundle (scene + scripts + assets) | R2 `game-bundles/<env>/<slug>/<version>/` | CI/CD on bundle publish |
 
 ---
 
@@ -38,7 +38,7 @@ client/res/games/<slug>/     ← Asset Bundle root (INGAME only)
   textures/, audio/, etc.    ← game assets
 ```
 
-Each bundle is built independently and uploaded to `game-bundles/<env>/<slug>/` on R2. Metadata is **not** included — it ships with the client catalog.
+Each bundle is built independently and uploaded to `game-bundles/<env>/<slug>/<version>/` on R2 — a brand-new immutable folder per publish. Metadata is **not** included — it ships with the client catalog. For the publish ordering and retention rule, see [Publish Consistency](#publish-consistency) below.
 
 ### App-Launch Flow
 
@@ -104,6 +104,25 @@ User taps Play (only reachable when status == 2 / enabled)
 
 ---
 
+## Publish Consistency
+
+Bundle publishes are a dual-write (R2 + Postgres). Two rules keep them consistent without a distributed transaction:
+
+**Invariant.** The `<version>` segment in `remote_url` always equals `remote_version`. Both are written by the same `UPDATE games` statement, so they can never diverge.
+
+**Ordering.** CI executes publish steps in a fixed order (full walkthrough in [workflow.md — Publishing a Game Bundle](../workflow.md#publishing-a-game-bundle)):
+
+1. Read the current `remote_version` for the slug (call it `prev`; may be NULL on first publish).
+2. Upload the new bundle to `game-bundles/<env>/<slug>/<new-version>/` — a brand-new immutable folder; nothing is overwritten.
+3. `UPDATE games SET remote_url = '<versioned-url>', remote_version = '<new-version>' WHERE slug = ?`.
+4. List `game-bundles/<env>/<slug>/*/` and delete every `<version>/` folder whose name is neither `new` nor `prev` (retention — see below).
+
+**Retry safety.** If step 3 fails, the row still points at `prev` (still intact on R2 because nothing was overwritten). Retrying the whole publish is safe: the next successful UPDATE flips the pointer and step 4 cleans up the orphan from the failed attempt. If step 4 fails, the DB is already consistent — the extra orphan folders are cleaned up on the next successful publish (they will be neither `new` nor `prev` then).
+
+**Retention (keep last 2 versions per slug).** Step 4's delete-everything-except-`new`-and-`prev` rule bounds R2 storage at exactly two versions per slug while preserving a 5-minute window for clients holding a cached `/v1/config` response to finish downloading `prev`. Orphan folders from failed publishes are neither `new` nor `prev` on the *next* successful publish, so they get cleaned up naturally — no separate janitor job is needed.
+
+---
+
 ## Tasks
 
 `[ ]` not started · `[~]` in progress · `[x]` done
@@ -120,8 +139,9 @@ User taps Play (only reachable when status == 2 / enabled)
 - [ ] In-app download with progress bar; offline cache
 
 **CI**
-- [ ] Per-game bundle build + upload to R2 on `client/res/games/<slug>/` change
-- [ ] Write `remote_url` + `remote_version` to the `games` row after a successful upload
+- [ ] Per-game bundle build + upload to `game-bundles/<env>/<slug>/<new-version>/` on `client/res/games/<slug>/` change
+- [ ] After a successful upload, `UPDATE games SET remote_url, remote_version` for the slug (step 3 of the [Publish Consistency](#publish-consistency) ordering)
+- [ ] Retention step: delete every `<version>/` folder under `game-bundles/<env>/<slug>/` except `new` and `prev`
 
 ---
 

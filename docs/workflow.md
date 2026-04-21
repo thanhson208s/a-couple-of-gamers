@@ -151,7 +151,14 @@ Hot updates are automatic — no manual step needed. Any merge to `dev` or push 
 
 ## Publishing a Game Bundle
 
-Pushing changes to `client/res/games/<slug>/` on `dev` or `main` triggers a bundle-only publish for that game. CI builds the bundle, uploads to `game-bundles/<env>/<slug>/`, and then writes the new `remote_url` and `remote_version` to the `games` row for that slug — no manual DB update required.
+Pushing changes to `client/res/games/<slug>/` on `dev` or `main` triggers a bundle-only publish for that game. CI executes four steps in order:
+
+1. **Read prev** — look up the slug's current `remote_version` in Postgres (call it `prev`; may be NULL on first publish).
+2. **Upload** — build and upload the new bundle to `game-bundles/<env>/<slug>/<new-version>/` (a brand-new immutable folder — nothing is overwritten).
+3. **DB write** — `UPDATE games SET remote_url = '<versioned-url>', remote_version = '<new-version>' WHERE slug = ?`.
+4. **Prune** — list `game-bundles/<env>/<slug>/*/` and delete every `<version>/` folder whose name is neither `new` nor `prev`. Keeps exactly the last two versions per slug.
+
+Ordering matters. If step 3 fails, the row still points at `prev` (still intact on R2); retrying the whole publish is safe — the next successful DB write flips the pointer and step 4 cleans up the orphan. If step 4 fails, the DB is already consistent; the extra orphan folders get cleaned on the next successful publish (they'll be neither `new` nor `prev` then). No manual DB update required at any stage. See [features/games-management.md#publish-consistency](features/games-management.md#publish-consistency) for the full rationale.
 
 ---
 

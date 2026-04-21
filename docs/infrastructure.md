@@ -308,14 +308,16 @@ r2://<bucket>/
     staging/       → same
   game-bundles/
     production/
-      <slug>/      → latest Cocos bundle files (overwritten on each publish)
+      <slug>/
+        <version>/ → immutable per publish; never overwritten; last 2 kept per slug
     staging/
-      <slug>/      → same
+      <slug>/
+        <version>/ → same
   backups/         → daily Postgres dumps (see Backup)
 ```
 
 - **Hot update**: only changed files are uploaded per publish (Cocos hot-update tool generates a diff against the previous manifest)
-- **Game bundles**: full bundle per slug (INGAME scene + scripts + assets only — no metadata); version tracked in `games.remote_version` and URL in `games.remote_url` in Postgres, not in the R2 path
+- **Game bundles**: full bundle per slug (INGAME scene + scripts + assets only — no metadata); version is tracked in `games.remote_version` in Postgres **and baked into the R2 path** — the two always match. See [features/games-management.md#publish-consistency](features/games-management.md#publish-consistency).
 - **CDN**: served from `https://acob.gootube.online` (Cloudflare CDN custom domain on R2; no proxy through NestJS)
 
 **Setup:**
@@ -467,7 +469,7 @@ Two deployment targets run as parallel jobs on each trigger: the **VPS** (NestJS
 2. Run hot-update manifest tool → generate version diff against previous manifest
 3. Upload changed assets to R2 `hot-update/<env>/`
 4. Build all game bundles
-5. Upload each to R2 `game-bundles/<env>/<slug>/` (overwrites previous)
+5. For each bundle, per-slug: read current `remote_version` from `games` (call it `prev`) → upload to `game-bundles/<env>/<slug>/<new-version>/` → `UPDATE games SET remote_url, remote_version WHERE slug = ?` → delete every `<version>/` folder under the slug except `new` and `prev`. Ordering is fixed; see [features/games-management.md#publish-consistency](features/games-management.md#publish-consistency).
 
 **Self-hosted runner setup** — install on each VPS that receives deploys (prod-app and staging):
 
