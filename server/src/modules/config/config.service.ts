@@ -11,8 +11,6 @@ export class ConfigService {
     for (const game of games) {
       gamesMap[game.slug] = {
         status: game.status,
-        remoteUrl: game.remoteUrl,
-        remoteVersion: game.remoteVersion,
       };
     }
     return { games: gamesMap };

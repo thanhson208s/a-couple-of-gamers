@@ -20,24 +20,16 @@ describe('ConfigService', () => {
   });
 
   describe('getConfig', () => {
-    it('returns a games map keyed by slug with status, remoteUrl, and remoteVersion', async () => {
+    it('returns a games map keyed by slug with status only', async () => {
       gamesService.listGames.mockResolvedValue([
-        { slug: 'tictactoe', status: GameStatus.Enabled,    remoteUrl: 'https://cdn/ttt.js', remoteVersion: '1.0.0' },
-        { slug: 'chess',     status: GameStatus.ComingSoon, remoteUrl: null, remoteVersion: null },
+        { slug: 'tictactoe', status: GameStatus.Enabled },
+        { slug: 'chess',     status: GameStatus.ComingSoon },
       ] as Game[]);
 
       const result = await service.getConfig() as any;
 
-      expect(result.games['tictactoe']).toEqual({
-        status: GameStatus.Enabled,
-        remoteUrl: 'https://cdn/ttt.js',
-        remoteVersion: '1.0.0',
-      });
-      expect(result.games['chess']).toEqual({
-        status: GameStatus.ComingSoon,
-        remoteUrl: null,
-        remoteVersion: null,
-      });
+      expect(result.games['tictactoe']).toEqual({ status: GameStatus.Enabled });
+      expect(result.games['chess']).toEqual({ status: GameStatus.ComingSoon });
     });
 
     it('returns an empty games map when no games exist', async () => {

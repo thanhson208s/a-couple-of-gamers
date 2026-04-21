@@ -13,13 +13,14 @@ import { Match } from './match.entity';
 import { GamesService } from '../games/games.service';
 import { GamesRegistry } from '../games/games.registry';
 import { Game, GameStatus } from '../games/game.entity';
+import { REDIS_CLIENT } from '../../common/redis/redis.module';
 import { mockRepository } from '../../common/test/helpers';
 
 const CALLER_ID = 'CALLER0001';
 const OTHER_ID  = 'OTHER00001';
 
 function makeGame(overrides: Partial<Game> = {}): Game {
-  return { id: 'g1', slug: 'tictactoe', status: GameStatus.Enabled, remoteUrl: null, remoteVersion: null, name: 'Tic-Tac-Toe', ...overrides } as Game;
+  return { id: 'g1', slug: 'tictactoe', status: GameStatus.Enabled, name: 'Tic-Tac-Toe', ...overrides } as Game;
 }
 
 function makeMatch(overrides: Partial<Match> = {}): Match {
@@ -48,12 +49,14 @@ describe('MatchesService', () => {
   let matchesRepo: ReturnType<typeof mockRepository<Match>>;
   let gamesService: jest.Mocked<Pick<GamesService, 'findBySlug'>>;
   let gamesRegistry: jest.Mocked<Pick<GamesRegistry, 'get'>>;
+  let redis: { get: jest.Mock; set: jest.Mock; del: jest.Mock };
   const mockPlugin = { initialState: jest.fn().mockReturnValue({ board: [] }) };
 
   beforeEach(async () => {
     matchesRepo = mockRepository<Match>();
     gamesService = { findBySlug: jest.fn() };
     gamesRegistry = { get: jest.fn().mockReturnValue(mockPlugin) };
+    redis = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
 
     const module = await Test.createTestingModule({
       providers: [
@@ -61,6 +64,7 @@ describe('MatchesService', () => {
         { provide: getRepositoryToken(Match), useValue: matchesRepo },
         { provide: GamesService, useValue: gamesService },
         { provide: GamesRegistry, useValue: gamesRegistry },
+        { provide: REDIS_CLIENT, useValue: redis },
       ],
     }).compile();
     service = module.get(MatchesService);
