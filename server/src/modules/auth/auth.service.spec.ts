@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { NotImplementedException, UnauthorizedException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
@@ -68,7 +68,7 @@ describe('AuthService', () => {
 
   describe('login', () => {
     it('is not yet implemented', async () => {
-      await expect(service.login('some-id-token')).rejects.toThrow('not implemented');
+      await expect(service.login('some-id-token')).rejects.toThrow(NotImplementedException);
     });
   });
 
