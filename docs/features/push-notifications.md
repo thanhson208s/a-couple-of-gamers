@@ -12,7 +12,7 @@ FCM is used for all push notifications. The client registers a device token on l
 
 ## Device Token Management
 
-- Client calls `PUT /v1/users/me/device-token` after login and on app launch if the OS has rotated the token
+- Client calls `PUT /v1/users/device` after login and on app launch if the OS has rotated the token
 - A user can have multiple tokens (multiple devices); all are notified unless the token is stale
 - Stale token detection: FCM returns `NOT_REGISTERED` → server deletes that token
 
@@ -27,7 +27,7 @@ Notification payloads carry enough data for the client to route directly to the 
 `[ ]` not started · `[~]` in progress · `[x]` done
 
 **Server**
-- [ ] `PUT /v1/users/me/device-token` — register / refresh FCM token
+- [ ] `PUT /v1/users/device` — register / refresh FCM token
 - [ ] Stale token cleanup on FCM `UNREGISTERED` error
 
 ---

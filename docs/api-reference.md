@@ -50,9 +50,9 @@ Error response shape (all endpoints):
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/v1/users/me/favorites` | List favorited games (requires JWT) |
-| `PUT` | `/v1/users/me/favorites/:gameSlug` | Add game to favorites |
-| `DELETE` | `/v1/users/me/favorites/:gameSlug` | Remove game from favorites |
+| `GET` | `/v1/users/favorites` | List favorited games (requires JWT) |
+| `PUT` | `/v1/users/favorites/:gameSlug` | Add game to favorites |
+| `DELETE` | `/v1/users/favorites/:gameSlug` | Remove game from favorites |
 
 ---
 
@@ -86,11 +86,11 @@ Human match moves are submitted via WebSocket only — see [WebSocket Events](#w
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/v1/users/me` | Get current user profile. Response includes `id` — a 10-char server-generated alphanumeric identifier used in friend requests and player views. |
-| `PUT` | `/v1/users/me/device-token` | Register or update FCM device token. Body: `{ token, platform: 'ios'|'android' }` |
-| `DELETE` | `/v1/users/me` | Delete account and all associated data. See [requirements.md#account-deletion](requirements.md#account-deletion). |
-| `GET` | `/v1/users/me/rivals` | List all opponents with at least one completed match |
-| `GET` | `/v1/users/me/rivals/:opponentId` | Get rival stats vs a specific opponent (`:opponentId` is the opponent's `tag`), broken down by game |
+| `GET` | `/v1/users/profile` | Get current user profile. Response includes `id` — a 10-char server-generated alphanumeric identifier used in friend requests and player views. |
+| `PUT` | `/v1/users/device` | Register or update FCM device token. Body: `{ token, platform: 'ios'|'android' }` |
+| `DELETE` | `/v1/users/profile` | Delete account and all associated data. See [requirements.md#account-deletion](requirements.md#account-deletion). |
+| `GET` | `/v1/users/rivals` | List all opponents with at least one completed match |
+| `GET` | `/v1/users/rivals/:opponentId` | Get rival stats vs a specific opponent (`:opponentId` is the opponent's `tag`), broken down by game |
 
 ---
 

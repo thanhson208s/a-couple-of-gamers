@@ -83,20 +83,20 @@ All steps run in a single DB transaction. If any step fails, the entire deletion
 **Server**
 - [ ] `POST /v1/auth/login` — verify Firebase ID token, upsert user, issue JWT pair
 - [ ] `UsersService.findOrUpsertByFirebaseUid` — find by `provider_id` (UID); update `provider` + `display_name` if changed; create if not found
-- [ ] `DELETE /v1/users/me` — cascade delete user data in transaction order
+- [ ] `DELETE /v1/users/profile` — cascade delete user data in transaction order
 
 **Client**
 - [ ] Anonymous sign-in via Firebase SDK (`signInAnonymously()`) on first launch; send ID token to `POST /v1/auth/login`
 - [ ] Google / Apple / Facebook OAuth flow via Firebase SDK; send ID token to `POST /v1/auth/login`
 - [ ] Anonymous → social account linking flow (Firebase SDK `linkWithPopup` / `linkWithCredential`); re-login after link
 - [ ] Store refresh token in device secure storage; hold access token in memory
-- [ ] Account deletion UI — confirm dialog + call `DELETE /v1/users/me`
+- [ ] Account deletion UI — confirm dialog + call `DELETE /v1/users/profile`
 
 ---
 
 ## Related
 
 - Auth endpoints: [api-reference.md#auth](../api-reference.md#auth)
-- Deletion endpoint: `DELETE /v1/users/me` → [api-reference.md#users](../api-reference.md#users)
+- Deletion endpoint: `DELETE /v1/users/profile` → [api-reference.md#users](../api-reference.md#users)
 - JWT lifecycle: [security.md#jwt-lifecycle](../security.md#jwt-lifecycle)
 - DB tables affected by deletion: `users`, `matches`, `match_players`, `rival_stats`, `user_favorites`, `device_tokens` → [database-schema.md](../database-schema.md)

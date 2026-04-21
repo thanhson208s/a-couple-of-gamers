@@ -17,7 +17,7 @@ export class UsersController {
     return this.usersService.deleteAccount();
   }
 
-  @Put('device-token')
+  @Put('device')
   upsertDeviceToken(@Body() body: { token: string; platform: 'ios' | 'android' }) {
     return this.usersService.upsertDeviceToken(body);
   }

@@ -54,8 +54,8 @@ User taps Download (or update badge)
 **Server**
 - [ ] `GET /v1/config` — catalog list
 - [ ] `GET /v1/matches?active=true` — active match list with turn status
-- [ ] `POST /v1/users/me/favorites/:gameId` — add favorite
-- [ ] `DELETE /v1/users/me/favorites/:gameId` — remove favorite
+- [ ] `POST /v1/users/favorites/:gameId` — add favorite
+- [ ] `DELETE /v1/users/favorites/:gameId` — remove favorite
 
 **Client**
 - [ ] Catalog screen (cover, description, download state)
