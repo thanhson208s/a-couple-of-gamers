@@ -41,6 +41,9 @@ jobs:
   publish-assets:
     name: Publish Cocos assets to R2
     runs-on: ubuntu-latest
+    concurrency:
+      group: bundle-publish-${{ startsWith(github.ref, 'refs/tags/') && 'production' || 'staging' }}
+      cancel-in-progress: true
 
     steps:
       - uses: actions/checkout@v4
@@ -73,13 +76,31 @@ jobs:
             -H "Content-Type: application/json" \
             --data "{\"files\":[\"https://acob.gootube.online/hot-update/${{ steps.env.outputs.env }}/version.manifest\",\"https://acob.gootube.online/hot-update/${{ steps.env.outputs.env }}/project.manifest\"]}"
 
+      # Whole-bundle publish — see docs/workflow.md#publishing-a-game-bundle.
+      # Every push rebuilds every slug, content-hashes each source dir, uploads
+      # (skip-if-exists), PUTs the manifest (atomic), then prunes orphans.
       - name: Build game bundles (placeholder)
-        run: echo "TODO: for each changed client/games/<slug>/, build bundle and compute <new-version>"
+        run: echo "TODO: for each client/res/games/<slug>/, run Cocos bundle build and compute <hash> from source dir"
 
-      - name: Publish game bundles to R2 + DB (placeholder)
+      - name: Upload bundles to R2 — skip-if-exists (placeholder)
         run: |
-          echo "TODO (per changed slug, in order — see docs/features/games-management.md#publish-consistency):"
-          echo "  1. read prev := SELECT remote_version FROM games WHERE slug = <slug>"
-          echo "  2. rclone copy <bundle> r2:${{ secrets.R2_BUCKET_NAME }}/game-bundles/${{ steps.env.outputs.env }}/<slug>/<new-version>/"
-          echo "  3. UPDATE games SET remote_url='<versioned-url>', remote_version='<new-version>' WHERE slug=<slug>"
-          echo "  4. prune: delete every game-bundles/${{ steps.env.outputs.env }}/<slug>/<version>/ except <new-version> and <prev>"
+          echo "TODO (per slug): rclone copy <bundle> r2:${{ secrets.R2_BUCKET_NAME }}/game-bundles/${{ steps.env.outputs.env }}/<slug>/<hash>/ --ignore-existing"
+
+      - name: Compose manifest.json (placeholder)
+        run: |
+          echo "TODO: compose in-memory { generatedAt, games: { <slug>: { version: <hash>, url: <versioned-url> } } } from build output"
+
+      - name: PUT manifest.json to R2 (placeholder)
+        run: |
+          echo "TODO: rclone copy manifest.json r2:${{ secrets.R2_BUCKET_NAME }}/game-bundles/${{ steps.env.outputs.env }}/manifest.json"
+
+      - name: Prune unreferenced bundle versions (placeholder)
+        run: |
+          echo "TODO: for each <slug>, list game-bundles/${{ steps.env.outputs.env }}/<slug>/*/ and delete every <version>/ not referenced by the new manifest"
+
+      - name: Purge manifest.json CDN cache
+        run: |
+          curl -X DELETE "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/purge_cache" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data "{\"files\":[\"https://acob.gootube.online/game-bundles/${{ steps.env.outputs.env }}/manifest.json\"]}"
