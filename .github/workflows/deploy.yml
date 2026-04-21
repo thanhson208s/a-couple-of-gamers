@@ -42,7 +42,7 @@ jobs:
     name: Publish Cocos assets to R2
     runs-on: ubuntu-latest
     concurrency:
-      group: bundle-publish-${{ startsWith(github.ref, 'refs/tags/') && 'production' || 'staging' }}
+      group: "bundle-publish-${{ startsWith(github.ref, 'refs/tags/') && 'production' || 'staging' }}"
       cancel-in-progress: true
 
     steps:
@@ -61,10 +61,12 @@ jobs:
       # These steps are placeholders — replace with actual Cocos headless build
       # commands once the build pipeline is configured.
       - name: Build Cocos main bundle (placeholder)
-        run: echo "TODO: cocos-creator --build --platform web-mobile --configPath client/build-config.json"
+        run: | 
+          echo "TODO: cocos-creator --build --platform web-mobile --configPath client/build-config.json"
 
       - name: Generate hot-update manifest (placeholder)
-        run: echo "TODO: run hot-update manifest tool against previous project.manifest"
+        run: |
+          echo "TODO: run hot-update manifest tool against previous project.manifest"
 
       - name: Upload hot-update assets to R2 (placeholder)
         run: echo "TODO: rclone copy hot-update/assets r2:${{ secrets.R2_BUCKET_NAME }}/hot-update/${{ steps.env.outputs.env }}/assets/"
@@ -80,7 +82,8 @@ jobs:
       # Every push rebuilds every slug, content-hashes each source dir, uploads
       # (skip-if-exists), PUTs the manifest (atomic), then prunes orphans.
       - name: Build game bundles (placeholder)
-        run: echo "TODO: for each client/res/games/<slug>/, run Cocos bundle build and compute <hash> from source dir"
+        run: |
+          echo "TODO: for each client/res/games/<slug>/, run Cocos bundle build and compute <hash> from source dir"
 
       - name: Upload bundles to R2 — skip-if-exists (placeholder)
         run: |
