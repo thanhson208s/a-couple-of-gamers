@@ -12,14 +12,14 @@ import { MatchesService } from './matches.service';
 import { Match } from './match.entity';
 import { GamesService } from '../games/games.service';
 import { GamesRegistry } from '../games/games.registry';
-import { Game } from '../games/game.entity';
+import { Game, GameStatus } from '../games/game.entity';
 import { mockRepository } from '../../common/test/helpers';
 
 const CALLER_ID = 'CALLER0001';
 const OTHER_ID  = 'OTHER00001';
 
 function makeGame(overrides: Partial<Game> = {}): Game {
-  return { id: 'g1', slug: 'tictactoe', enabled: true, bundleUrl: null, bundleVersion: null, name: 'Tic-Tac-Toe', ...overrides } as Game;
+  return { id: 'g1', slug: 'tictactoe', status: GameStatus.Enabled, remoteUrl: null, remoteVersion: null, name: 'Tic-Tac-Toe', ...overrides } as Game;
 }
 
 function makeMatch(overrides: Partial<Match> = {}): Match {

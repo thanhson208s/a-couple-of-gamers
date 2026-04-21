@@ -1,7 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { ConfigService } from './config.service';
 import { GamesService } from '../games/games.service';
-import { Game } from '../games/game.entity';
+import { Game, GameStatus } from '../games/game.entity';
 
 describe('ConfigService', () => {
   let service: ConfigService;
@@ -20,23 +20,23 @@ describe('ConfigService', () => {
   });
 
   describe('getConfig', () => {
-    it('returns a games map keyed by slug with enabled, bundleUrl, and bundleVersion', async () => {
+    it('returns a games map keyed by slug with status, remoteUrl, and remoteVersion', async () => {
       gamesService.listGames.mockResolvedValue([
-        { slug: 'tictactoe', enabled: true,  bundleUrl: 'https://cdn/ttt.js', bundleVersion: '1.0.0' },
-        { slug: 'chess',     enabled: false, bundleUrl: null, bundleVersion: null },
+        { slug: 'tictactoe', status: GameStatus.Enabled,    remoteUrl: 'https://cdn/ttt.js', remoteVersion: '1.0.0' },
+        { slug: 'chess',     status: GameStatus.ComingSoon, remoteUrl: null, remoteVersion: null },
       ] as Game[]);
 
       const result = await service.getConfig() as any;
 
       expect(result.games['tictactoe']).toEqual({
-        enabled: true,
-        bundleUrl: 'https://cdn/ttt.js',
-        bundleVersion: '1.0.0',
+        status: GameStatus.Enabled,
+        remoteUrl: 'https://cdn/ttt.js',
+        remoteVersion: '1.0.0',
       });
       expect(result.games['chess']).toEqual({
-        enabled: false,
-        bundleUrl: null,
-        bundleVersion: null,
+        status: GameStatus.ComingSoon,
+        remoteUrl: null,
+        remoteVersion: null,
       });
     });
 

@@ -80,6 +80,7 @@ No stats recorded — cleanup deletion is not a forfeit.
 - [x] Stale match cleanup (BullMQ repeatable, every 24 h — `stale-matches` job registered in `WorkerModule`, processed by `CleanupProcessor`)
 - [x] `POST /v1/matches` — create match
 - [x] `POST /v1/matches/join` — join via invite code (lookup by code, no match ID needed; code expires after 24h)
+- [ ] `GET /v1/matches?active=true` — active match list with turn status
 - [ ] `DELETE /v1/matches/:id` — abandon match (no penalty)
 - [x] Invite code generation + deep link + TTL (returned in `POST /v1/matches` response)
 - [ ] End-of-game detection on move accept; transition match to `completed`
@@ -98,6 +99,7 @@ No stats recorded — cleanup deletion is not a forfeit.
 
 - Endpoints: [api-reference.md#matches](../api-reference.md#matches), [api-reference.md#invites](../api-reference.md#invites)
 - DB: [database-schema.md#matches](../database-schema.md#matches), [database-schema.md#rival_stats](../database-schema.md#rival_stats)
+- Rival stats ownership: [users-management.md](users-management.md)
 - Game plugin: [game-system.md#game-plugin-interface](../game-system.md#game-plugin-interface)
 - WS event on completion: [api-reference.md#websocket-events](../api-reference.md#websocket-events) (`match_over`)
 - DB index used by cleanup: [database-schema.md#matches](../database-schema.md#matches) (`matches(updated_at)`)

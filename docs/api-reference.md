@@ -42,7 +42,7 @@ Error response shape (all endpoints):
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/v1/games/:slug` | Get single game details including bundle metadata |
+| `GET` | `/v1/games/:slug` | Get single game row: `{ id, slug, name, status, remoteUrl, remoteVersion }`. Metadata (display name, icons, banners, intro/rule images) is not returned — it ships with the client catalog via [features/hot-update.md](features/hot-update.md). |
 
 ---
 
@@ -98,15 +98,7 @@ Human match moves are submitted via WebSocket only — see [WebSocket Events](#w
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/v1/config` | Returns app config merged with game catalog. No auth required. Each entry under `games` includes config fields (`enabled`) and bundle metadata (`bundleUrl`, `bundleVersion`). |
-
----
-
-### Matches (AI Completion)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/v1/matches/:id/complete` | Report the result of an offline AI match. Body: `{ winnerId: string \| null }`. Server records without re-validating. Requires valid auth (guest or JWT). |
+| `GET` | `/v1/config` | Returns app config. Each entry under `games` is `{ status, remoteUrl, remoteVersion }` — `status` is a numeric enum: `0` under maintenance, `1` coming soon, `2` enabled, `3` disabled. Clients hide `3` and block Play for `0` / `1`. Cached at Cloudflare for up to 5 minutes. |
 
 ---
 
@@ -118,6 +110,7 @@ All admin endpoints require `X-Admin-Token: <token>` header.
 |--------|------|-------------|
 | `GET` | `/v1/admin/config` | Get full current config for the admin dashboard |
 | `PUT` | `/v1/admin/config` | Replace config. Body: full config object |
+| `PUT` | `/v1/admin/games/:slug/status` | Set a game's status. Body: `{ status: 0 \| 1 \| 2 \| 3 }` (0=under_maintenance, 1=coming_soon, 2=enabled, 3=disabled). Returns the updated row. 404 if slug unknown. |
 
 ---
 

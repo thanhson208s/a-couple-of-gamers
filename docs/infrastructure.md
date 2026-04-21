@@ -315,7 +315,7 @@ r2://<bucket>/
 ```
 
 - **Hot update**: only changed files are uploaded per publish (Cocos hot-update tool generates a diff against the previous manifest)
-- **Game bundles**: full bundle per slug; version tracked in `games.bundle_version` in Postgres, not in the R2 path
+- **Game bundles**: full bundle per slug (INGAME scene + scripts + assets only — no metadata); version tracked in `games.remote_version` and URL in `games.remote_url` in Postgres, not in the R2 path
 - **CDN**: served from `https://acob.gootube.online` (Cloudflare CDN custom domain on R2; no proxy through NestJS)
 
 **Setup:**

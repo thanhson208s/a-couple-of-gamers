@@ -2,7 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { GamesService } from './games.service';
-import { Game } from './game.entity';
+import { Game, GameStatus } from './game.entity';
 import { GamesRegistry } from './games.registry';
 import { mockRepository } from '../../common/test/helpers';
 
@@ -44,27 +44,27 @@ describe('GamesService', () => {
   });
 
   describe('findBySlug', () => {
-    it('returns the game when it is enabled', async () => {
-      const game = { id: 'g1', slug: 'tictactoe', enabled: true } as Game;
+    it('returns the game when its status is enabled', async () => {
+      const game = { id: 'g1', slug: 'tictactoe', status: GameStatus.Enabled } as Game;
       gamesRepo.findOne.mockResolvedValue(game);
 
       const result = await service.findBySlug('tictactoe');
 
       expect(result).toBe(game);
-      expect(gamesRepo.findOne).toHaveBeenCalledWith({ where: { slug: 'tictactoe', enabled: true } });
+      expect(gamesRepo.findOne).toHaveBeenCalledWith({ where: { slug: 'tictactoe', status: GameStatus.Enabled } });
     });
 
-    it('returns null when the game is disabled or not found', async () => {
+    it('returns null when the game is not enabled or not found', async () => {
       gamesRepo.findOne.mockResolvedValue(null);
       expect(await service.findBySlug('unknown')).toBeNull();
     });
   });
 
   describe('listGames', () => {
-    it('returns all games regardless of enabled status', async () => {
+    it('returns all games regardless of status', async () => {
       const games = [
-        { id: 'g1', slug: 'tictactoe', enabled: true },
-        { id: 'g2', slug: 'chess', enabled: false },
+        { id: 'g1', slug: 'tictactoe', status: GameStatus.Enabled },
+        { id: 'g2', slug: 'chess', status: GameStatus.Disabled },
       ] as Game[];
       gamesRepo.find.mockResolvedValue(games);
 
@@ -75,22 +75,22 @@ describe('GamesService', () => {
     });
   });
 
-  describe('enableGame', () => {
-    it('sets enabled to the given value and saves', async () => {
-      const game = { id: 'g1', slug: 'tictactoe', enabled: false } as Game;
+  describe('setGameStatus', () => {
+    it('sets status to the given value and saves', async () => {
+      const game = { id: 'g1', slug: 'tictactoe', status: GameStatus.ComingSoon } as Game;
       gamesRepo.findOne.mockResolvedValue(game);
       gamesRepo.save.mockImplementation(async (g) => g as Game);
 
-      const result = await service.enableGame('tictactoe', true);
+      const result = await service.setGameStatus('tictactoe', GameStatus.Enabled);
 
-      expect(game.enabled).toBe(true);
+      expect(game.status).toBe(GameStatus.Enabled);
       expect(gamesRepo.save).toHaveBeenCalledWith(game);
-      expect(result.enabled).toBe(true);
+      expect(result.status).toBe(GameStatus.Enabled);
     });
 
     it('throws NotFoundException for an unknown slug', async () => {
       gamesRepo.findOne.mockResolvedValue(null);
-      await expect(service.enableGame('unknown', true)).rejects.toThrow(NotFoundException);
+      await expect(service.setGameStatus('unknown', GameStatus.Enabled)).rejects.toThrow(NotFoundException);
     });
   });
 });

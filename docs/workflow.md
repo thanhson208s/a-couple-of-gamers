@@ -133,12 +133,13 @@ See migration naming rules: [convetions.md — Entity & Migration Conventions](c
 ## Adding a New Game
 
 1. Create the shared game plugin in `packages/game-logic/<slug>/` implementing the `GamePlugin` interface — see [game-system.md](game-system.md)
-2. Register the slug in `GamesRegistry` (`server/src/modules/games/games.registry.ts`) — a row is auto-created in the `games` table (`enabled = false`) on next server start
-3. Import the plugin in the Cocos client's game loader
-4. Create the Cocos Creator scene and assets under `client/res/games/<slug>/` (this is the Asset Bundle)
-5. Create the AI component at `client/src/games/<slug>/AiPlayer.ts` (imports from `packages/game-logic/<slug>/`)
-6. CI will build and upload the bundle to R2 on the next `dev` merge or `client/res/games/<slug>/` change
-7. Activate the game via admin — set `enabled = true` on the `games` row once the bundle is live
+2. Register the slug in `GamesRegistry` (`server/src/modules/games/games.registry.ts`) — a row is auto-created in the `games` table (`status = 1` / coming_soon) on next server start
+3. Add the slug + metadata (display name, icons, banners, intro/rule images) to the client catalog so the tile renders (ships via the next main-app hot update — see [features/hot-update.md](features/hot-update.md))
+4. Import the plugin in the Cocos client's game loader
+5. Create the Cocos Creator scene and assets under `client/res/games/<slug>/` (this is the Asset Bundle)
+6. Create the AI component at `client/src/games/<slug>/AiPlayer.ts` (imports from `packages/game-logic/<slug>/`)
+7. CI will build and upload the bundle to R2 on the next `dev` merge or `client/res/games/<slug>/` change, and write `remote_url` + `remote_version` to the `games` row
+8. Activate the game via admin — set `status = 2` (enabled) via `PUT /v1/admin/games/<slug>/status` once the bundle is live
 
 ---
 
@@ -150,7 +151,7 @@ Hot updates are automatic — no manual step needed. Any merge to `dev` or push 
 
 ## Publishing a Game Bundle
 
-Pushing changes to `client/res/games/<slug>/` on `dev` or `main` triggers a bundle-only publish for that game. CI builds the bundle and uploads to `game-bundles/<env>/<slug>/`. After the upload, bump `bundle_version` in the `games` table row for that slug (via a migration or direct update on the target environment).
+Pushing changes to `client/res/games/<slug>/` on `dev` or `main` triggers a bundle-only publish for that game. CI builds the bundle, uploads to `game-bundles/<env>/<slug>/`, and then writes the new `remote_url` and `remote_version` to the `games` row for that slug — no manual DB update required.
 
 ---
 

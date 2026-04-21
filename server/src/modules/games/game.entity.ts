@@ -1,5 +1,12 @@
 import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
 
+export enum GameStatus {
+  UnderMaintenance = 0,
+  ComingSoon = 1,
+  Enabled = 2,
+  Disabled = 3,
+}
+
 @Entity('games')
 export class Game {
   @PrimaryGeneratedColumn('uuid')
@@ -11,14 +18,12 @@ export class Game {
   @Column({ type: 'text' })
   name: string;
 
-  @Column({ type: 'boolean', name: 'enabled', default: false })
-  enabled: boolean;
+  @Column({ type: 'int', default: GameStatus.ComingSoon })
+  status: GameStatus; // 0=under_maintenance, 1=coming_soon, 2=enabled, 3=disabled
 
-  @Column({ type: 'text', name: 'bundle_url', nullable: true })
-  bundleUrl: string | null;
+  @Column({ type: 'text', name: 'remote_url', nullable: true })
+  remoteUrl: string | null;
 
-  @Column({ type: 'text', name: 'bundle_version', nullable: true })
-  bundleVersion: string | null;
-
-
+  @Column({ type: 'text', name: 'remote_version', nullable: true })
+  remoteVersion: string | null;
 }

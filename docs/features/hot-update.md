@@ -6,9 +6,11 @@
 
 ## Overview
 
-The main app bundle (lobby, UI, core flows) is updated without an app store release using Cocos Creator's built-in hot update system. On launch, the client checks a remote version manifest; if a newer version exists, it downloads only the changed files before rendering.
+The main app bundle (lobby, UI, core flows, **game catalog and per-game metadata**) is updated without an app store release using Cocos Creator's built-in hot update system. On launch, the client checks a remote version manifest; if a newer version exists, it downloads only the changed files before rendering.
 
-Game bundles are **not** part of the hot update — they are versioned and distributed separately through the bundle download system.
+Game catalog changes (adding a slug, updating a display name, swapping a banner, editing rule images) ship through this same hot update — there is no separate endpoint for catalog or metadata.
+
+Game **bundles** (INGAME scene, scripts, assets) are **not** part of the hot update — they are versioned and distributed separately through the bundle download system. See [games-management.md](games-management.md).
 
 ---
 
@@ -63,4 +65,4 @@ The manifest upload is the last step — clients only see the new version once t
 
 - R2 paths: [infrastructure.md#asset-pipeline-r2](../infrastructure.md#asset-pipeline-r2)
 - CI/CD jobs: [infrastructure.md#cicd](../infrastructure.md#cicd)
-- Game bundles (separate system): [game-bundles.md](game-bundles.md)
+- Game bundles (separate system): [games-management.md](games-management.md)

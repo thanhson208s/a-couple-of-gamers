@@ -10,9 +10,9 @@ export class ConfigService {
     const gamesMap: Record<string, unknown> = {};
     for (const game of games) {
       gamesMap[game.slug] = {
-        enabled: game.enabled,
-        bundleUrl: game.bundleUrl,
-        bundleVersion: game.bundleVersion,
+        status: game.status,
+        remoteUrl: game.remoteUrl,
+        remoteVersion: game.remoteVersion,
       };
     }
     return { games: gamesMap };

@@ -11,13 +11,6 @@ Firebase-backed login for anonymous and social users (Google/Apple/Facebook), an
 
 ---
 
-## Game Lobby
-→ [features/game-lobby.md](features/game-lobby.md)
-
-Browse the game catalog, manage favorites, and view active matches with turn status.
-
----
-
 ## Match Management
 → [features/match-management.md](features/match-management.md)
 
@@ -39,10 +32,10 @@ FCM push to opponent on their turn (async mode) and turn reminder after inactivi
 
 ---
 
-## Rival History
-→ [features/rival-history.md](features/rival-history.md)
+## Users Management
+→ [features/users-management.md](features/users-management.md)
 
-Per-opponent match stats (wins/losses/draws per game) for social users.
+User profile, server-synced favorites, and per-opponent match stats (wins/losses/draws per game).
 
 ---
 
@@ -60,17 +53,17 @@ OTA app update via Cocos AssetsManager on launch, without an app store release.
 
 ---
 
-## Game Bundles
-→ [features/game-bundles.md](features/game-bundles.md)
+## Games Management
+→ [features/games-management.md](features/games-management.md)
 
-Per-game Asset Bundle download, version check on launch, and offline caching.
+Two-gate game visibility: client catalog (hot-updated list + metadata) plus server-side per-game `status` (int enum: 0=under_maintenance, 1=coming_soon, 2=enabled, 3=disabled). Bundle download, version check on launch, and offline caching.
 
 ---
 
-## Remote Config
-→ [features/remote-config.md](features/remote-config.md)
+## Config Management
+→ [features/config-management.md](features/config-management.md)
 
-Server-side config fetched on launch; controls game visibility via admin dashboard.
+Server-side config fetched on launch; game tile download states; admin dashboard for game visibility.
 
 ---
 

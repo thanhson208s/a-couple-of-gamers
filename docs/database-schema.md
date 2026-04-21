@@ -36,10 +36,11 @@ _Rotation: each use revokes the old row and inserts a new one. Reuse of a revoke
 id               UUID PRIMARY KEY DEFAULT gen_random_uuid()
 slug             TEXT NOT NULL UNIQUE   -- e.g. 'tictactoe', 'battleship'
 name             TEXT NOT NULL          -- initially set to slug; update via admin
-enabled           BOOLEAN NOT NULL DEFAULT false  -- inactive until explicitly enabled by admin
-bundle_url        TEXT             -- R2 CDN URL for the Cocos Asset Bundle; NULL until first CI publish
-bundle_version    TEXT             -- version string; client compares against local to detect updates
+status           INTEGER NOT NULL DEFAULT 1  -- 0=under_maintenance, 1=coming_soon, 2=enabled, 3=disabled; admin-set via dashboard
+remote_url       TEXT             -- R2 CDN URL for the Cocos Asset Bundle; CI/CD-set; NULL until first publish
+remote_version   TEXT             -- version string; CI/CD-set; client compares against local to detect updates
 ```
+_Game metadata (display name, icons, banners, intro/rule images) and the canonical slug list live in the client catalog (hot-updated) — not in this table. See [features/games-management.md](features/games-management.md)._
 
 ### `matches`
 ```sql
@@ -116,7 +117,7 @@ _Log of FCM notifications sent. Used for deduplication and debugging._
 ### `config`
 ```sql
 id         SERIAL PRIMARY KEY   -- always a single row (id = 1)
-config     JSONB NOT NULL       -- full config document; shape defined in features/remote-config.md
+config     JSONB NOT NULL       -- full config document;
 updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 updated_by TEXT                 -- admin identifier for audit trail
 ```

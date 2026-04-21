@@ -6,7 +6,7 @@
 
 ## Overview
 
-AI matches run fully offline — no server connection is needed during play. The entire game (move validation, state transitions, win detection) runs client-side using the shared TypeScript game plugin from `packages/game-logic/<slug>/`. The server is only contacted at match completion to record the result.
+AI matches run fully offline — no server connection is needed during play. The entire game (move validation, state transitions, win detection) runs client-side.
 
 ---
 
@@ -37,7 +37,6 @@ AI match state is stored on the device, not on the server during play.
 
 - **Human quits mid-match:** current game state saved to device storage
 - **Human resumes:** client loads state from device storage and continues locally
-- **Unfinished matches:** not reported to server; only completed matches are recorded in history
 - **Restart:** human can abandon and start a new AI match; previous state cleared from device
 
 ---
@@ -46,21 +45,13 @@ AI match state is stored on the device, not on the server during play.
 
 `[ ]` not started · `[~]` in progress · `[x]` done
 
-**Server**
-- [ ] `POST /v1/matches/:id/complete` — record AI match result
-
 **Client**
 - [ ] Offline AI match play loop (uses local game plugin)
 - [ ] Quit + resume — persist in-progress state to local SQLite
-
-**Shared**
-- [x] `tictactoe` game plugin (reference implementation)
 
 ---
 
 ## Related
 
 - Game plugin interface: [game-system.md#game-plugin-interface](../game-system.md#game-plugin-interface)
-- AI completion endpoint: [api-reference.md#matches-ai-completion](../api-reference.md#matches-ai-completion)
-- Bundle download (required before play): [game-bundles.md](game-bundles.md)
-- DB: [database-schema.md#match_players](../database-schema.md#match_players) (`is_ai` flag for the AI seat)
+- Bundle download (required before play): [games-management.md](games-management.md)

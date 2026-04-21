@@ -46,12 +46,11 @@ Links to api-reference.md and database-schema.md sections
 | File | Covers |
 |------|--------|
 | [account-management.md](account-management.md) | Firebase login (anonymous + social), account upgrade, account deletion |
-| [game-lobby.md](game-lobby.md) | Catalog caching, favorites sync, active match list, "your turn" badge |
 | [match-management.md](match-management.md) | Match state machine, invite flow, abandonment, completion, rival stats |
 | [vs-ai.md](vs-ai.md) | AI session flow, state persistence, quit/resume |
 | [push-notifications.md](push-notifications.md) | Device token management, FCM dispatch, stale token cleanup |
-| [rival-history.md](rival-history.md) | Denormalized stats counters, update on completion |
+| [users-management.md](users-management.md) | User profile, favorites sync, rival stats |
 | [monetization.md](monetization.md) | Ads, IAP (remove ads), donations, affiliate links |
 | [hot-update.md](hot-update.md) | Main app update via Cocos AssetsManager; manifest diff upload in CI |
-| [game-bundles.md](game-bundles.md) | Per-game Asset Bundle download, version check on launch, offline caching |
-| [remote-config.md](remote-config.md) | Admin dashboard, config fetch on launch, game enable/disable |
+| [games-management.md](games-management.md) | Per-game bundle download, two-gate visibility (client catalog + server status), version check on launch |
+| [config-management.md](config-management.md) | Config fetch on launch, game tile states, admin dashboard |
