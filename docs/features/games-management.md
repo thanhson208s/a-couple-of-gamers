@@ -11,7 +11,7 @@ Game visibility and playability are controlled by **two independent gates**:
 1. **Client gate (catalog)** — the client ships a static game catalog (slug list + metadata: banners, icons, display name, intro/rule images). The catalog is hot-updated alongside the main app. Only slugs that appear in the catalog are ever rendered.
 2. **Server gate (status)** — for each catalog slug, the client looks up the server's `status` (int enum: `0` under_maintenance, `1` coming_soon, `2` enabled, `3` disabled) from `GET /v1/config`. `3` hides the tile; `2` allows Play; `0` / `1` show the tile with a badge and block Play.
 
-The remote bundle contains **only** the INGAME scene, scripts, and assets — no metadata, no catalog. Metadata lives with the client catalog; `remote_url` + `remote_version` on the server track where the current bundle is and which version it is. CI/CD writes `remote_url` / `remote_version` after a bundle publish. Admins set `status` via the dashboard.
+The remote bundle contains **only** the INGAME scene, scripts, and assets — no metadata, no catalog. Bundle version and URL per slug live in a single `manifest.json` on R2, written by CI on every publish. Metadata lives with the client catalog. Admins set `status` via the dashboard (Postgres-backed); CI never touches Postgres.
 
 ---
 
@@ -21,9 +21,36 @@ The remote bundle contains **only** the INGAME scene, scripts, and assets — no
 |---------|-----------------|-------------------|
 | Game catalog (list of slugs) | Client (hot-updated) | Main-app hot update — see [hot-update.md](hot-update.md) |
 | Per-game metadata (display name, icons, banners, intro/rule images) | Client (hot-updated) | Same hot update as catalog |
-| Per-game `remote_url` + `remote_version` | Server (`games` table) | CI/CD on bundle publish |
+| Bundle manifest (`manifest.json` — per-slug `version` + `url`) | R2 `game-bundles/<env>/manifest.json` | CI/CD on bundle publish |
 | Per-game `status` | Server (`games` table) | Admin dashboard — see [config-management.md](config-management.md) |
-| Game bundle (scene + scripts + assets) | R2 `game-bundles/<env>/<slug>/<version>/` | CI/CD on bundle publish |
+| Game bundle (scene + scripts + assets) | R2 `game-bundles/<env>/<slug>/<hash>/` | CI/CD on bundle publish |
+
+---
+
+## Source of Truth
+
+The bundle manifest on R2 is the **sole** source of truth for bundle version + URL per slug. No Postgres columns mirror it, so there is no dual-write and no cross-system consistency window.
+
+- `manifest.json` is a single R2 object; a `PUT` is atomic — readers see either the old or the new contents, never a partial mix.
+- CI composes the full manifest in memory from its build output, so the publish has no read-modify-write against R2.
+- The workflow is serialized per environment via a GitHub Actions `concurrency: group: bundle-publish-${env}` lock, so two overlapping publishes can't race on the manifest.
+- If the manifest `PUT` fails, the manifest is unchanged and its previous bundle URLs are still intact on R2 (bundles live at immutable content-hashed paths). Retry is always safe.
+
+Example manifest shape (served from `https://acob.gootube.online/game-bundles/production/manifest.json`):
+
+```json
+{
+  "generatedAt": "2026-04-21T14:23:00Z",
+  "games": {
+    "tictactoe":  { "version": "ab12cd...", "url": "https://acob.gootube.online/game-bundles/production/tictactoe/ab12cd.../" },
+    "kingdomino": { "version": "ef34gh...", "url": "https://acob.gootube.online/game-bundles/production/kingdomino/ef34gh.../" }
+  }
+}
+```
+
+A slug missing from the manifest behaves the same as one with no local bundle: if it reaches the Play gate, the client renders a Download-blocked state.
+
+For the CI flow that writes the manifest, see [workflow.md — Publishing a Game Bundle](../workflow.md#publishing-a-game-bundle).
 
 ---
 
@@ -38,7 +65,7 @@ client/res/games/<slug>/     ← Asset Bundle root (INGAME only)
   textures/, audio/, etc.    ← game assets
 ```
 
-Each bundle is built independently and uploaded to `game-bundles/<env>/<slug>/<version>/` on R2 — a brand-new immutable folder per publish. Metadata is **not** included — it ships with the client catalog. For the publish ordering and retention rule, see [Publish Consistency](#publish-consistency) below.
+Each bundle is built independently and uploaded to `game-bundles/<env>/<slug>/<hash>/` on R2 — a brand-new immutable folder per publish, keyed by a content hash of the source directory. If the hash matches an existing folder, CI skips the upload. Metadata is **not** included — it ships with the client catalog.
 
 ### App-Launch Flow
 
@@ -47,25 +74,29 @@ App launch
   ├─ Main-app hot update (Cocos AssetsManager)
   │    → refreshes client catalog + per-game metadata
   │
-  └─ GET /v1/config
-       → per-slug: { status, remoteUrl, remoteVersion }
-       → cached at Cloudflare for up to 5 minutes; freshness
-         after a CI/CD publish or admin status change is
-         eventually consistent within that window
+  ├─ GET /v1/config                                (server-composed; Cloudflare-cached)
+  │    → per-slug: { status }
+  │    → plus any top-level feature flags
+  │
+  └─ GET game-bundles/<env>/manifest.json          (R2 direct; Cloudflare-cached)
+       → per-slug: { version, url }
 
 For each slug in the client catalog (first gate):
-    lookup = server response[slug]
-    if lookup is missing OR lookup.status == 3 (disabled)
+    status   = configResponse.games[slug]?.status
+    bundle   = manifestResponse.games[slug]            (may be missing)
+
+    if status is missing OR status == 3 (disabled)
         → hide tile (second gate)
-    else if lookup.status == 1 (coming_soon)
+    else if status == 1 (coming_soon)
         → show tile with "Coming soon" badge; Play disabled
-    else if lookup.status == 0 (under_maintenance)
+    else if status == 0 (under_maintenance)
         → show tile with "Under maintenance" badge; Play disabled
-    else if lookup.status == 2 (enabled)
-        → show tile; compare localVersion to lookup.remoteVersion:
+    else if status == 2 (enabled)
+        → show tile; compare localVersion to bundle.version:
+              bundle missing           → Download button, but blocked (no URL yet)
               no local bundle          → Download button
-              localVersion != remote   → Update badge + Play on old
-              localVersion == remote   → Play
+              localVersion != version  → Update badge + Play on old
+              localVersion == version  → Play
 ```
 
 ### Download Flow
@@ -73,7 +104,7 @@ For each slug in the client catalog (first gate):
 ```
 User taps Download (or Update)
   → Show progress bar (files downloaded / total files)
-  → Download bundle from remoteUrl (R2 CDN, direct — no NestJS proxy)
+  → Download bundle from bundle.url (R2 CDN, direct — no NestJS proxy)
   → Decompress and write to local cache
   → Update local version record
   → Enable Play button
@@ -99,27 +130,8 @@ User taps Play (only reachable when status == 2 / enabled)
 | `2` | `enabled` | Admin (once bundle is live) | Shown normally | Enabled |
 | `3` | `disabled` | Admin (retired / hidden) | Hidden | — |
 
-- Locally cached bundles are **never** auto-deleted on status changes — a re-enabled game plays immediately with its cached version (Update badge if `remote_version` moved).
-- `remote_url` / `remote_version` are NULL until the first CI bundle publish. A game with `status = 2` (enabled) but NULL `remote_url` still shows the Download button; Play is blocked client-side until a local bundle exists.
-
----
-
-## Publish Consistency
-
-Bundle publishes are a dual-write (R2 + Postgres). Two rules keep them consistent without a distributed transaction:
-
-**Invariant.** The `<version>` segment in `remote_url` always equals `remote_version`. Both are written by the same `UPDATE games` statement, so they can never diverge.
-
-**Ordering.** CI executes publish steps in a fixed order (full walkthrough in [workflow.md — Publishing a Game Bundle](../workflow.md#publishing-a-game-bundle)):
-
-1. Read the current `remote_version` for the slug (call it `prev`; may be NULL on first publish).
-2. Upload the new bundle to `game-bundles/<env>/<slug>/<new-version>/` — a brand-new immutable folder; nothing is overwritten.
-3. `UPDATE games SET remote_url = '<versioned-url>', remote_version = '<new-version>' WHERE slug = ?`.
-4. List `game-bundles/<env>/<slug>/*/` and delete every `<version>/` folder whose name is neither `new` nor `prev` (retention — see below).
-
-**Retry safety.** If step 3 fails, the row still points at `prev` (still intact on R2 because nothing was overwritten). Retrying the whole publish is safe: the next successful UPDATE flips the pointer and step 4 cleans up the orphan from the failed attempt. If step 4 fails, the DB is already consistent — the extra orphan folders are cleaned up on the next successful publish (they will be neither `new` nor `prev` then).
-
-**Retention (keep last 2 versions per slug).** Step 4's delete-everything-except-`new`-and-`prev` rule bounds R2 storage at exactly two versions per slug while preserving a 5-minute window for clients holding a cached `/v1/config` response to finish downloading `prev`. Orphan folders from failed publishes are neither `new` nor `prev` on the *next* successful publish, so they get cleaned up naturally — no separate janitor job is needed.
+- Locally cached bundles are **never** auto-deleted on status changes — a re-enabled game plays immediately with its cached version (Update badge if the manifest's version moved).
+- A slug with `status = 2` (enabled) but no entry in the bundle manifest still shows the tile; Play is blocked client-side until the manifest carries an entry and a local bundle exists.
 
 ---
 
@@ -128,20 +140,21 @@ Bundle publishes are a dual-write (R2 + Postgres). Two rules keep them consisten
 `[ ]` not started · `[~]` in progress · `[x]` done
 
 **Server**
-- [x] `status`, `remote_url`, `remote_version` columns in `games` table
+- [x] `status` column in `games` table
 - [x] `PUT /v1/admin/games/:slug/status` (admin-set status)
-- [ ] CI hook writing `remote_url` + `remote_version` to the row after a bundle publish
 
 **Client**
 - [ ] Client-side game catalog + metadata (bundled; refreshed via main-app hot update)
 - [ ] Two-gate visibility (catalog gate + server status gate)
+- [ ] Parallel fetch of `/v1/config` (status) and `manifest.json` (bundle info) on launch
 - [ ] Bundle version check on launch; show Download / Update / Coming soon / Under maintenance indicators
 - [ ] In-app download with progress bar; offline cache
 
 **CI**
-- [ ] Per-game bundle build + upload to `game-bundles/<env>/<slug>/<new-version>/` on `client/res/games/<slug>/` change
-- [ ] After a successful upload, `UPDATE games SET remote_url, remote_version` for the slug (step 3 of the [Publish Consistency](#publish-consistency) ordering)
-- [ ] Retention step: delete every `<version>/` folder under `game-bundles/<env>/<slug>/` except `new` and `prev`
+- [ ] Per-slug bundle build + upload (skip-if-exists) to `game-bundles/<env>/<slug>/<hash>/` on `client/res/games/**` change
+- [ ] Compose and `PUT` `game-bundles/<env>/manifest.json` (single atomic object write — the "transaction")
+- [ ] Prune `<slug>/<version>/` folders not referenced by the new manifest
+- [ ] `concurrency: group: bundle-publish-${env}` on the publish job
 
 ---
 

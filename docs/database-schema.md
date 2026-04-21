@@ -37,10 +37,8 @@ id               UUID PRIMARY KEY DEFAULT gen_random_uuid()
 slug             TEXT NOT NULL UNIQUE   -- e.g. 'tictactoe', 'battleship'
 name             TEXT NOT NULL          -- initially set to slug; update via admin
 status           INTEGER NOT NULL DEFAULT 1  -- 0=under_maintenance, 1=coming_soon, 2=enabled, 3=disabled; admin-set via dashboard
-remote_url       TEXT             -- R2 CDN URL for the Cocos Asset Bundle; CI/CD-set; NULL until first publish
-remote_version   TEXT             -- version string; CI/CD-set; client compares against local to detect updates
 ```
-_Game metadata (display name, icons, banners, intro/rule images) and the canonical slug list live in the client catalog (hot-updated) — not in this table. See [features/games-management.md](features/games-management.md)._
+_Bundle version and URL per slug live in `game-bundles/<env>/manifest.json` on R2 (written by CI); game metadata (display name, icons, banners, intro/rule images) and the canonical slug list live in the client catalog (hot-updated). Neither lives in this table. See [features/games-management.md](features/games-management.md)._
 
 ### `matches`
 ```sql

@@ -138,7 +138,7 @@ See migration naming rules: [convetions.md — Entity & Migration Conventions](c
 4. Import the plugin in the Cocos client's game loader
 5. Create the Cocos Creator scene and assets under `client/res/games/<slug>/` (this is the Asset Bundle)
 6. Create the AI component at `client/src/games/<slug>/AiPlayer.ts` (imports from `packages/game-logic/<slug>/`)
-7. CI will build and upload the bundle to R2 on the next `dev` merge or `client/res/games/<slug>/` change, and write `remote_url` + `remote_version` to the `games` row
+7. CI will build and upload the bundle to R2 on the next `dev` merge or `client/res/games/**` change, and publish a new `game-bundles/<env>/manifest.json` carrying the new slug's bundle version + URL
 8. Activate the game via admin — set `status = 2` (enabled) via `PUT /v1/admin/games/<slug>/status` once the bundle is live
 
 ---
@@ -151,14 +151,17 @@ Hot updates are automatic — no manual step needed. Any merge to `dev` or push 
 
 ## Publishing a Game Bundle
 
-Pushing changes to `client/res/games/<slug>/` on `dev` or `main` triggers a bundle-only publish for that game. CI executes four steps in order:
+Every push to `client/res/games/**` on `dev` or `main` triggers a **whole-bundle publish** for that environment. CI rebuilds every slug, content-hashes each source directory, and emits a single authoritative manifest. The job carries `concurrency: { group: bundle-publish-${env}, cancel-in-progress: true }` so overlapping commits don't race — the latest run writes the manifest.
 
-1. **Read prev** — look up the slug's current `remote_version` in Postgres (call it `prev`; may be NULL on first publish).
-2. **Upload** — build and upload the new bundle to `game-bundles/<env>/<slug>/<new-version>/` (a brand-new immutable folder — nothing is overwritten).
-3. **DB write** — `UPDATE games SET remote_url = '<versioned-url>', remote_version = '<new-version>' WHERE slug = ?`.
-4. **Prune** — list `game-bundles/<env>/<slug>/*/` and delete every `<version>/` folder whose name is neither `new` nor `prev`. Keeps exactly the last two versions per slug.
+Steps (in order):
 
-Ordering matters. If step 3 fails, the row still points at `prev` (still intact on R2); retrying the whole publish is safe — the next successful DB write flips the pointer and step 4 cleans up the orphan. If step 4 fails, the DB is already consistent; the extra orphan folders get cleaned on the next successful publish (they'll be neither `new` nor `prev` then). No manual DB update required at any stage. See [features/games-management.md#publish-consistency](features/games-management.md#publish-consistency) for the full rationale.
+1. **Build** every `client/res/games/<slug>/`; compute `<hash>` per slug from the source directory.
+2. **Upload (skip-if-exists)** each bundle to `game-bundles/<env>/<slug>/<hash>/`. Matching hash already on R2 → no-op.
+3. **Compose manifest** in memory from the build output — per-slug `{ version: <hash>, url: <versioned-url> }`.
+4. **`PUT` manifest.json** to `game-bundles/<env>/manifest.json`. This single atomic object write is the transaction — either clients see the new manifest or the old one, never a partial mix.
+5. **Prune** — list each `game-bundles/<env>/<slug>/*/` and delete every `<version>/` folder not referenced in the new manifest.
+
+CI never writes to Postgres. If step 2 or 4 fails, the manifest is unchanged and retries are always safe — previous bundle URLs still resolve to intact, immutable content. If step 5 fails, the manifest is already correct; orphan folders get cleaned on the next successful publish. See [features/games-management.md#source-of-truth](features/games-management.md#source-of-truth) for the full rationale.
 
 ---
 

@@ -201,9 +201,9 @@ When config is updated via `PUT /v1/admin/config`, the server calls the Cloudfla
 
 Zone ID: Cloudflare Dashboard → `gootube.online` → Overview (right sidebar) → add to `.env.production` as `CLOUDFLARE_ZONE_ID`.
 
-**R2 CDN cache rules** — complete [Cloudflare R2](#cloudflare-r2) first to attach `acob.gootube.online` as a custom domain before creating these rules. Create three rules in **Caching → Cache Rules**, in this order (first match wins):
+**R2 CDN cache rules** — complete [Cloudflare R2](#cloudflare-r2) first to attach `acob.gootube.online` as a custom domain before creating these rules. Create four rules in **Caching → Cache Rules**, in this order (first match wins):
 
-**Rule 1 — manifests (short TTL):**
+**Rule 1 — hot-update manifests (short TTL):**
 - Match: `acob.gootube.online/hot-update/*.manifest`
 - Cache eligibility: Eligible for cache
 - Edge TTL: 60 seconds (override origin)
@@ -213,11 +213,17 @@ Zone ID: Cloudflare Dashboard → `gootube.online` → Overview (right sidebar) 
 - Cache eligibility: Eligible for cache
 - Edge TTL: 1 year (override origin)
 
-**Rule 3 — game bundles (bypass cache):**
-- Match: `acob.gootube.online/game-bundles/*`
-- Cache eligibility: Bypass cache
+**Rule 3 — game bundle manifest (short TTL):**
+- Match: `acob.gootube.online/game-bundles/*/manifest.json`
+- Cache eligibility: Eligible for cache
+- Edge TTL: 60 seconds (override origin)
 
-Manifests share the same URL on every publish → short TTL. Hot update assets are MD5-named — new content always has a new URL, safe to cache permanently. Game bundles are full overwrites at the same path → bypass avoids stale downloads without purge logic.
+**Rule 4 — game bundle files (permanent cache):**
+- Match: `acob.gootube.online/game-bundles/*`
+- Cache eligibility: Eligible for cache
+- Edge TTL: 1 year (override origin)
+
+Manifests share the same URL on every publish → short TTL. Hot-update assets are MD5-named and game-bundle files are content-hashed — new content always has a new URL, safe to cache permanently.
 
 **Cloudflare Access (admin protection):**
 
@@ -308,16 +314,18 @@ r2://<bucket>/
     staging/       → same
   game-bundles/
     production/
+      manifest.json       → canonical {slug: {version, url}} map; atomic PUT per publish
       <slug>/
-        <version>/ → immutable per publish; never overwritten; last 2 kept per slug
+        <hash>/           → bundle files; immutable, content-addressed by source hash
     staging/
+      manifest.json       → same
       <slug>/
-        <version>/ → same
-  backups/         → daily Postgres dumps (see Backup)
+        <hash>/           → same
+  backups/                → daily Postgres dumps (see Backup)
 ```
 
 - **Hot update**: only changed files are uploaded per publish (Cocos hot-update tool generates a diff against the previous manifest)
-- **Game bundles**: full bundle per slug (INGAME scene + scripts + assets only — no metadata); version is tracked in `games.remote_version` in Postgres **and baked into the R2 path** — the two always match. See [features/games-management.md#publish-consistency](features/games-management.md#publish-consistency).
+- **Game bundles**: full bundle per slug (INGAME scene + scripts + assets only — no metadata); bundle version and URL for every slug live in `game-bundles/<env>/manifest.json` on R2 — **the sole source of truth**; the server does not mirror it. See [features/games-management.md#source-of-truth](features/games-management.md#source-of-truth).
 - **CDN**: served from `https://acob.gootube.online` (Cloudflare CDN custom domain on R2; no proxy through NestJS)
 
 **Setup:**
@@ -468,8 +476,12 @@ Two deployment targets run as parallel jobs on each trigger: the **VPS** (NestJS
 1. Build Cocos main bundle
 2. Run hot-update manifest tool → generate version diff against previous manifest
 3. Upload changed assets to R2 `hot-update/<env>/`
-4. Build all game bundles
-5. For each bundle, per-slug: read current `remote_version` from `games` (call it `prev`) → upload to `game-bundles/<env>/<slug>/<new-version>/` → `UPDATE games SET remote_url, remote_version WHERE slug = ?` → delete every `<version>/` folder under the slug except `new` and `prev`. Ordering is fixed; see [features/games-management.md#publish-consistency](features/games-management.md#publish-consistency).
+4. Build all game bundles and compute a content hash per slug
+5. **Game-bundle publish** (serialized by GitHub Actions `concurrency: group: bundle-publish-${env}`):
+   - Upload each bundle to `game-bundles/<env>/<slug>/<hash>/` with skip-if-exists semantics (matching hash already present → no-op)
+   - Compose the full manifest in memory and `PUT` it to `game-bundles/<env>/manifest.json` (single atomic object write — this is the "transaction")
+   - Prune: list each `game-bundles/<env>/<slug>/*/` and delete any `<version>/` folder not referenced in the new manifest
+   - CI never writes to Postgres; the manifest is the sole source of truth. See [features/games-management.md#source-of-truth](features/games-management.md#source-of-truth).
 
 **Self-hosted runner setup** — install on each VPS that receives deploys (prod-app and staging):
 
