@@ -26,7 +26,13 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 ```
 <type>(<scope>): <description>
 
-Types: feat | fix | refactor | docs | test | chore
+Types: 
+  | feat: Adding new feature
+  | fix: Patching a bug or error
+  | refactor: Code change that neither a fix or feat
+  | docs: Changing only documentations
+  | test: Adding missing tests or correcting existing tests
+  | chore: routine tasks, maintenance, tooling changes
 Scope: server | client | infra | db (optional)
 
 Examples:
