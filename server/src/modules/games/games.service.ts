@@ -33,14 +33,15 @@ export class GamesService implements OnModuleInit {
     return this.games.find();
   }
 
-  async getGame(_slug: string) {
-    throw new Error('not implemented');
+  async getGame(slug: string) {
+    return this.games.findOne({ where: { slug }})
   }
 
-  async setGameStatus(slug: string, status: GameStatus) {
+  async updateGame(slug: string, name?: string, status?: GameStatus) {
     const game = await this.games.findOne({ where: { slug } });
     if (!game) throw new NotFoundException(`Game not found: ${slug}`);
-    game.status = status;
+    if (name != null) game.name = name;
+    if (status != null) game.status = status;
     return this.games.save(game);
   }
 }

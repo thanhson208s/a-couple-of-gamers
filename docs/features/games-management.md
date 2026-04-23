@@ -88,7 +88,6 @@ else if status == 2 (enabled)
 
 **Server**
 - [x] `status` column in `games` table
-- [x] `PUT /v1/admin/games/:slug/status` (admin-set status)
 
 **Client**
 - [ ] Client-side game catalog + metadata (bundled; refreshed via main-app hot update)

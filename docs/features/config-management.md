@@ -74,7 +74,7 @@ Served by NestJS at `/admin` as static HTML files embedded in the Docker image (
 - Protected by `X-Admin-Token` header (value set via `ADMIN_TOKEN` env var)
 - Shows every row in the `games` table with a status dropdown (`0` under_maintenance, `1` coming_soon, `2` enabled, `3` disabled)
 - Shows per-platform `appVersion` inputs (`minSupportedVersion`, `latestVersion` for ios and android) — edited via the feature-flags path
-- On status change: `PUT /v1/admin/games/:slug/status` with `{ status }`
+- On game configs change: `PUT /v1/admin/games/:slug` with `{ status }`
 - Feature flags and `appVersion` use `PUT /v1/admin/config` with the full updated config object; persists to the `config` table
 - Either endpoint triggers a Cloudflare cache purge for `/v1/config`
 
@@ -86,7 +86,7 @@ Served by NestJS at `/admin` as static HTML files embedded in the Docker image (
 
 **Server**
 - [x] `GET /v1/config` — serve game catalog from `games` table (`status` only)
-- [x] `PUT /v1/admin/games/:slug/status` — admin status update
+- [x] `PUT /v1/admin/games/:slug` — admin game config update
 - [ ] Admin dashboard (`/admin`) + `PUT /v1/admin/config` endpoint for feature flags
 
 **Client**
