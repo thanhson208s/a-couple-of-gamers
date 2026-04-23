@@ -1,11 +1,13 @@
 import { createHash, randomBytes } from 'crypto';
-import { Injectable, NotImplementedException, UnauthorizedException } from '@nestjs/common';
+import { Inject, Injectable, NotImplementedException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { UsersService } from '../users/users.service';
 import { JwtUser } from './guards/jwt-auth.guard';
 import { RefreshToken } from './refresh-token.entity';
+import { REDIS_CLIENT } from '../../common/redis/redis.module';
+import { Redis } from 'ioredis'
 
 const REFRESH_TOKEN_TTL_DAYS = 30;
 
@@ -18,6 +20,7 @@ export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
     @InjectRepository(RefreshToken) private readonly refreshTokens: Repository<RefreshToken>,
   ) {}
 
@@ -56,8 +59,16 @@ export class AuthService {
     return { accessToken, refreshToken: newRefreshToken, id: user.id, provider: user.provider, providerId: user.providerId, displayName: user.displayName };
   }
 
-  async issueWsTicket() {
-    throw new Error('not implemented');
+  async issueWsTicket(userId: string) {
+    const ticket = randomBytes(20).toString('hex');
+    await this.redis.set(`ws_ticket:${ticket}`, userId, 'EX', 60);
+    return ticket;
+  }
+
+  async validateWsTicket(ticket: string) {
+    const userId = await this.redis.get(`ws_ticket:${ticket}`);
+    if (userId) await this.redis.del(`ws_ticket:${ticket}`);
+    return userId;
   }
 
   static tokenType(provider: string): 'anonymous' | 'dev' | 'social' {

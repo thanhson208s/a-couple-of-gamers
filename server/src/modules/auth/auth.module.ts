@@ -8,6 +8,7 @@ import { AdminAuthGuard } from './guards/admin-auth.guard';
 import { DevAuthGuard } from './guards/dev-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { UsersModule } from '../users/users.module';
+import { RedisModule } from '../../common/redis/redis.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { UsersModule } from '../users/users.module';
       }),
     }),
     UsersModule,
+    RedisModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, AdminAuthGuard, DevAuthGuard, JwtAuthGuard],

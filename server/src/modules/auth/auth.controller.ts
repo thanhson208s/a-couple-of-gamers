@@ -1,9 +1,10 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Req } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import { AppThrottle } from '../../app.guard';
 import { AuthService } from './auth.service';
 import { DevAuthGuard } from './guards/dev-auth.guard';
 import { LoginDto } from './login.dto';
+import { CurrentUser, JwtAuthGuard, JwtUser } from './guards/jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -34,8 +35,8 @@ export class AuthController {
   }
 
   @Post('ws-ticket')
-  issueWsTicket() {
-    // Requires JWT auth guard (to be added)
-    return this.authService.issueWsTicket();
+  @UseGuards(JwtAuthGuard)
+  issueWsTicket(@CurrentUser() user: JwtUser) {
+    return this.authService.issueWsTicket(user.id);
   }
 }
