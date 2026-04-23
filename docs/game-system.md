@@ -287,4 +287,4 @@ Some games have distinct phases where the set of valid actions changes (e.g. Bat
 - WS events: [api-reference.md#websocket-events](api-reference.md#websocket-events)
 - WS auth: [security.md#websocket-authentication](security.md#websocket-authentication)
 - DB tables: [database-schema.md#matches](database-schema.md#matches)
-- Push notification infrastructure: [features/push-notifications.md](features/push-notifications.md)
+- Notification infrastructure: [features/notifications.md](features/notifications.md)

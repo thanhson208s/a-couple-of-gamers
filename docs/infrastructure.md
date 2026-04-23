@@ -204,12 +204,12 @@ Zone ID: Cloudflare Dashboard → `gootube.online` → Overview (right sidebar) 
 **R2 CDN cache rules** — complete [Cloudflare R2](#cloudflare-r2) first to attach `acob.gootube.online` as a custom domain before creating these rules. Create four rules in **Caching → Cache Rules**, in this order (first match wins):
 
 **Rule 1 — hot-update manifests (short TTL):**
-- Match: `acob.gootube.online/hot-update/*.manifest`
+- Match: `acob.gootube.online/hot-update/*/*/*/*.manifest` — matches `<env>/<platform>/apk-<version>/{version,project}.manifest`
 - Cache eligibility: Eligible for cache
 - Edge TTL: 60 seconds (override origin)
 
 **Rule 2 — hot update assets (permanent cache):**
-- Match: `acob.gootube.online/hot-update/*/assets/*`
+- Match: `acob.gootube.online/hot-update/*/*/*/assets/*` — matches `<env>/<platform>/apk-<version>/assets/*`
 - Cache eligibility: Eligible for cache
 - Edge TTL: 1 year (override origin)
 
@@ -310,8 +310,12 @@ Create two Sentry projects in the same org:
 ```
 r2://<bucket>/
   hot-update/
-    production/    → version.manifest, project.manifest, assets/
-    staging/       → same
+    production/
+      ios/
+        apk-<major.minor>/   → version.manifest, project.manifest, assets/
+      android/
+        apk-<major.minor>/   → same
+    staging/                 → same shape
   game-bundles/
     production/
       manifest.json       → canonical {slug: {version, url}} map; atomic PUT per publish
@@ -324,8 +328,8 @@ r2://<bucket>/
   backups/                → daily Postgres dumps (see Backup)
 ```
 
-- **Hot update**: only changed files are uploaded per publish (Cocos hot-update tool generates a diff against the previous manifest)
-- **Game bundles**: full bundle per slug (INGAME scene + scripts + assets only — no metadata); bundle version and URL for every slug live in `game-bundles/<env>/manifest.json` on R2 — **the sole source of truth**; the server does not mirror it. See [features/games-management.md#source-of-truth](features/games-management.md#source-of-truth).
+- **Hot update**: content is split into per-platform, per-minor-version **tracks** (see [hot-update.md#tracks](hot-update.md#tracks)). Each publish overwrites the target track's bundle in place; only changed files are re-uploaded (Cocos hot-update tool generates a diff against the previous manifest). Retired tracks are deleted by a scheduled prune workflow.
+- **Game bundles**: full bundle per slug (INGAME scene + scripts + assets only — no metadata); bundle version and URL for every slug live in `game-bundles/<env>/manifest.json` on R2 — **the sole source of truth**; the server does not mirror it. See [hot-update.md#source-of-truth](hot-update.md#source-of-truth).
 - **CDN**: served from `https://acob.gootube.online` (Cloudflare CDN custom domain on R2; no proxy through NestJS)
 
 **Setup:**
@@ -459,6 +463,7 @@ Two deployment targets run as parallel jobs on each trigger: the **VPS** (NestJS
 | Merge to `dev` | (parallel) NestJS deploy → staging VPS + Cocos asset publish → R2 staging |
 | Push tag `v*` | (parallel) NestJS deploy → production VPS + Cocos asset publish → R2 production |
 | Changes to `client/res/games/<slug>/` on `dev` or `main` | Bundle-only publish: build affected bundle → upload to R2 (no VPS deploy) |
+| Weekly cron + `workflow_dispatch` | Hot-update prune: read `appVersion.*.minSupportedVersion` from `/v1/config`, delete retired tracks from R2. Supports `dry_run`. See [hot-update.md#prune](hot-update.md#prune). |
 
 **NestJS deploy — two sequential jobs:**
 
@@ -475,7 +480,7 @@ Two deployment targets run as parallel jobs on each trigger: the **VPS** (NestJS
 **Cocos asset publish job steps:**
 1. Build Cocos main bundle
 2. Run hot-update manifest tool → generate version diff against previous manifest
-3. Upload changed assets to R2 `hot-update/<env>/`
+3. Read the source `version.manifest`'s `nativeVersion` block; for **each platform** (`ios`, `android`): template `packageUrl` / `remoteManifestUrl` / `remoteVersionUrl` to point at `hot-update/<env>/<platform>/apk-<version>/`, upload changed assets, and upload the templated manifests last. See [hot-update.md#ci-pipeline](hot-update.md#ci-pipeline).
 4. Build all game bundles and compute a content hash per slug
 5. **Game-bundle publish** — per-slug content-hash, skip-if-exists upload to R2, atomic `PUT` of the manifest, and prune of orphaned bundle versions. Full steps, concurrency config, and retry semantics: [workflow.md#publishing-a-game-bundle](workflow.md#publishing-a-game-bundle).
 

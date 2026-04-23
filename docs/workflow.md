@@ -134,7 +134,7 @@ See migration naming rules: [convetions.md — Entity & Migration Conventions](c
 
 1. Create the shared game plugin in `packages/game-logic/<slug>/` implementing the `GamePlugin` interface — see [game-system.md](game-system.md)
 2. Register the slug in `GamesRegistry` (`server/src/modules/games/games.registry.ts`) — a row is auto-created in the `games` table (`status = 1` / coming_soon) on next server start
-3. Add the slug + metadata (display name, icons, banners, intro/rule images) to the client catalog so the tile renders (ships via the next main-app hot update — see [features/hot-update.md](features/hot-update.md))
+3. Add the slug + metadata (display name, icons, banners, intro/rule images) to the client catalog so the tile renders (ships via the next main-app hot update — see [hot-update.md](hot-update.md))
 4. Import the plugin in the Cocos client's game loader
 5. Create the Cocos Creator scene and assets under `client/res/games/<slug>/` (this is the Asset Bundle)
 6. Create the AI component at `client/src/games/<slug>/AiPlayer.ts` (imports from `packages/game-logic/<slug>/`)
@@ -145,7 +145,28 @@ See migration naming rules: [convetions.md — Entity & Migration Conventions](c
 
 ## Publishing a Hot Update
 
-Hot updates are automatic — no manual step needed. Any merge to `dev` or push of a `v*` tag triggers the Cocos asset publish job, which builds the main bundle, generates the version diff, and uploads to R2. See [infrastructure.md#cicd](infrastructure.md#cicd).
+Hot updates are automatic — no manual step needed. Any merge to `dev` or push of a `v*` tag triggers the Cocos asset publish job, which builds the main bundle, generates the version diff, and uploads to R2.
+
+Content is published to **per-platform, per-minor-version tracks** under `hot-update/<env>/<platform>/apk-<major.minor>/`. The target minor per platform is declared in the client's `version.manifest` under a `nativeVersion` block — CI reads it, templates each track's URL fields, and uploads to both platform tracks. See [hot-update.md#ci-pipeline](hot-update.md#ci-pipeline) and [infrastructure.md#cicd](infrastructure.md#cicd).
+
+Bumping `nativeVersion.<platform>` in `version.manifest` creates a new track on next publish. Do this deliberately — a bump signals that the bundle now relies on native features only present in that platform minor. The full release sequence (track bump → store submission → admin config) is covered in [Releasing a Native Build](#releasing-a-native-build) below.
+
+---
+
+## Releasing a Native Build
+
+A new APK/IPA release spans the repo, the app stores, and the server admin config. Follow this sequence — bumping config out of order prompts users to update to a build the store hasn't released, or silently stalls rollout.
+
+1. **Publish the new track.** Bump `nativeVersion.<platform>` in the Cocos project's `version.manifest` and merge. CI uploads the first bundle of the new track to R2. Must happen **before** step 2 so fresh installs of the new native build don't hit a 404 on first manifest fetch. (Cocos falls back to the APK-embedded bundle, so this is a freshness issue rather than a hard failure — but worth avoiding.)
+2. **Submit the native build** to App Store / Play Store. Wait for store review and rollout.
+3. **Bump `latestVersion`.** Once the new build is live in the store, update `appVersion.<platform>.latestVersion` in `/v1/config` via the admin dashboard. This is the trigger for the soft "update available" banner on outdated-but-supported clients.
+
+**Retiring an old minor** — separate, later admin action:
+
+4. When enough users have moved off an old minor, bump `appVersion.<platform>.minSupportedVersion` past that minor in `/v1/config`. Clients still on the retired minor see the hard-block update screen on their next launch.
+5. The next weekly run of the hot-update prune workflow deletes the retired track's assets from R2. Run the workflow manually with `dry_run=true` first if you want to preview the deletion.
+
+Both admin writes trigger the existing Cloudflare purge on `/v1/config` — clients see the change on their next launch.
 
 ---
 
@@ -161,7 +182,7 @@ Steps (in order):
 4. **`PUT` manifest.json** to `game-bundles/<env>/manifest.json`. This single atomic object write is the transaction — either clients see the new manifest or the old one, never a partial mix.
 5. **Prune** — list each `game-bundles/<env>/<slug>/*/` and delete every `<version>/` folder not referenced in the new manifest.
 
-CI never writes to Postgres. If step 2 or 4 fails, the manifest is unchanged and retries are always safe — previous bundle URLs still resolve to intact, immutable content. If step 5 fails, the manifest is already correct; orphan folders get cleaned on the next successful publish. See [features/games-management.md#source-of-truth](features/games-management.md#source-of-truth) for the full rationale.
+CI never writes to Postgres. If step 2 or 4 fails, the manifest is unchanged and retries are always safe — previous bundle URLs still resolve to intact, immutable content. If step 5 fails, the manifest is already correct; orphan folders get cleaned on the next successful publish. See [hot-update.md#source-of-truth](hot-update.md#source-of-truth) for the full rationale.
 
 ---
 

@@ -42,7 +42,7 @@ Error response shape (all endpoints):
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/v1/games/:slug` | Get single game row: `{ id, slug, name, status }`. Bundle version + URL are not here — they live in `game-bundles/<env>/manifest.json` on R2 (see [features/games-management.md#source-of-truth](features/games-management.md#source-of-truth)). Metadata (display name, icons, banners, intro/rule images) also not returned — it ships with the client catalog via [features/hot-update.md](features/hot-update.md). |
+| `GET` | `/v1/games/:slug` | Get single game row: `{ id, slug, name, status }`. Bundle version + URL are not here — they live in `game-bundles/<env>/manifest.json` on R2 (see [hot-update.md#source-of-truth](hot-update.md#source-of-truth)). Metadata (display name, icons, banners, intro/rule images) also not returned — it ships with the client catalog via [hot-update.md](hot-update.md). |
 
 ---
 
@@ -98,7 +98,7 @@ Human match moves are submitted via WebSocket only — see [WebSocket Events](#w
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/v1/config` | Returns app config. Each entry under `games` is `{ status }` — a numeric enum: `0` under maintenance, `1` coming soon, `2` enabled, `3` disabled. Clients hide `3` and block Play for `0` / `1`. Bundle version + URL per slug come from `game-bundles/<env>/manifest.json` on R2 (see [features/games-management.md#source-of-truth](features/games-management.md#source-of-truth)) — fetched by the client in parallel with this endpoint. Cached at Cloudflare for up to 5 minutes. |
+| `GET` | `/v1/config` | Returns app config. Each entry under `games` is `{ status }` — a numeric enum: `0` under maintenance, `1` coming soon, `2` enabled, `3` disabled. Clients hide `3` and block Play for `0` / `1`. Bundle version + URL per slug come from `game-bundles/<env>/manifest.json` on R2 (see [hot-update.md#source-of-truth](hot-update.md#source-of-truth)) — fetched by the client in parallel with this endpoint. Cached at Cloudflare for up to 5 minutes. |
 
 ---
 

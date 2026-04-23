@@ -33,5 +33,6 @@
 | [docs/api-reference.md](docs/api-reference.md) | [DRAFT] REST endpoints and WebSocket events |
 | [docs/database-schema.md](docs/database-schema.md) | [DRAFT] Postgres tables, indexes, data ownership |
 | [docs/game-system.md](docs/game-system.md) | Game plugin interface, state visibility, game catalog |
+| [docs/hot-update.md](docs/hot-update.md) | OTA delivery for main-app (per-platform/per-minor tracks, two-gate version check) and per-game bundles (R2 manifest, download/play flow); CI publish and prune for both |
 | [docs/features/](docs/features/) | One doc per feature — implementation flows, sequences, and task list |
 | [docs/structure.md](docs/structure.md) | Living codebase map — every file and directory with its purpose |

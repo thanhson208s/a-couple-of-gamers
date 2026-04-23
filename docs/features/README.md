@@ -1,6 +1,6 @@
 # Feature Design Documents
 
-**What's here:** Implementation-level design for each of the 12 features — data flows, step-by-step sequences, and design decisions not captured in requirements.
+**What's here:** Implementation-level design for each of the user-facing features — data flows, step-by-step sequences, and design decisions not captured in requirements.
 
 ---
 
@@ -47,10 +47,9 @@ Links to api-reference.md and database-schema.md sections
 |------|--------|
 | [account-management.md](account-management.md) | Firebase login (anonymous + social), account upgrade, account deletion |
 | [match-management.md](match-management.md) | Match state machine, invite flow, abandonment, completion, rival stats |
-| [vs-ai.md](vs-ai.md) | AI session flow, state persistence, quit/resume |
-| [push-notifications.md](push-notifications.md) | Device token management, FCM dispatch, stale token cleanup |
+| [offline-mode.md](offline-mode.md) | Offline shell: no-login state, connectivity indicator, gated online surfaces, vs AI + Pass-n-Play session flows, local state persistence |
+| [notifications.md](notifications.md) | Device token management, FCM dispatch, stale token cleanup |
 | [users-management.md](users-management.md) | User profile, favorites sync, rival stats |
 | [monetization.md](monetization.md) | Ads, IAP (remove ads), donations, affiliate links |
-| [hot-update.md](hot-update.md) | Main app update via Cocos AssetsManager; manifest diff upload in CI |
-| [games-management.md](games-management.md) | Per-game bundle download, two-gate visibility (client catalog + server status), version check on launch |
+| [games-management.md](games-management.md) | Two-gate visibility: client catalog (slugs + metadata) + server-side per-game `status` |
 | [config-management.md](config-management.md) | Config fetch on launch, game tile states, admin dashboard |

@@ -1,6 +1,6 @@
-# Push Notifications
+# Notifications
 
-**Requires reading:** [requirements.md#push-notifications](../requirements.md#push-notifications)
+**Requires reading:** [requirements.md#notifications](../requirements.md#notifications)
 
 ---
 
@@ -35,5 +35,5 @@ Notification payloads carry enough data for the client to route directly to the 
 ## Related
 
 - Device token endpoint: [api-reference.md#users](../api-reference.md#users)
-- Trigger details: [game-system.md#push-notifications](../game-system.md#push-notifications)
+- Trigger details: [game-system.md#notifications](../game-system.md#notifications)
 - DB: [database-schema.md#device_tokens](../database-schema.md#device_tokens)
