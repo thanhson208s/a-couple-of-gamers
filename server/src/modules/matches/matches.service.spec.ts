@@ -32,8 +32,7 @@ function makeMatch(overrides: Partial<Match> = {}): Match {
     options: null,
     player1Id: OTHER_ID,
     player2Id: null,
-    player1GuestUuid: null,
-    player2GuestUuid: null,
+
     currentTurn: null,
     winner: null,
     inviteCode: 'ABCD',

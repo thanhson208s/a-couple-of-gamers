@@ -10,11 +10,8 @@ export class Move {
   @JoinColumn({ name: 'match_id' })
   match: Match;
 
-  @Column({ type: 'uuid', name: 'player_id', nullable: true })
+  @Column({ type: 'char', length: 10, name: 'player_id', nullable: true })
   playerId: string | null;
-
-  @Column({ type: 'text', name: 'guest_uuid', nullable: true })
-  guestUuid: string | null;
 
   @Column({ type: 'jsonb', name: 'move_data' })
   moveData: object;

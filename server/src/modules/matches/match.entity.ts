@@ -19,19 +19,13 @@ export class Match {
   @Column({ type: 'jsonb', nullable: true })
   options: object | null;
 
-  // Player 1 (creator) — exactly one of player1Id or player1GuestUuid is set
+  // Player 1 (creator)
   @Column({ type: 'char', length: 10, name: 'player1_id', nullable: true })
   player1Id: string | null;
-
-  @Column({ type: 'text', name: 'player1_guest_uuid', nullable: true })
-  player1GuestUuid: string | null;
 
   // Player 2 (joiner) — all null until someone joins
   @Column({ type: 'char', length: 10, name: 'player2_id', nullable: true })
   player2Id: string | null;
-
-  @Column({ type: 'text', name: 'player2_guest_uuid', nullable: true })
-  player2GuestUuid: string | null;
 
   @Column({ type: 'int', name: 'current_turn', nullable: true })
   currentTurn: number | null; // 1 or 2; null when pending or game over
