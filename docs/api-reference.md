@@ -62,7 +62,6 @@ Error response shape (all endpoints):
 |--------|------|-------------|
 | `POST` | `/v1/matches` | Create a new human match. Body: `{ gameSlug, playerSlot: 1\|2, options? }`. `options` is a game-specific object (e.g. difficulty, selected roles) — stored on the match and passed to `plugin.initialState` when the second player joins. Creator occupies the chosen slot; joiner fills the other. Response: `{ id, inviteCode, deepLink, expiresAt }`. vs AI matches are client-only — no server record created. |
 | `GET` | `/v1/matches` | List caller's active matches (pending + in-progress) |
-| `GET` | `/v1/matches/:id` | Get match state (returns caller's player view) |
 | `POST` | `/v1/matches/join` | Join a pending match by invite code. Body: `{ inviteCode }`. No match ID needed — server looks up match by code. Code is cleared on join. Returns `410` if expired, `409` if match no longer pending, `403` if own match. |
 | `DELETE` | `/v1/matches/:id` | Abandon / forfeit a match |
 
@@ -71,14 +70,6 @@ Error response shape (all endpoints):
 ### Moves
 
 Human match moves are submitted via WebSocket only — see [WebSocket Events](#websocket-events) below.
-
----
-
-### Invites
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/v1/matches/:id/invite` | Re-fetch invite code + deep link for a pending match (reshare use case only — initial link is returned by `POST /v1/matches`) |
 
 ---
 

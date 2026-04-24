@@ -21,11 +21,6 @@ export class MatchesController {
     return this.matchesService.listMatches(user.id);
   }
 
-  @Get(':id')
-  getMatch(@Param('id') id: string) {
-    return this.matchesService.getMatch(id);
-  }
-
   @Post('join')
   joinMatch(@Body() dto: JoinMatchDto, @CurrentUser() user: JwtUser) {
     return this.matchesService.joinMatch(dto.inviteCode, user.id);
@@ -34,20 +29,5 @@ export class MatchesController {
   @Delete(':id')
   abandonMatch(@Param('id') id: string) {
     return this.matchesService.abandonMatch(id);
-  }
-
-  @Post(':id/moves')
-  submitMove(@Param('id') id: string, @Body() body: { move: unknown }) {
-    return this.matchesService.submitMove(id, body.move);
-  }
-
-  @Post(':id/complete')
-  completeAiMatch(@Param('id') id: string, @Body() body: { winnerId: string | null }) {
-    return this.matchesService.completeAiMatch(id, body.winnerId);
-  }
-
-  @Get(':id/invite')
-  getInvite(@Param('id') id: string) {
-    return this.matchesService.getInvite(id);
   }
 }

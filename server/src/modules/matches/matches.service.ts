@@ -117,23 +117,11 @@ export class MatchesService {
     });
   }
 
-  async getMatch(_id: string) {
-    throw new Error('not implemented');
-  }
-
   async abandonMatch(_id: string) {
     throw new Error('not implemented');
   }
 
   async submitMove(_matchId: string, _move: unknown) {
-    throw new Error('not implemented');
-  }
-
-  async completeAiMatch(_matchId: string, _winnerId: string | null) {
-    throw new Error('not implemented');
-  }
-
-  async getInvite(_matchId: string) {
     throw new Error('not implemented');
   }
 
