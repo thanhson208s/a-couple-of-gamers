@@ -9,6 +9,7 @@ import { DevAuthGuard } from './guards/dev-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { UsersModule } from '../users/users.module';
 import { RedisModule } from '../../common/redis/redis.module';
+import { FirebaseModule } from '../../common/firebase/firebase.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { RedisModule } from '../../common/redis/redis.module';
     }),
     UsersModule,
     RedisModule,
+    FirebaseModule
   ],
   controllers: [AuthController],
   providers: [AuthService, AdminAuthGuard, DevAuthGuard, JwtAuthGuard],

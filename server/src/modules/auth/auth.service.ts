@@ -8,6 +8,8 @@ import { JwtUser } from './guards/jwt-auth.guard';
 import { RefreshToken } from './refresh-token.entity';
 import { REDIS_CLIENT } from '../../common/redis/redis.module';
 import { Redis } from 'ioredis'
+import { FIREBASE_AUTH } from '../../common/firebase/firebase.module';
+import { auth } from 'firebase-admin';
 
 const REFRESH_TOKEN_TTL_DAYS = 30;
 
@@ -21,23 +23,31 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    @Inject(FIREBASE_AUTH) private readonly firebaseAuth: auth.Auth,
     @InjectRepository(RefreshToken) private readonly refreshTokens: Repository<RefreshToken>,
   ) {}
 
-  async devLogin(accountId: string): Promise<{ accessToken: string; refreshToken: string; id: string; provider: string; providerId: string; displayName: string }> {
+  async devLogin(accountId: string): Promise<{ accessToken: string; refreshToken: string; id: string, provider: string, displayName: string }> {
     const user = await this.usersService.findOrCreate('dev', accountId, `dev_${accountId}`);
-    const accessToken = this.jwtService.sign({ id: user.id, type: AuthService.tokenType(user.provider) } satisfies JwtUser);
+    const accessToken = this.issueAccessToken(user.id, user.provider);
     const refreshToken = await this.issueRefreshToken(user.id);
-    return { accessToken, refreshToken, id: user.id, provider: user.provider, providerId: user.providerId, displayName: user.displayName };
+    return { accessToken, refreshToken, id: user.id, provider: user.provider, displayName: user.displayName };
   }
 
-  // Verifies Firebase ID token, upserts user by provider_id (Firebase UID), issues JWT.
-  // sign_in_provider='anonymous' → type:'anonymous'; social providers → type:'social'
-  async login(_idToken: string): Promise<{ accessToken: string; refreshToken: string; id: string; provider: string; providerId: string; displayName: string }> {
-    throw new NotImplementedException();
+  async login(idToken: string): Promise<{ accessToken: string; refreshToken: string; id: string; provider: string, displayName: string }> {
+    try {
+      const decodedIdToken = await this.firebaseAuth.verifyIdToken(idToken);
+      const userRecord = await this.firebaseAuth.getUser(decodedIdToken.uid);
+      const user = await this.usersService.findOrUpsertByFirebaseUid(decodedIdToken.uid, decodedIdToken.firebase.sign_in_provider, userRecord.displayName, userRecord.email);
+      const accessToken = this.issueAccessToken(user.id, user.provider);
+      const refreshToken = await this.issueRefreshToken(user.id);
+      return { accessToken, refreshToken, id: user.id, provider: user.provider, displayName: user.displayName };
+    } catch(e) {
+      throw new UnauthorizedException();
+    }
   }
 
-  async refresh(rawToken: string): Promise<{ accessToken: string; refreshToken: string; id: string; provider: string; providerId: string; displayName: string }> {
+  async refresh(rawToken: string): Promise<{ accessToken: string; refreshToken: string; }> {
     const hash = sha256(rawToken);
     const token = await this.refreshTokens.findOne({ where: { tokenHash: hash } });
 
@@ -56,7 +66,7 @@ export class AuthService {
 
     const newRefreshToken = await this.issueRefreshToken(token.userId);
     const accessToken = this.jwtService.sign({ id: user.id, type: AuthService.tokenType(user.provider) } satisfies JwtUser);
-    return { accessToken, refreshToken: newRefreshToken, id: user.id, provider: user.provider, providerId: user.providerId, displayName: user.displayName };
+    return { accessToken, refreshToken: newRefreshToken };
   }
 
   async issueWsTicket(userId: string) {
@@ -71,10 +81,15 @@ export class AuthService {
     return userId;
   }
 
-  static tokenType(provider: string): 'anonymous' | 'dev' | 'social' {
+  static tokenType(provider: string): 'anonymous' | 'password' | 'dev' | 'social' {
     if (provider === 'anonymous') return 'anonymous';
+    if (provider === 'password') return 'password';
     if (provider === 'dev') return 'dev';
     return 'social';
+  }
+
+  private issueAccessToken(id: string, provider: string): string {
+    return this.jwtService.sign({ id, type: AuthService.tokenType(provider) } satisfies JwtUser); 
   }
 
   private async issueRefreshToken(userId: string): Promise<string> {

@@ -12,23 +12,31 @@ export class UsersService {
     return this.users.findOne({ where: { id } });
   }
 
-  // Finds user by provider_id (Firebase UID). If found, updates provider + displayName.
-  // If not found, creates a new user. Used by POST /v1/auth/login for all Firebase sign-in types.
-  async findOrUpsertByFirebaseUid(uid: string, provider: string, displayName: string): Promise<User> {
-    throw new Error('not implemented');
+  async findOrUpsertByFirebaseUid(uid: string, provider: string, displayName?: string, email?: string): Promise<User> {
+    let user = await this.users.findOne({ where: { providerId: uid }});
+    if (user) {
+      if (user.provider !== provider)
+        user.provider = provider;
+      else return user;
+    } else {
+      const id = await this.generateId();
+      if (!displayName)
+        displayName = email ? email.split('@')[0] : 'Gamer' + id;
+      user = this.users.create({ id, provider, providerId: uid, displayName })
+    }
+
+    return await this.users.save(user);
   }
 
   async findOrCreate(provider: string, providerId: string, displayName: string): Promise<User> {
     let user = await this.users.findOne({ where: { providerId } });
     if (!user) {
       const id = await this.generateId();
-      user = await this.users.save(this.users.create({ id, provider, providerId: providerId, displayName }));
+      user = await this.users.save(this.users.create({ id, provider, providerId, displayName }));
     }
     return user;
   }
 
-  // Generates a unique 10-char uppercase alphanumeric ID.
-  // Charset: A-Z + 2-9 (excludes 0, 1, I, L, O to avoid visual ambiguity) = 31 chars → 31^10 ≈ 820B combinations.
   private async generateId(): Promise<string> {
     const CHARSET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
     for (let attempt = 0; attempt < 5; attempt++) {

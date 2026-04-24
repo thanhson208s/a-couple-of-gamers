@@ -75,4 +75,66 @@ describe('UsersService', () => {
       expect(usersRepo.save).not.toHaveBeenCalled();
     });
   });
+
+  describe('findOrUpsertByFirebaseUid', () => {
+    it('generates an ID and inserts a new user when none exists', async () => {
+      usersRepo.findOne.mockResolvedValue(null);
+      usersRepo.existsBy.mockResolvedValue(false);
+      usersRepo.create.mockImplementation((data) => ({ ...data } as any));
+      usersRepo.save.mockImplementation(async (u) => u as User);
+
+      const result = await service.findOrUpsertByFirebaseUid('firebase-uid', 'provider.com', "abc");
+      
+      expect(usersRepo.save).toHaveBeenCalledTimes(1);
+      expect(result.provider).toBe('provider.com');
+      expect(result.providerId).toBe('firebase-uid');
+      expect(result.displayName).toBe('abc');
+      expect(typeof result.id).toBe('string');
+      expect(result.id).toHaveLength(10);
+    });
+
+    it('creates new user using email if display name is not provided', async () => {
+      usersRepo.findOne.mockResolvedValue(null);
+      usersRepo.existsBy.mockResolvedValue(false);
+      usersRepo.create.mockImplementation((data) => ({ ...data } as any));
+      usersRepo.save.mockImplementation(async (u) => u as User);
+
+      const result = await service.findOrUpsertByFirebaseUid('firebase-uid', 'provider.com', undefined, "abc@abc.com");
+
+      expect(usersRepo.save).toHaveBeenCalledTimes(1);
+      expect(result.provider).toBe('provider.com');
+      expect(result.providerId).toBe('firebase-uid');
+      expect(result.displayName).toBe('abc');
+      expect(typeof result.id).toBe('string');
+      expect(result.id).toHaveLength(10);
+    });
+
+    it('creates new user with auto generated name when both display name and email are missing', async () => {
+      usersRepo.findOne.mockResolvedValue(null);
+      usersRepo.existsBy.mockResolvedValue(false);
+      usersRepo.create.mockImplementation((data) => ({ ...data } as any));
+      usersRepo.save.mockImplementation(async (u) => u as User);
+
+      const result = await service.findOrUpsertByFirebaseUid('firebase-uid', 'provider.com', undefined, undefined);
+
+      expect(usersRepo.save).toHaveBeenCalledTimes(1);
+      expect(result.provider).toBe('provider.com');
+      expect(result.providerId).toBe('firebase-uid');
+      expect(result.displayName).toBe('Gamer' + result.id);
+      expect(typeof result.id).toBe('string');
+      expect(result.id).toHaveLength(10);
+    });
+
+    it('updates user with new provider when provider changes', async () => {
+      const user = {id: '0123456789', provider: "Anonymous"} as User;
+      usersRepo.findOne.mockResolvedValue(user);
+      usersRepo.save.mockImplementation(async (u) => u as User);
+
+      const result = await service.findOrUpsertByFirebaseUid('firebase-uid', 'Social');
+
+      expect(usersRepo.save).toHaveBeenCalledTimes(1);
+      expect(user.provider).toBe('Social');
+      expect(result.provider).toBe('Social');
+    });
+  });
 });

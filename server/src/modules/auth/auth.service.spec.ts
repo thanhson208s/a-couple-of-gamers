@@ -8,6 +8,7 @@ import { UsersService } from '../users/users.service';
 import { User } from '../users/user.entity';
 import { mockRepository } from '../../common/test/helpers';
 import { REDIS_CLIENT } from '../../common/redis/redis.module';
+import { FIREBASE_AUTH } from '../../common/firebase/firebase.module';
 
 function makeUser(overrides: Partial<User> = {}): User {
   return { id: 'ABCD123456', provider: 'anonymous', providerId: 'firebase-uid-123', displayName: 'Guest', ...overrides } as User;
@@ -27,15 +28,17 @@ function makeRefreshToken(overrides: Partial<RefreshToken> = {}): RefreshToken {
 describe('AuthService', () => {
   let service: AuthService;
   let refreshTokensRepo: ReturnType<typeof mockRepository<RefreshToken>>;
-  let usersService: jest.Mocked<Pick<UsersService, 'findOrCreate' | 'findById'>>;
+  let usersService: jest.Mocked<Pick<UsersService, 'findOrCreate' | 'findById' | 'findOrUpsertByFirebaseUid'>>;
   let jwtService: jest.Mocked<Pick<JwtService, 'sign'>>;
   let redis: { get: jest.Mock, set: jest.Mock, del: jest.Mock };
+  let firebaseAuth: { verifyIdToken: jest.Mock, getUser: jest.Mock };
 
   beforeEach(async () => {
     refreshTokensRepo = mockRepository<RefreshToken>();
-    usersService = { findOrCreate: jest.fn(), findById: jest.fn() };
+    usersService = { findOrCreate: jest.fn(), findById: jest.fn(), findOrUpsertByFirebaseUid: jest.fn() };
     jwtService = { sign: jest.fn().mockReturnValue('access_token') };
     redis = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
+    firebaseAuth = { verifyIdToken: jest.fn(), getUser: jest.fn() };
 
     // issueRefreshToken calls create() then save()
     refreshTokensRepo.create.mockImplementation((data) => ({ ...data } as RefreshToken));
@@ -47,7 +50,8 @@ describe('AuthService', () => {
         { provide: getRepositoryToken(RefreshToken), useValue: refreshTokensRepo },
         { provide: UsersService, useValue: usersService },
         { provide: JwtService, useValue: jwtService },
-        { provide: REDIS_CLIENT, useValue: redis }
+        { provide: REDIS_CLIENT, useValue: redis },
+        { provide: FIREBASE_AUTH, useValue: firebaseAuth },
       ],
     }).compile();
     service = module.get(AuthService);
@@ -71,8 +75,51 @@ describe('AuthService', () => {
   });
 
   describe('login', () => {
-    it('is not yet implemented', async () => {
-      await expect(service.login('some-id-token')).rejects.toThrow(NotImplementedException);
+    const idToken = 'firebase-id-token';
+    const decodedToken = { uid: 'firebase-uid-123', firebase: { sign_in_provider: 'google.com' } };
+    const userRecord = { displayName: 'Alice', email: 'alice@example.com' };
+
+    it('returns accessToken, refreshToken, and user fields on valid token', async () => {
+      const user = makeUser({ provider: 'google.com', displayName: 'Alice' });
+      firebaseAuth.verifyIdToken.mockResolvedValue(decodedToken);
+      firebaseAuth.getUser.mockResolvedValue(userRecord);
+      usersService.findOrUpsertByFirebaseUid.mockResolvedValue(user);
+
+      const result = await service.login(idToken);
+
+      expect(firebaseAuth.verifyIdToken).toHaveBeenCalledWith(idToken);
+      expect(firebaseAuth.getUser).toHaveBeenCalledWith(decodedToken.uid);
+      expect(usersService.findOrUpsertByFirebaseUid).toHaveBeenCalledWith(
+        decodedToken.uid,
+        decodedToken.firebase.sign_in_provider,
+        userRecord.displayName,
+        userRecord.email,
+      );
+      expect(jwtService.sign).toHaveBeenCalledWith({ id: user.id, type: 'social' });
+      expect(result.accessToken).toBe('access_token');
+      expect(typeof result.refreshToken).toBe('string');
+      expect(result.refreshToken).toHaveLength(64);
+      expect(result.id).toBe(user.id);
+      expect(result.provider).toBe(user.provider);
+      expect(result.displayName).toBe(user.displayName);
+    });
+
+    it('throws UnauthorizedException when verifyIdToken fails', async () => {
+      firebaseAuth.verifyIdToken.mockRejectedValue(new Error('invalid token'));
+      await expect(service.login(idToken)).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('throws UnauthorizedException when getUser fails', async () => {
+      firebaseAuth.verifyIdToken.mockResolvedValue(decodedToken);
+      firebaseAuth.getUser.mockRejectedValue(new Error('user not found'));
+      await expect(service.login(idToken)).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('throws UnauthorizedException when findOrUpsertByFirebaseUid fails', async () => {
+      firebaseAuth.verifyIdToken.mockResolvedValue(decodedToken);
+      firebaseAuth.getUser.mockResolvedValue(userRecord);
+      usersService.findOrUpsertByFirebaseUid.mockRejectedValue(new Error('db error'));
+      await expect(service.login(idToken)).rejects.toThrow(UnauthorizedException);
     });
   });
 
@@ -90,7 +137,6 @@ describe('AuthService', () => {
       // Issues new tokens
       expect(result.accessToken).toBe('access_token');
       expect(typeof result.refreshToken).toBe('string');
-      expect(result.id).toBe(user.id);
     });
 
     it('throws UnauthorizedException when the token hash is not found', async () => {

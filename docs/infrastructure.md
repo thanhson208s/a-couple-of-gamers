@@ -269,13 +269,13 @@ The `build` job uses the built-in `GITHUB_TOKEN` to push to GHCR — no PAT need
 **Service account (server-side push notifications):**
 1. Project settings → Service accounts → Generate new private key.
 2. Download the JSON. Stringify it: `cat serviceAccount.json | jq -c .`
-3. Set the result as `FCM_SERVICE_ACCOUNT` in VPS `.env` files.
+3. Set the result as `FIREBASE_SERVICE_ACCOUNT` in VPS `.env` files.
 
 **Client SDK config:**
 1. Project settings → Your apps → Add app → iOS and Android.
 2. Download `GoogleService-Info.plist` (iOS) and `google-services.json` (Android).
 3. Place them in the Cocos Creator project under the appropriate platform directories.
-4. Set `FIREBASE_PROJECT_ID` in `.env` files.
+4. Set `FIREBASE_PROJECT_ID` and `FIREBASE_SERVICE_ACCOUNT` in `.env` files.
 
 Firebase Analytics is enabled by default when adding the Firebase SDK — no server-side config needed.
 
@@ -383,7 +383,7 @@ REDIS_URL=redis://:<REDIS_PASSWORD>@<prod-data-private-ip>:6379
 JWT_ACCESS_SECRET=<256-bit random>
 JWT_REFRESH_SECRET=<256-bit random, different from access>
 FIREBASE_PROJECT_ID=<from Firebase Console>
-FCM_SERVICE_ACCOUNT=<stringified JSON from Firebase service account>
+FIREBASE_SERVICE_ACCOUNT=<stringified JSON from Firebase service account>
 SENTRY_DSN=<server DSN from Sentry>
 ADMIN_TOKEN=<same value as GitHub secret>
 CLOUDFLARE_ZONE_ID=<zone ID>

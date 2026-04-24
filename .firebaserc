@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "a-couple-of-devs",
+    "staging": "a-couple-of-qcs",
+    "production": "a-couple-of-gamers"
+  }
+}
