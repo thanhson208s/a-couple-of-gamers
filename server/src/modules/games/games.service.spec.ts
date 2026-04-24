@@ -77,20 +77,32 @@ describe('GamesService', () => {
 
   describe('setGameStatus', () => {
     it('sets status to the given value and saves', async () => {
-      const game = { id: 'g1', slug: 'tictactoe', status: GameStatus.ComingSoon } as Game;
+      const game = { id: 'g1', slug: 'tictactoe', name: 'Tic-Tac-Toe', status: GameStatus.ComingSoon } as Game;
       gamesRepo.findOne.mockResolvedValue(game);
       gamesRepo.save.mockImplementation(async (g) => g as Game);
 
-      const result = await service.setGameStatus('tictactoe', GameStatus.Enabled);
+      const result = await service.updateGame('tictactoe', undefined, GameStatus.Enabled);
 
       expect(game.status).toBe(GameStatus.Enabled);
       expect(gamesRepo.save).toHaveBeenCalledWith(game);
       expect(result.status).toBe(GameStatus.Enabled);
     });
 
+    it('sets name to the given value and saves', async () => {
+      const game = { id: 'g1', slug: 'tictactoe', name: 'Tic-Tac-Toe', status: GameStatus.ComingSoon } as Game;
+      gamesRepo.findOne.mockResolvedValue(game);
+      gamesRepo.save.mockImplementation(async (g) => g as Game);
+
+      const result = await service.updateGame('tictactoe', 'Caro', undefined);
+
+      expect(game.name).toBe('Caro');
+      expect(gamesRepo.save).toHaveBeenCalledWith(game);
+      expect(result.name).toBe('Caro');
+    });
+
     it('throws NotFoundException for an unknown slug', async () => {
       gamesRepo.findOne.mockResolvedValue(null);
-      await expect(service.setGameStatus('unknown', GameStatus.Enabled)).rejects.toThrow(NotFoundException);
+      await expect(service.updateGame('unknown', undefined, GameStatus.Enabled)).rejects.toThrow(NotFoundException);
     });
   });
 });
