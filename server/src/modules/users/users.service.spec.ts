@@ -4,17 +4,22 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { UsersService } from './users.service';
 import { User } from './user.entity';
 import { mockRepository } from '../../common/test/helpers';
+import { FIREBASE_AUTH } from '../../common/firebase/firebase.module';
 
 describe('UsersService', () => {
   let service: UsersService;
-  let usersRepo: ReturnType<typeof mockRepository<User>>;
+  let usersRepo: ReturnType<typeof mockRepository<User>> & { findOneOrFail: jest.Mock };
+  let firebaseAuth: { deleteUser: jest.Mock };
 
   beforeEach(async () => {
-    usersRepo = mockRepository<User>();
+    usersRepo = { ...mockRepository<User>(), findOneOrFail: jest.fn() };
+    firebaseAuth = { deleteUser: jest.fn() };
+
     const module = await Test.createTestingModule({
       providers: [
         UsersService,
         { provide: getRepositoryToken(User), useValue: usersRepo },
+        { provide: FIREBASE_AUTH, useValue: firebaseAuth },
       ],
     }).compile();
     service = module.get(UsersService);
@@ -135,6 +140,35 @@ describe('UsersService', () => {
       expect(usersRepo.save).toHaveBeenCalledTimes(1);
       expect(user.provider).toBe('Social');
       expect(result.provider).toBe('Social');
+    });
+  });
+
+  describe('deleteAccount', () => {
+    const user = { id: 'ABCD123456', providerId: 'firebase-uid-123', provider: 'google.com' } as User;
+
+    it('deletes user and removes Firebase account', async () => {
+      usersRepo.findOneOrFail.mockResolvedValue(user);
+      usersRepo.delete.mockResolvedValue({ affected: 1, raw: [] });
+      firebaseAuth.deleteUser.mockResolvedValue(undefined);
+
+      await service.deleteAccount(user.id);
+
+      expect(usersRepo.delete).toHaveBeenCalledWith(user.id);
+      expect(firebaseAuth.deleteUser).toHaveBeenCalledWith(user.providerId);
+    });
+
+    it('propagates error when the user is not found', async () => {
+      usersRepo.findOneOrFail.mockRejectedValue(new Error('not found'));
+      await expect(service.deleteAccount('UNKNOWN')).rejects.toThrow();
+      expect(usersRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('does not throw when Firebase deletion fails after DB delete', async () => {
+      usersRepo.findOneOrFail.mockResolvedValue(user);
+      usersRepo.delete.mockResolvedValue({ affected: 1, raw: [] });
+      firebaseAuth.deleteUser.mockRejectedValue(new Error('firebase error'));
+
+      await expect(service.deleteAccount(user.id)).resolves.toBeUndefined();
     });
   });
 });

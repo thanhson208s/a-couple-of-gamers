@@ -1,12 +1,17 @@
 import { randomInt } from 'crypto';
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Inject, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './user.entity';
+import { FIREBASE_AUTH } from '../../common/firebase/firebase.module';
+import { auth } from 'firebase-admin';
 
 @Injectable()
 export class UsersService {
-  constructor(@InjectRepository(User) private readonly users: Repository<User>) {}
+  constructor(
+    @InjectRepository(User) private readonly users: Repository<User>,
+    @Inject(FIREBASE_AUTH) private readonly firebaseAuth: auth.Auth,
+  ) {}
 
   async findById(id: string): Promise<User | null> {
     return this.users.findOne({ where: { id } });
@@ -53,8 +58,12 @@ export class UsersService {
     throw new Error('not implemented');
   }
 
-  async deleteAccount() {
-    throw new Error('not implemented');
+  async deleteAccount(userId: string): Promise<void> {
+    const user = await this.users.findOneOrFail({ where: { id: userId } });
+    await this.users.delete(userId);
+    try {
+      await this.firebaseAuth.deleteUser(user.providerId);
+    } catch {}
   }
 
   async upsertDeviceToken(_body: { token: string; platform: string }) {

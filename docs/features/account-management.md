@@ -83,7 +83,7 @@ All steps run in a single DB transaction. If any step fails, the entire deletion
 **Server**
 - [x] `POST /v1/auth/login` — verify Firebase ID token, upsert user, issue JWT pair
 - [x] `UsersService.findOrUpsertByFirebaseUid` — find by `provider_id` (UID); update `provider` + `display_name` if changed; create if not found
-- [ ] `DELETE /v1/users/profile` — cascade delete user data in transaction order
+- [x] `DELETE /v1/users/profile` — cascade delete user data in transaction order
 
 **Client**
 - [ ] Anonymous sign-in via Firebase SDK (`signInAnonymously()`) on first launch; send ID token to `POST /v1/auth/login`

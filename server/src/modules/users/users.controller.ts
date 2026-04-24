@@ -1,6 +1,6 @@
 import { Controller, Get, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser, JwtAuthGuard, JwtUser } from '../auth/guards/jwt-auth.guard';
 
 @UseGuards(JwtAuthGuard)
 @Controller('users')
@@ -13,8 +13,8 @@ export class UsersController {
   }
 
   @Delete('profile')
-  deleteAccount() {
-    return this.usersService.deleteAccount();
+  deleteAccount(@CurrentUser() user: JwtUser) {
+    return this.usersService.deleteAccount(user.id);
   }
 
   @Put('device')
