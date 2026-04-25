@@ -1,8 +1,9 @@
 import { randomInt } from 'crypto';
-import { Inject, Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
+import { Inject, Injectable, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './user.entity';
+import { UserFavorite } from './user-favorite.entity';
 import { FIREBASE_AUTH } from '../../common/firebase/firebase.module';
 import { auth } from 'firebase-admin';
 
@@ -10,6 +11,7 @@ import { auth } from 'firebase-admin';
 export class UsersService {
   constructor(
     @InjectRepository(User) private readonly users: Repository<User>,
+    @InjectRepository(UserFavorite) private readonly userFavorites: Repository<UserFavorite>,
     @Inject(FIREBASE_AUTH) private readonly firebaseAuth: auth.Auth,
   ) {}
 
@@ -17,17 +19,20 @@ export class UsersService {
     return this.users.findOne({ where: { id } });
   }
 
-  async findOrUpsertByFirebaseUid(uid: string, provider: string, displayName?: string, email?: string): Promise<User> {
+  async findOrUpsertByFirebaseUid(uid: string, provider: string, displayName?: string, email?: string, avatarUrl?: string | null): Promise<User> {
     let user = await this.users.findOne({ where: { providerId: uid }});
     if (user) {
-      if (user.provider !== provider)
-        user.provider = provider;
-      else return user;
+      if (user.provider === provider) return user;
+      user.provider = provider;
+      if (!['anonymous', 'password', 'dev'].includes(provider)) {
+        if (displayName !== undefined) user.displayName = displayName;
+        if (avatarUrl !== undefined) user.avatarUrl = avatarUrl;
+      }
     } else {
       const id = await this.generateId();
       if (!displayName)
         displayName = email ? email.split('@')[0] : 'Gamer' + id;
-      user = this.users.create({ id, provider, providerId: uid, displayName })
+      user = this.users.create({ id, provider, providerId: uid, displayName, avatarUrl: avatarUrl ?? null });
     }
 
     return await this.users.save(user);
@@ -54,8 +59,11 @@ export class UsersService {
     throw new InternalServerErrorException('Failed to generate unique user ID after 5 attempts');
   }
 
-  async getProfile() {
-    throw new Error('not implemented');
+  async getProfile(userId: string): Promise<{ id: string; provider: string; displayName: string; avatarUrl: string | null; favorites: string[] }> {
+    const user = await this.users.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException();
+    const favs = await this.userFavorites.find({ where: { userId }, relations: ['game'] });
+    return { id: user.id, provider: user.provider, displayName: user.displayName, avatarUrl: user.avatarUrl, favorites: favs.map(f => f.game.slug) };
   }
 
   async deleteAccount(userId: string, idToken: string): Promise<void> {

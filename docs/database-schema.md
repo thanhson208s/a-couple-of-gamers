@@ -14,6 +14,7 @@ id              CHAR(10) PRIMARY KEY     -- server-generated; 10 uppercase alpha
 provider        TEXT NOT NULL            -- Firebase sign_in_provider: 'google.com' | 'apple.com' | 'facebook.com' | 'anonymous' | 'dev'
 provider_id     TEXT NOT NULL UNIQUE     -- Firebase UID
 display_name    TEXT NOT NULL
+avatar_url      TEXT                     -- Firebase photoURL; NULL for anonymous users or when not provided
 created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 ```
 

@@ -27,21 +27,21 @@ export class AuthService {
     @InjectRepository(RefreshToken) private readonly refreshTokens: Repository<RefreshToken>,
   ) {}
 
-  async devLogin(accountId: string): Promise<{ accessToken: string; refreshToken: string; id: string, provider: string, displayName: string }> {
+  async devLogin(accountId: string): Promise<{ accessToken: string; refreshToken: string }> {
     const user = await this.usersService.findOrCreate('dev', accountId, `dev_${accountId}`);
     const accessToken = this.issueAccessToken(user.id, user.provider);
     const refreshToken = await this.issueRefreshToken(user.id);
-    return { accessToken, refreshToken, id: user.id, provider: user.provider, displayName: user.displayName };
+    return { accessToken, refreshToken };
   }
 
-  async login(idToken: string): Promise<{ accessToken: string; refreshToken: string; id: string; provider: string, displayName: string }> {
+  async login(idToken: string): Promise<{ accessToken: string; refreshToken: string }> {
     try {
       const decodedIdToken = await this.firebaseAuth.verifyIdToken(idToken, true);
       const userRecord = await this.firebaseAuth.getUser(decodedIdToken.uid);
-      const user = await this.usersService.findOrUpsertByFirebaseUid(decodedIdToken.uid, decodedIdToken.firebase.sign_in_provider, userRecord.displayName, userRecord.email);
+      const user = await this.usersService.findOrUpsertByFirebaseUid(decodedIdToken.uid, decodedIdToken.firebase.sign_in_provider, userRecord.displayName, userRecord.email, userRecord.photoURL);
       const accessToken = this.issueAccessToken(user.id, user.provider);
       const refreshToken = await this.issueRefreshToken(user.id);
-      return { accessToken, refreshToken, id: user.id, provider: user.provider, displayName: user.displayName };
+      return { accessToken, refreshToken };
     } catch(e) {
       throw new UnauthorizedException();
     }

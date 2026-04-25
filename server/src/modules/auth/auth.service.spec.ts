@@ -69,15 +69,13 @@ describe('AuthService', () => {
       expect(result.accessToken).toBe('access_token');
       expect(typeof result.refreshToken).toBe('string');
       expect(result.refreshToken).toHaveLength(64); // 32 random bytes as hex
-      expect(result.id).toBe(user.id);
-      expect(result.provider).toBe('dev');
     });
   });
 
   describe('login', () => {
     const idToken = 'firebase-id-token';
     const decodedToken = { uid: 'firebase-uid-123', firebase: { sign_in_provider: 'google.com' } };
-    const userRecord = { displayName: 'Alice', email: 'alice@example.com' };
+    const userRecord = { displayName: 'Alice', email: 'alice@example.com', photoURL: 'https://photo.example.com/alice.jpg' };
 
     it('returns accessToken, refreshToken, and user fields on valid token', async () => {
       const user = makeUser({ provider: 'google.com', displayName: 'Alice' });
@@ -87,21 +85,19 @@ describe('AuthService', () => {
 
       const result = await service.login(idToken);
 
-      expect(firebaseAuth.verifyIdToken).toHaveBeenCalledWith(idToken);
+      expect(firebaseAuth.verifyIdToken).toHaveBeenCalledWith(idToken, true);
       expect(firebaseAuth.getUser).toHaveBeenCalledWith(decodedToken.uid);
       expect(usersService.findOrUpsertByFirebaseUid).toHaveBeenCalledWith(
         decodedToken.uid,
         decodedToken.firebase.sign_in_provider,
         userRecord.displayName,
         userRecord.email,
+        userRecord.photoURL,
       );
       expect(jwtService.sign).toHaveBeenCalledWith({ id: user.id, type: 'social' });
       expect(result.accessToken).toBe('access_token');
       expect(typeof result.refreshToken).toBe('string');
       expect(result.refreshToken).toHaveLength(64);
-      expect(result.id).toBe(user.id);
-      expect(result.provider).toBe(user.provider);
-      expect(result.displayName).toBe(user.displayName);
     });
 
     it('throws UnauthorizedException when verifyIdToken fails', async () => {

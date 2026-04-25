@@ -21,9 +21,10 @@ Client → Firebase SDK: signInAnonymously()  OR  signInWithProvider(google|appl
 Client → POST /v1/auth/login { idToken }
 → Server: admin.auth().verifyIdToken(idToken)
 → Decoded token: { uid, firebase.sign_in_provider, name/displayName }
-→ UsersService.findOrUpsertByFirebaseUid(uid, provider, displayName)
-    - Found: update provider + displayName if changed
-    - Not found: INSERT new user
+→ UsersService.findOrUpsertByFirebaseUid(uid, provider, displayName, email, avatarUrl)
+    - Found, same provider: return as-is (no write)
+    - Found, provider changed: update provider; also replace displayName + avatarUrl if not undefined
+    - Not found: INSERT new user with provider, displayName, avatarUrl from Firebase
 → Issue JWT pair (type: 'anonymous' | 'social')
 ← Return { accessToken, refreshToken }
 ```
@@ -40,7 +41,7 @@ Client: Firebase SDK link anonymous account → social provider
 
 Client → POST /v1/auth/login { idToken }
 → Server verifies token: same uid as existing anonymous user
-→ findOrUpsertByFirebaseUid updates provider + displayName in-place
+→ findOrUpsertByFirebaseUid updates provider in-place; also replaces displayName + avatarUrl from the social profile (if not undefined)
 → Issues JWT with type:'social'
 ← Client discards old access token; stores new refresh token
 ```
@@ -90,8 +91,9 @@ All steps run in a single DB transaction. If any step fails, the entire deletion
 
 **Server**
 - [x] `POST /v1/auth/login` — verify Firebase ID token, upsert user, issue JWT pair
-- [x] `UsersService.findOrUpsertByFirebaseUid` — find by `provider_id` (UID); update `provider` + `display_name` if changed; create if not found
+- [x] `UsersService.findOrUpsertByFirebaseUid` — find by `provider_id` (UID); on provider change (first social login): update `provider`, `display_name`, `avatar_url` (if not undefined); same-provider re-login: no-op; not found: INSERT
 - [x] `DELETE /v1/users/profile` — cascade delete user data in transaction order
+- [x] `GET /v1/users/profile` — return id, provider, displayName, favorites (game slugs)
 
 **Client**
 - [ ] Anonymous sign-in via Firebase SDK (`signInAnonymously()`) on first launch; send ID token to `POST /v1/auth/login`

@@ -1,24 +1,28 @@
-import { InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
+import { InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { UsersService } from './users.service';
 import { User } from './user.entity';
+import { UserFavorite } from './user-favorite.entity';
 import { mockRepository } from '../../common/test/helpers';
 import { FIREBASE_AUTH } from '../../common/firebase/firebase.module';
 
 describe('UsersService', () => {
   let service: UsersService;
   let usersRepo: ReturnType<typeof mockRepository<User>> & { findOneOrFail: jest.Mock };
+  let userFavoritesRepo: ReturnType<typeof mockRepository<UserFavorite>>;
   let firebaseAuth: { deleteUser: jest.Mock; verifyIdToken: jest.Mock };
 
   beforeEach(async () => {
     usersRepo = { ...mockRepository<User>(), findOneOrFail: jest.fn() };
+    userFavoritesRepo = mockRepository<UserFavorite>();
     firebaseAuth = { deleteUser: jest.fn(), verifyIdToken: jest.fn() };
 
     const module = await Test.createTestingModule({
       providers: [
         UsersService,
         { provide: getRepositoryToken(User), useValue: usersRepo },
+        { provide: getRepositoryToken(UserFavorite), useValue: userFavoritesRepo },
         { provide: FIREBASE_AUTH, useValue: firebaseAuth },
       ],
     }).compile();
@@ -130,16 +134,87 @@ describe('UsersService', () => {
       expect(result.id).toHaveLength(10);
     });
 
-    it('updates user with new provider when provider changes', async () => {
-      const user = {id: '0123456789', provider: "Anonymous"} as User;
+    it('updates provider, displayName and avatarUrl on first social login', async () => {
+      const user = { id: '0123456789', provider: 'anonymous', displayName: 'Gamer0123456789', avatarUrl: null } as User;
       usersRepo.findOne.mockResolvedValue(user);
       usersRepo.save.mockImplementation(async (u) => u as User);
 
-      const result = await service.findOrUpsertByFirebaseUid('firebase-uid', 'Social');
+      const result = await service.findOrUpsertByFirebaseUid('firebase-uid', 'google.com', 'Alice', undefined, 'https://photo.jpg');
 
       expect(usersRepo.save).toHaveBeenCalledTimes(1);
-      expect(user.provider).toBe('Social');
-      expect(result.provider).toBe('Social');
+      expect(result.provider).toBe('google.com');
+      expect(result.displayName).toBe('Alice');
+      expect(result.avatarUrl).toBe('https://photo.jpg');
+    });
+
+    it('does not overwrite displayName or avatarUrl when they are undefined on provider change', async () => {
+      const user = { id: '0123456789', provider: 'anonymous', displayName: 'Gamer0123456789', avatarUrl: null } as User;
+      usersRepo.findOne.mockResolvedValue(user);
+      usersRepo.save.mockImplementation(async (u) => u as User);
+
+      await service.findOrUpsertByFirebaseUid('firebase-uid', 'google.com');
+
+      expect(usersRepo.save).toHaveBeenCalledTimes(1);
+      expect(user.displayName).toBe('Gamer0123456789');
+      expect(user.avatarUrl).toBeNull();
+    });
+
+    it('does not update displayName or avatarUrl when new provider is non-social', async () => {
+      const user = { id: '0123456789', provider: 'anonymous', displayName: 'Gamer0123456789', avatarUrl: null } as User;
+      usersRepo.findOne.mockResolvedValue(user);
+      usersRepo.save.mockImplementation(async (u) => u as User);
+
+      await service.findOrUpsertByFirebaseUid('firebase-uid', 'dev', 'Dev User', undefined, 'https://photo.jpg');
+
+      expect(usersRepo.save).toHaveBeenCalledTimes(1);
+      expect(user.displayName).toBe('Gamer0123456789');
+      expect(user.avatarUrl).toBeNull();
+    });
+
+    it('does not overwrite displayName or avatarUrl on re-login with same provider', async () => {
+      const user = { id: '0123456789', provider: 'google.com', displayName: 'Alice', avatarUrl: 'https://original.jpg' } as User;
+      usersRepo.findOne.mockResolvedValue(user);
+
+      await service.findOrUpsertByFirebaseUid('firebase-uid', 'google.com', 'New Name', undefined, 'https://new.jpg');
+
+      expect(usersRepo.save).not.toHaveBeenCalled();
+      expect(user.displayName).toBe('Alice');
+      expect(user.avatarUrl).toBe('https://original.jpg');
+    });
+  });
+
+  describe('getProfile', () => {
+    const user = { id: 'ABCD123456', provider: 'google.com', displayName: 'Test User', avatarUrl: 'https://photo.example.com/u.jpg' } as User;
+
+    it('returns id, provider, displayName, avatarUrl and favorite slugs', async () => {
+      usersRepo.findOne.mockResolvedValue(user);
+      userFavoritesRepo.find.mockResolvedValue([
+        { userId: user.id, gameId: 'uuid-1', game: { slug: 'tictactoe' } },
+        { userId: user.id, gameId: 'uuid-2', game: { slug: 'chess' } },
+      ] as UserFavorite[]);
+
+      const result = await service.getProfile(user.id);
+
+      expect(result).toEqual({ id: 'ABCD123456', provider: 'google.com', displayName: 'Test User', avatarUrl: 'https://photo.example.com/u.jpg', favorites: ['tictactoe', 'chess'] });
+      expect(usersRepo.findOne).toHaveBeenCalledWith({ where: { id: user.id } });
+      expect(userFavoritesRepo.find).toHaveBeenCalledWith({ where: { userId: user.id }, relations: ['game'] });
+    });
+
+    it('returns null avatarUrl and empty favorites when user has none', async () => {
+      usersRepo.findOne.mockResolvedValue({ ...user, avatarUrl: null } as User);
+      userFavoritesRepo.find.mockResolvedValue([]);
+
+      const result = await service.getProfile(user.id);
+
+      expect(result.avatarUrl).toBeNull();
+      expect(result.favorites).toEqual([]);
+    });
+
+    it('throws NotFoundException when user does not exist', async () => {
+      usersRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.getProfile('NOTEXISTS')).rejects.toThrow(NotFoundException);
+      expect(userFavoritesRepo.find).not.toHaveBeenCalled();
     });
   });
 

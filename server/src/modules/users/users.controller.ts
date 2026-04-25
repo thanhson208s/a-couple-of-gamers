@@ -9,8 +9,8 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get('profile')
-  getProfile() {
-    return this.usersService.getProfile();
+  getProfile(@CurrentUser() user: JwtUser) {
+    return this.usersService.getProfile(user.id);
   }
 
   @Delete('profile')

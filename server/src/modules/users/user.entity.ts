@@ -17,6 +17,9 @@ export class User {
   @Column({ type: 'text', name: 'display_name' })
   displayName: string;
 
+  @Column({ type: 'text', name: 'avatar_url', nullable: true, default: null })
+  avatarUrl: string | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }
