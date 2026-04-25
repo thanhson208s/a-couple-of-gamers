@@ -5,7 +5,7 @@ import { Repository } from 'typeorm';
  * Returns a jest mock shaped like a TypeORM Repository.
  * Only the methods used in this codebase are stubbed — add more as needed.
  */
-export function mockRepository<T extends object>(): jest.Mocked<Pick<Repository<T>, 'findOne' | 'save' | 'create' | 'existsBy' | 'update' | 'find' | 'delete'>> {
+export function mockRepository<T extends object>(): jest.Mocked<Pick<Repository<T>, 'findOne' | 'save' | 'create' | 'existsBy' | 'update' | 'find' | 'delete' | 'count'>> {
   return {
     findOne: jest.fn(),
     save: jest.fn(),
@@ -14,6 +14,7 @@ export function mockRepository<T extends object>(): jest.Mocked<Pick<Repository<
     update: jest.fn(),
     find: jest.fn(),
     delete: jest.fn(),
+    count: jest.fn(),
   };
 }
 

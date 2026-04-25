@@ -60,6 +60,16 @@ After upgrade the user's `id` (10-char) is unchanged — all existing matches co
 
 Derived from the Firebase `sign_in_provider` claim inside `AuthService.tokenType()`. Also re-derived when `POST /v1/auth/refresh` re-issues an access token (reads current `provider` from DB).
 
+## Feature Gating by Account Type
+
+Favorites are available to all users but capped by account tier. The limit is enforced in `UsersService.addFavorite` and returned in `GET /v1/users/profile` as `favoritesLimit` so clients can check before attempting to add.
+
+| Feature | Anonymous | Social |
+|---------|-----------|--------|
+| Add / remove favorites | ✓ (max 3) | ✓ (max 100) |
+
+Limits are defined in `FAVORITES_LIMIT` exported from `users.service.ts`.
+
 ---
 
 ## Account Deletion
@@ -94,6 +104,8 @@ All steps run in a single DB transaction. If any step fails, the entire deletion
 - [x] `UsersService.findOrUpsertByFirebaseUid` — find by `provider_id` (UID); on provider change (first social login): update `provider`, `display_name`, `avatar_url` (if not undefined); same-provider re-login: no-op; not found: INSERT
 - [x] `DELETE /v1/users/profile` — cascade delete user data in transaction order
 - [x] `GET /v1/users/profile` — return id, provider, displayName, favorites (game slugs)
+- [x] `PUT /v1/users/favorites/:gameSlug` — add favorite; idempotent
+- [x] `DELETE /v1/users/favorites/:gameSlug` — remove favorite; idempotent
 
 **Client**
 - [ ] Anonymous sign-in via Firebase SDK (`signInAnonymously()`) on first launch; send ID token to `POST /v1/auth/login`
