@@ -71,7 +71,7 @@ External (not in request path):
 
 | Service | Runs on | Purpose |
 |---------|---------|---------|
-| **NestJS API Server** | prod-app VPS | Handles all HTTP and WebSocket traffic. Validates and applies game moves via the game plugin interface. Enqueues BullMQ jobs for background work. |
+| **NestJS API Server** | prod-app VPS | Handles all HTTP and WebSocket traffic. Validates and applies game moves via the game plugin interface. Enqueues BullMQ jobs for background work. Also consumes the `websocket` queue for maintenance announcements (broadcast directly to WS clients). On SIGTERM: broadcasts `system:shutdown`, terminates all WS connections, clears `ws:*` Redis presence keys, then exits within 30 s. |
 | **NestJS Worker Service** | prod-app VPS | Consumes BullMQ jobs from Redis. No HTTP listener. Runs inactive match cleanup (repeatable) and turn reminder dispatch (delayed). |
 | **Caddy** | prod-app VPS | TLS termination (Cloudflare Origin Certificate), WebSocket upgrade headers. Reverse proxy to the API server. |
 | **PostgreSQL** | prod-data VPS | Primary relational database. Single source of truth for all match state, user data, and history. Game state stored as JSONB. |

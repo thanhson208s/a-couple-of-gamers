@@ -130,10 +130,11 @@ Direct children:
 
 | File | Purpose |
 |------|---------|
-| `ws.module.ts` | WS module — imports `MatchesModule` |
-| `ws.gateway.ts` | WebSocket gateway at `/v1/ws` — user-scoped persistent connection, move submission, real-time broadcast, Redis presence |
+| `ws.module.ts` | WS module — imports `MatchesModule`; registers `websocket` BullMQ queue |
+| `ws.gateway.ts` | WebSocket gateway at `/v1/ws` — user-scoped persistent connection, move submission, real-time broadcast, Redis presence, graceful shutdown |
 | `ws.throttler.ts` | Redis INCR-based rate limiter for WS events (ws-throttle: 30/user/min) |
 | `ws.interceptor.ts` | `WsThrottlerInterceptor` + `@WsThrottle()` decorator — applies WS rate limiting to individual message handlers |
+| `ws.processor.ts` | BullMQ processor for the `websocket` queue — handles `maintenance` jobs by broadcasting `system:maintenance` to all connected clients |
 
 ### `notifications/`
 

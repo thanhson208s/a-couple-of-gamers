@@ -137,7 +137,7 @@ The connection is **user-scoped and persistent** — opened once after login. Al
 
 ### Server → Client
 
-All events include `matchId`.
+Match events all include `matchId`. System events do not.
 
 | Event | Payload | Description |
 |-------|---------|-------------|
@@ -147,3 +147,5 @@ All events include `matchId`.
 | `opponent_connected` | `{ matchId, playerId }` | Opponent opened this match's board scene |
 | `opponent_disconnected` | `{ matchId, playerId }` | Opponent closed this match's board scene or disconnected |
 | `pong` | — | Keepalive response |
+| `system:maintenance` | `{ maintenanceTime: string, maintenanceDuration: number }` | Broadcast every minute while maintenance is scheduled. Also sent immediately to any client that connects during the window. `maintenanceDuration` is in seconds. |
+| `system:shutdown` | — | Sent to all clients immediately before the server shuts down (SIGTERM). Clients should display a reconnect UI. |

@@ -7,7 +7,10 @@ import {
   MessageBody,
   ConnectedSocket,
 } from '@nestjs/websockets';
+import { Inject, OnApplicationShutdown } from '@nestjs/common';
 import { Server, WebSocket } from 'ws';
+import { Redis } from 'ioredis';
+import { REDIS_CLIENT } from '../../common/redis/redis.module';
 import { WsThrottle } from './ws.interceptor';
 
 // Connection URL: wss://<host>/v1/ws?ticket=<ws-ticket>
@@ -16,14 +19,54 @@ import { WsThrottle } from './ws.interceptor';
 // See: docs/security.md#websocket-authentication
 // See: docs/features/match-session.md
 @WebSocketGateway({ path: '/v1/ws', server: 'ws' })
-export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect, OnApplicationShutdown
+{
   @WebSocketServer()
   server!: Server;
 
-  handleConnection(_client: WebSocket) {
+  private maintenanceState: {
+    maintenanceTime: string;
+    maintenanceDuration: number;
+  } | null = null;
+
+  constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
+
+  setMaintenance(
+    data: { maintenanceTime: string; maintenanceDuration: number } | null,
+  ): void {
+    this.maintenanceState = data;
+  }
+
+  broadcastToAll(data: Record<string, unknown>): void {
+    const msg = JSON.stringify(data);
+    for (const client of this.server.clients) {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(msg);
+      }
+    }
+  }
+
+  async onApplicationShutdown(): Promise<void> {
+    this.broadcastToAll({ event: 'system:shutdown' });
+    for (const client of this.server.clients) {
+      client.terminate();
+    }
+    // Clear presence flags only; match:state:* keys are preserved for post-restart resume
+    let cursor = '0';
+    do {
+      const [next, keys] = await this.redis.scan(cursor, 'MATCH', 'ws:*', 'COUNT', 100);
+      cursor = next;
+      if (keys.length > 0) await this.redis.del(...keys);
+    } while (cursor !== '0');
+  }
+
+  handleConnection(client: WebSocket) {
     // TODO: validate ws-ticket from query param
     // TODO: extract userId from ticket, attach to client
     // TODO: set ws:{userId} = "lobby" in Redis
+    if (this.maintenanceState && client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify({ event: 'system:maintenance', ...this.maintenanceState }));
+    }
   }
 
   handleDisconnect(_client: WebSocket) {
