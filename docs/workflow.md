@@ -46,42 +46,44 @@ Examples:
 
 ## Database Migrations
 
-### Normal run (migration files already exist)
+All commands must be run from the `server/` directory. Use the form `npm run typeorm <subcommand> -- <args>` — placing the subcommand before `--` is required for arguments to pass correctly.
+
+### Normal run (incremental migration)
 
 ```bash
-# Generate a new migration (from server/ directory)
-# Requires the local DB to be running — TypeORM diffs entities against the current schema
-npm run typeorm -- migration:generate src/migrations/<MigrationName> -d src/app.data.ts
+# Generate a new migration — diffs entities against the current running DB schema
+npm run typeorm migration:generate -- src/migrations/<MigrationName> -d src/app.data.ts
 
 # Review the generated SQL before committing
 
-# Run pending migrations manually (local)
-npm run typeorm -- migration:run -d src/app.data.ts
+# Run pending migrations
+npm run typeorm migration:run -- -d src/app.data.ts
 
 # Revert the last migration
-npm run typeorm -- migration:revert -d src/app.data.ts
+npm run typeorm migration:revert -- -d src/app.data.ts
 ```
 
 Migrations run automatically on deploy (step 4 of CI/CD). See [infrastructure.md#cicd](infrastructure.md#cicd).
 
 ### Wipe and reinitialise (local dev only)
 
-Use this when entities changed significantly and you want a clean slate instead of an incremental migration:
+Use when you want a single clean migration instead of accumulated incremental ones:
 
-**If using Docker Compose for Postgres:**
 ```bash
+# 1. Wipe the local DB (run from repo root)
 docker exec a-couple-of-gamers-db-1 psql -U postgres -d acog -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+
+# 2. Delete all existing migration files (run from repo root)
+rm server/src/migrations/*.ts
+
+# 3. Generate a fresh migration from current entities (run from server/)
+npm run typeorm migration:generate -- src/migrations/CreateInitialSchema -d src/app.data.ts
+
+# 4. Run it
+npm run typeorm migration:run -- -d src/app.data.ts
 ```
 
-> Connect to the `postgres` default database (not `acog`) to drop/recreate it.
-
-```bash
-# Generate a new migration then apply it
-npm run typeorm -- migration:generate src/migrations/<MigrationName> -d src/app.data.ts
-npm run typeorm -w server -- migration:run -d src/app.data.ts
-```
-
-> **Never do this on staging or production.** Use incremental migrations (`migration:generate`) for any schema change after the first deploy.
+> **Never do this on staging or production.** Use incremental migrations for any schema change after the first deploy.
 
 ---
 
