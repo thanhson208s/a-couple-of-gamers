@@ -65,6 +65,14 @@ Derived from the Firebase `sign_in_provider` claim inside `AuthService.tokenType
 
 Account deletion is a single atomic operation: abandon all active matches, then hard-delete all user-owned data in cascade order, including data owned by other users that references the deleted account (rival stats).
 
+### Deletion Flow
+
+1. Client asks user for deletion confirmation
+2. Client use local firebase refresh token to retrieve a new firebase id token
+3. Send a deletion request containing the id token
+4. Server verifies the id token, check if it's fresh (< 5 min)
+5. Server deletes the user record in DB then also clears firebase user
+
 ### Deletion Order
 
 1. Abandon all `pending` and `active` matches (status → `abandoned`; no rival stats recorded)

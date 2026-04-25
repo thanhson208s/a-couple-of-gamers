@@ -1,4 +1,4 @@
-import { InternalServerErrorException } from '@nestjs/common';
+import { InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { UsersService } from './users.service';
@@ -9,11 +9,11 @@ import { FIREBASE_AUTH } from '../../common/firebase/firebase.module';
 describe('UsersService', () => {
   let service: UsersService;
   let usersRepo: ReturnType<typeof mockRepository<User>> & { findOneOrFail: jest.Mock };
-  let firebaseAuth: { deleteUser: jest.Mock };
+  let firebaseAuth: { deleteUser: jest.Mock; verifyIdToken: jest.Mock };
 
   beforeEach(async () => {
     usersRepo = { ...mockRepository<User>(), findOneOrFail: jest.fn() };
-    firebaseAuth = { deleteUser: jest.fn() };
+    firebaseAuth = { deleteUser: jest.fn(), verifyIdToken: jest.fn() };
 
     const module = await Test.createTestingModule({
       providers: [
@@ -145,30 +145,56 @@ describe('UsersService', () => {
 
   describe('deleteAccount', () => {
     const user = { id: 'ABCD123456', providerId: 'firebase-uid-123', provider: 'google.com' } as User;
+    const now = Math.floor(Date.now() / 1000);
+    const freshIat = now - 60;   // 1 min ago — within 5-min window
+    const staleIat = now - 400;  // ~6.7 min ago — outside 5-min window
 
-    it('deletes user and removes Firebase account', async () => {
-      usersRepo.findOneOrFail.mockResolvedValue(user);
+    it('deletes DB record and Firebase account when token is fresh and user matches', async () => {
+      firebaseAuth.verifyIdToken.mockResolvedValue({ uid: user.providerId, iat: freshIat });
+      usersRepo.findOne.mockResolvedValue(user);
       usersRepo.delete.mockResolvedValue({ affected: 1, raw: [] });
       firebaseAuth.deleteUser.mockResolvedValue(undefined);
 
-      await service.deleteAccount(user.id);
+      await service.deleteAccount(user.id, 'valid-id-token');
 
       expect(usersRepo.delete).toHaveBeenCalledWith(user.id);
       expect(firebaseAuth.deleteUser).toHaveBeenCalledWith(user.providerId);
     });
 
-    it('propagates error when the user is not found', async () => {
-      usersRepo.findOneOrFail.mockRejectedValue(new Error('not found'));
-      await expect(service.deleteAccount('UNKNOWN')).rejects.toThrow();
+    it('throws UnauthorizedException when token is stale', async () => {
+      firebaseAuth.verifyIdToken.mockResolvedValue({ uid: user.providerId, iat: staleIat });
+
+      await expect(service.deleteAccount(user.id, 'stale-token')).rejects.toThrow(UnauthorizedException);
+      expect(usersRepo.delete).not.toHaveBeenCalled();
+      expect(firebaseAuth.deleteUser).not.toHaveBeenCalled();
+    });
+
+    it('throws UnauthorizedException when decoded uid resolves to a different DB user', async () => {
+      const otherUser = { id: 'ZZZZZZZZZZ', providerId: user.providerId, provider: 'google.com' } as User;
+      firebaseAuth.verifyIdToken.mockResolvedValue({ uid: user.providerId, iat: freshIat });
+      usersRepo.findOne.mockResolvedValue(otherUser);
+
+      await expect(service.deleteAccount(user.id, 'valid-id-token')).rejects.toThrow(UnauthorizedException);
       expect(usersRepo.delete).not.toHaveBeenCalled();
     });
 
-    it('does not throw when Firebase deletion fails after DB delete', async () => {
-      usersRepo.findOneOrFail.mockResolvedValue(user);
-      usersRepo.delete.mockResolvedValue({ affected: 1, raw: [] });
-      firebaseAuth.deleteUser.mockRejectedValue(new Error('firebase error'));
+    it('skips DB delete but still removes Firebase account when user not found in DB', async () => {
+      firebaseAuth.verifyIdToken.mockResolvedValue({ uid: 'orphan-firebase-uid', iat: freshIat });
+      usersRepo.findOne.mockResolvedValue(null);
+      firebaseAuth.deleteUser.mockResolvedValue(undefined);
 
-      await expect(service.deleteAccount(user.id)).resolves.toBeUndefined();
+      await service.deleteAccount(user.id, 'valid-id-token');
+
+      expect(usersRepo.delete).not.toHaveBeenCalled();
+      expect(firebaseAuth.deleteUser).toHaveBeenCalledWith('orphan-firebase-uid');
+    });
+
+    it('throws UnauthorizedException when Firebase token verification fails', async () => {
+      firebaseAuth.verifyIdToken.mockRejectedValue(new Error('token-invalid'));
+
+      await expect(service.deleteAccount(user.id, 'bad-token')).rejects.toThrow(UnauthorizedException);
+      expect(usersRepo.delete).not.toHaveBeenCalled();
+      expect(firebaseAuth.deleteUser).not.toHaveBeenCalled();
     });
   });
 });

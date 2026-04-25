@@ -1,5 +1,5 @@
 import { randomInt } from 'crypto';
-import { Inject, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { Inject, Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './user.entity';
@@ -58,12 +58,22 @@ export class UsersService {
     throw new Error('not implemented');
   }
 
-  async deleteAccount(userId: string): Promise<void> {
-    const user = await this.users.findOneOrFail({ where: { id: userId } });
-    await this.users.delete(userId);
+  async deleteAccount(userId: string, idToken: string): Promise<void> {
+    const FRESH_PERIOD = 300; //seconds
     try {
-      await this.firebaseAuth.deleteUser(user.providerId);
-    } catch {}
+      const decodedIdToken = await this.firebaseAuth.verifyIdToken(idToken, true);
+      if (decodedIdToken.iat + FRESH_PERIOD < Math.floor(Date.now() / 1000))
+        throw new UnauthorizedException();
+
+      const user = await this.users.findOne({ where: { providerId: decodedIdToken.uid }});
+      if (user && user.id !== userId)
+        throw new UnauthorizedException();
+
+      if (user) await this.users.delete(user.id);
+      await this.firebaseAuth.deleteUser(decodedIdToken.uid);
+    } catch(e) {
+      throw new UnauthorizedException();
+    }
   }
 
   async upsertDeviceToken(_body: { token: string; platform: string }) {
