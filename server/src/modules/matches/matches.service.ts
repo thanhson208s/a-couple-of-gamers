@@ -103,21 +103,34 @@ export class MatchesService {
     return this.matches.save(match);
   }
 
-  async listMatches(userId: string) {
+  async listMatches(userId: string, completed: boolean) {
     const now = new Date();
     const inactivityCutoff = new Date(now.getTime() - INACTIVITY_TTL_MS);
 
-    return this.matches.find({
+    if (!completed) {
+      return this.matches.find({    //find all pending and active matches
+        where: [
+          { player1Id: userId, status: 'pending', inviteCodeExpiresAt: MoreThan(now) },
+          { player2Id: userId, status: 'pending', inviteCodeExpiresAt: MoreThan(now) },
+          { player1Id: userId, status: 'active',  updatedAt: MoreThan(inactivityCutoff) },
+          { player2Id: userId, status: 'active',  updatedAt: MoreThan(inactivityCutoff) },
+        ],
+      });
+    }
+    else return this.matches.find({ //find max 10 most recent completed matches
       where: [
-        { player1Id: userId, status: 'pending', inviteCodeExpiresAt: MoreThan(now) },
-        { player2Id: userId, status: 'pending', inviteCodeExpiresAt: MoreThan(now) },
-        { player1Id: userId, status: 'active',  updatedAt: MoreThan(inactivityCutoff) },
-        { player2Id: userId, status: 'active',  updatedAt: MoreThan(inactivityCutoff) },
+        { player1Id: userId, status: 'completed' },
+        { player2Id: userId, status: 'completed' }
       ],
+      order: {
+        updatedAt: 'DESC'
+      },
+      skip: 0,
+      take: 10
     });
   }
 
-  async abandonMatch(_id: string) {
+  async abandonMatch(id: string) {
     throw new Error('not implemented');
   }
 

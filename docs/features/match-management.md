@@ -41,7 +41,8 @@ Covers match creation, invitation, joining, abandonment, and completion for huma
 
 - Either player can call `DELETE /v1/matches/:id` at any time
 - Match transitions to `abandoned`; no stats recorded
-- Opponent sees the match disappear on next refresh (no push notification required, though one may be added later)
+- Clear cached match state from Redis
+- Notify all players in match that matches is abandoned
 
 ## Inactive Match Cleanup
 
@@ -78,11 +79,10 @@ No stats recorded — cleanup deletion is not a forfeit.
 
 **Server**
 - [x] Stale match cleanup (BullMQ repeatable, every 24 h — `stale-matches` job registered in `WorkerModule`, processed by `CleanupProcessor`)
-- [x] `POST /v1/matches` — create match
+- [x] `POST /v1/matches` — create match with invite code + deeplink
 - [x] `POST /v1/matches/join` — join via invite code (lookup by code, no match ID needed; code expires after 24h)
-- [ ] `GET /v1/matches?active=true` — active match list with turn status
-- [ ] `DELETE /v1/matches/:id` — abandon match (no penalty)
-- [x] Invite code generation + deep link + TTL (returned in `POST /v1/matches` response)
+- [x] `GET /v1/matches?completed=<boolean>` — return pending and active matches or match history (recent completed matches, limit to 10)
+- [ ] `DELETE /v1/matches/:id` — abandon match and clear cached match state (no penalty)
 - [ ] End-of-game detection on move accept; transition match to `completed`
 - [ ] Upsert `rival_stats` for both players
 

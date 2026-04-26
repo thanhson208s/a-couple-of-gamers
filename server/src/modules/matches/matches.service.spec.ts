@@ -147,19 +147,85 @@ describe('MatchesService', () => {
   });
 
   describe('listMatches', () => {
-    it('queries pending and active matches for the given user', async () => {
-      const matches = [makeMatch({ player1Id: CALLER_ID })];
-      matchesRepo.find.mockResolvedValue(matches);
+    describe('completed = false', () => {
+      it('returns pending and active matches for the user', async () => {
+        const matches = [makeMatch({ player1Id: CALLER_ID }), makeMatch({ player2Id: CALLER_ID, status: 'active' })];
+        matchesRepo.find.mockResolvedValue(matches);
 
-      const result = await service.listMatches(CALLER_ID);
+        const result = await service.listMatches(CALLER_ID, false);
 
-      expect(result).toBe(matches);
-      // Verify that find was called with conditions covering both player slots
-      const callArg = matchesRepo.find.mock.calls[0]![0]!;
-      expect(Array.isArray(callArg.where)).toBe(true);
-      const conditions = callArg.where as object[];
-      expect(conditions.some((c: any) => c.player1Id === CALLER_ID)).toBe(true);
-      expect(conditions.some((c: any) => c.player2Id === CALLER_ID)).toBe(true);
+        expect(result).toBe(matches);
+      });
+
+      it('queries four OR conditions covering both player slots for pending and active', async () => {
+        matchesRepo.find.mockResolvedValue([]);
+
+        await service.listMatches(CALLER_ID, false);
+
+        const [callArg] = matchesRepo.find.mock.calls[0]!;
+        const conditions = (callArg as any).where as any[];
+        expect(conditions).toHaveLength(4);
+        expect(conditions.some((c) => c.player1Id === CALLER_ID && c.status === 'pending')).toBe(true);
+        expect(conditions.some((c) => c.player2Id === CALLER_ID && c.status === 'pending')).toBe(true);
+        expect(conditions.some((c) => c.player1Id === CALLER_ID && c.status === 'active')).toBe(true);
+        expect(conditions.some((c) => c.player2Id === CALLER_ID && c.status === 'active')).toBe(true);
+      });
+
+      it('filters pending matches by non-expired invite code', async () => {
+        matchesRepo.find.mockResolvedValue([]);
+
+        await service.listMatches(CALLER_ID, false);
+
+        const [callArg] = matchesRepo.find.mock.calls[0]!;
+        const conditions = (callArg as any).where as any[];
+        const pendingConditions = conditions.filter((c) => c.status === 'pending');
+        pendingConditions.forEach((c) => expect(c.inviteCodeExpiresAt).toBeDefined());
+      });
+
+      it('filters active matches by inactivity cutoff', async () => {
+        matchesRepo.find.mockResolvedValue([]);
+
+        await service.listMatches(CALLER_ID, false);
+
+        const [callArg] = matchesRepo.find.mock.calls[0]!;
+        const conditions = (callArg as any).where as any[];
+        const activeConditions = conditions.filter((c) => c.status === 'active');
+        activeConditions.forEach((c) => expect(c.updatedAt).toBeDefined());
+      });
+    });
+
+    describe('completed = true', () => {
+      it('returns completed matches for the user', async () => {
+        const matches = [makeMatch({ player1Id: CALLER_ID, status: 'completed' })];
+        matchesRepo.find.mockResolvedValue(matches);
+
+        const result = await service.listMatches(CALLER_ID, true);
+
+        expect(result).toBe(matches);
+      });
+
+      it('queries completed status for both player slots', async () => {
+        matchesRepo.find.mockResolvedValue([]);
+
+        await service.listMatches(CALLER_ID, true);
+
+        const [callArg] = matchesRepo.find.mock.calls[0]!;
+        const conditions = (callArg as any).where as any[];
+        expect(conditions.every((c: any) => c.status === 'completed')).toBe(true);
+        expect(conditions.some((c: any) => c.player1Id === CALLER_ID)).toBe(true);
+        expect(conditions.some((c: any) => c.player2Id === CALLER_ID)).toBe(true);
+      });
+
+      it('orders by updatedAt DESC and limits to 10 results', async () => {
+        matchesRepo.find.mockResolvedValue([]);
+
+        await service.listMatches(CALLER_ID, true);
+
+        const [callArg] = matchesRepo.find.mock.calls[0]!;
+        expect((callArg as any).order).toEqual({ updatedAt: 'DESC' });
+        expect((callArg as any).take).toBe(10);
+        expect((callArg as any).skip).toBe(0);
+      });
     });
   });
 

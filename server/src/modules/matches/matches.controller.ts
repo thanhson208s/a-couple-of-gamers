@@ -17,8 +17,8 @@ export class MatchesController {
   }
 
   @Get()
-  listMatches(@CurrentUser() user: JwtUser) {
-    return this.matchesService.listMatches(user.id);
+  listMatches(@CurrentUser() user: JwtUser, @Param('completed') completed: boolean) {
+    return this.matchesService.listMatches(user.id, completed);
   }
 
   @Post('join')
