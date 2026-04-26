@@ -60,10 +60,13 @@ Error response shape (all endpoints):
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/v1/matches` | Create a new human match. Body: `{ gameSlug, playerSlot: 1\|2, options? }`. `options` is a game-specific object (e.g. difficulty, selected roles) — stored on the match and passed to `plugin.initialState` when the second player joins. Creator occupies the chosen slot; joiner fills the other. Response: `{ id, inviteCode, deepLink, expiresAt }`. vs AI matches are client-only — no server record created. |
-| `GET` | `/v1/matches` | List caller's active matches (pending + in-progress) |
-| `POST` | `/v1/matches/join` | Join a pending match by invite code. Body: `{ inviteCode }`. No match ID needed — server looks up match by code. Code is cleared on join. Returns `410` if expired, `409` if match no longer pending, `403` if own match. |
-| `DELETE` | `/v1/matches/:id` | Abandon / forfeit a match |
+| `POST` | `/v1/matches` | Create a new human match. Body: `{ gameSlug, playerSlot: 1\|2, options? }`. Stores pending match in Redis with 24 h TTL — no Postgres write yet. Response: `{ inviteCode, deepLink, expiresAt }`. vs AI matches are client-only — no server record created. |
+| `GET` | `/v1/matches/pending` | List caller's pending matches (from Redis). Each item: `{ status, inviteCode, deepLink, expiresAt, playerSlot, gameSlug, createdAt }`. |
+| `GET` | `/v1/matches/active` | List caller's active matches (from Postgres). |
+| `GET` | `/v1/matches/history` | List caller's last 10 completed matches (from Postgres), ordered by `updatedAt` DESC. |
+| `POST` | `/v1/matches/join` | Join a pending match by invite code. Body: `{ inviteCode }`. Reads from Redis, deletes Redis keys, creates Postgres `active` match. Returns `404` if code not found or expired, `403` if own match. |
+| `DELETE` | `/v1/matches/pending/:inviteCode` | Cancel a pending match. Creator only. Deletes from Redis — no Postgres record exists. Returns `404` if not found, `403` if not the creator. |
+| `DELETE` | `/v1/matches/:id` | Abandon an active match. Either player. Returns `404` if not found, `403` if not a player. |
 
 ---
 

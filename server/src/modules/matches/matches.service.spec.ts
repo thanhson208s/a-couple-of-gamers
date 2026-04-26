@@ -1,13 +1,10 @@
 import {
   BadRequestException,
-  ConflictException,
   ForbiddenException,
-  GoneException,
   NotFoundException,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { LessThanOrEqual } from 'typeorm';
 import { MatchesService } from './matches.service';
 import { Match } from './match.entity';
 import { GamesService } from '../games/games.service';
@@ -27,20 +24,33 @@ function makeMatch(overrides: Partial<Match> = {}): Match {
   return {
     id: 'match-uuid-1',
     game: makeGame(),
-    status: 'pending',
-    state: {},
+    status: 'active',
+    state: { board: [] },
     options: null,
     player1Id: OTHER_ID,
-    player2Id: null,
-
-    currentTurn: null,
+    player2Id: CALLER_ID,
+    currentTurn: 1,
     winner: null,
-    inviteCode: 'ABCD',
-    inviteCodeExpiresAt: new Date(Date.now() + 86_400_000),
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
   } as Match;
+}
+
+function makePendingJson(overrides: Partial<{
+  gameId: string; gameSlug: string; playerSlot: 1 | 2; playerId: string;
+  inviteCode: string; options: null; createdAt: string;
+}> = {}): string {
+  return JSON.stringify({
+    gameId: 'g1',
+    gameSlug: 'tictactoe',
+    playerSlot: 1,
+    playerId: OTHER_ID,
+    inviteCode: 'ABCD',
+    options: null,
+    createdAt: new Date().toISOString(),
+    ...overrides,
+  });
 }
 
 describe('MatchesService', () => {
@@ -48,14 +58,27 @@ describe('MatchesService', () => {
   let matchesRepo: ReturnType<typeof mockRepository<Match>>;
   let gamesService: jest.Mocked<Pick<GamesService, 'findBySlug'>>;
   let gamesRegistry: jest.Mocked<Pick<GamesRegistry, 'get'>>;
-  let redis: { get: jest.Mock; set: jest.Mock; del: jest.Mock };
+  let redis: {
+    get: jest.Mock; set: jest.Mock; del: jest.Mock;
+    zadd: jest.Mock; zrem: jest.Mock; zrange: jest.Mock;
+    zremrangebyscore: jest.Mock; mget: jest.Mock;
+  };
   const mockPlugin = { initialState: jest.fn().mockReturnValue({ board: [] }) };
 
   beforeEach(async () => {
     matchesRepo = mockRepository<Match>();
     gamesService = { findBySlug: jest.fn() };
     gamesRegistry = { get: jest.fn().mockReturnValue(mockPlugin) };
-    redis = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
+    redis = {
+      get: jest.fn(),
+      set: jest.fn().mockResolvedValue('OK'),
+      del: jest.fn().mockResolvedValue(1),
+      zadd: jest.fn().mockResolvedValue(1),
+      zrem: jest.fn().mockResolvedValue(1),
+      zrange: jest.fn().mockResolvedValue([]),
+      zremrangebyscore: jest.fn().mockResolvedValue(0),
+      mget: jest.fn().mockResolvedValue([]),
+    };
 
     const module = await Test.createTestingModule({
       providers: [
@@ -70,31 +93,58 @@ describe('MatchesService', () => {
   });
 
   describe('createMatch', () => {
-    it('creates a pending match and returns id, inviteCode, deepLink, and expiresAt', async () => {
-      const game = makeGame();
-      gamesService.findBySlug.mockResolvedValue(game);
-      const saved = makeMatch({ id: 'new-match', inviteCode: 'WXYZ', player1Id: CALLER_ID });
-      matchesRepo.create.mockReturnValue(saved);
-      matchesRepo.save.mockResolvedValue(saved);
+    it('stores pending match in Redis and returns inviteCode, deepLink, expiresAt', async () => {
+      gamesService.findBySlug.mockResolvedValue(makeGame());
 
       const result = await service.createMatch('tictactoe', 1, CALLER_ID) as any;
 
-      expect(result.id).toBe('new-match');
-      expect(result.inviteCode).toBe('WXYZ');
-      expect(result.deepLink).toBe('acog://join?code=WXYZ');
+      expect(result.inviteCode).toMatch(/^[a-zA-Z2-9]{8}$/);
+      expect(result.deepLink).toBe(`acog://join?code=${result.inviteCode}`);
       expect(result.expiresAt).toBeInstanceOf(Date);
+      expect(result.id).toBeUndefined();
+    });
+
+    it('writes main key to Redis with 24 h TTL', async () => {
+      gamesService.findBySlug.mockResolvedValue(makeGame());
+
+      const result = await service.createMatch('tictactoe', 1, CALLER_ID) as any;
+
+      expect(redis.set).toHaveBeenCalledWith(
+        `pending_matches:invite:${result.inviteCode}`,
+        expect.any(String),
+        'EX',
+        86_400,
+      );
+    });
+
+    it('adds invite code to user sorted set', async () => {
+      gamesService.findBySlug.mockResolvedValue(makeGame());
+
+      const result = await service.createMatch('tictactoe', 1, CALLER_ID) as any;
+
+      expect(redis.zadd).toHaveBeenCalledWith(
+        `pending_matches:user:${CALLER_ID}`,
+        expect.any(Number),
+        result.inviteCode,
+      );
+    });
+
+    it('does not write to Postgres', async () => {
+      gamesService.findBySlug.mockResolvedValue(makeGame());
+
+      await service.createMatch('tictactoe', 1, CALLER_ID);
+
+      expect(matchesRepo.save).not.toHaveBeenCalled();
     });
 
     it('assigns the caller to player slot 2 when playerSlot is 2', async () => {
       gamesService.findBySlug.mockResolvedValue(makeGame());
-      matchesRepo.create.mockImplementation((data) => ({ ...data } as Match));
-      matchesRepo.save.mockImplementation(async (m) => ({ ...m, id: 'new' } as Match));
 
       await service.createMatch('tictactoe', 2, CALLER_ID);
 
-      expect(matchesRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ player1Id: null, player2Id: CALLER_ID }),
-      );
+      const stored = JSON.parse(redis.set.mock.calls[0][1]);
+      expect(stored.playerSlot).toBe(2);
+      expect(stored.playerId).toBe(CALLER_ID);
     });
 
     it('throws NotFoundException when the game slug is not found', async () => {
@@ -104,143 +154,197 @@ describe('MatchesService', () => {
 
     it('throws BadRequestException when no plugin is registered for the game', async () => {
       gamesService.findBySlug.mockResolvedValue(makeGame());
-      gamesRegistry.get.mockImplementation(() => { throw new Error('No plugin registered for game: tictactoe'); });
+      gamesRegistry.get.mockImplementation(() => { throw new Error('No plugin'); });
       await expect(service.createMatch('tictactoe', 1, CALLER_ID)).rejects.toThrow(BadRequestException);
     });
   });
 
   describe('joinMatch', () => {
-    it('transitions match to active and initialises game state', async () => {
-      const match = makeMatch();
-      matchesRepo.findOne.mockResolvedValue(match);
-      matchesRepo.save.mockImplementation(async (m) => m as Match);
+    it('creates an active Postgres match and removes Redis keys', async () => {
+      redis.get.mockResolvedValue(makePendingJson({ playerSlot: 1, playerId: OTHER_ID }));
+      const saved = makeMatch({ player1Id: OTHER_ID, player2Id: CALLER_ID });
+      matchesRepo.create.mockReturnValue(saved);
+      matchesRepo.save.mockResolvedValue(saved);
 
       const result = await service.joinMatch('ABCD', CALLER_ID);
 
       expect(result.status).toBe('active');
-      expect(result.player2Id).toBe(CALLER_ID);
-      expect(result.inviteCode).toBeNull();
+      expect(redis.del).toHaveBeenCalledWith('pending_matches:invite:ABCD');
+      expect(redis.zrem).toHaveBeenCalledWith(`pending_matches:user:${OTHER_ID}`, 'ABCD');
+    });
+
+    it('places the creator in their chosen slot and joiner in the other', async () => {
+      redis.get.mockResolvedValue(makePendingJson({ playerSlot: 2, playerId: OTHER_ID }));
+      matchesRepo.create.mockImplementation((d) => d as Match);
+      matchesRepo.save.mockImplementation(async (m) => m as Match);
+
+      await service.joinMatch('ABCD', CALLER_ID);
+
+      expect(matchesRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ player1Id: CALLER_ID, player2Id: OTHER_ID }),
+      );
+    });
+
+    it('initialises game state via the plugin', async () => {
+      redis.get.mockResolvedValue(makePendingJson());
+      matchesRepo.create.mockReturnValue(makeMatch());
+      matchesRepo.save.mockImplementation(async (m) => m as Match);
+
+      await service.joinMatch('ABCD', CALLER_ID);
+
       expect(mockPlugin.initialState).toHaveBeenCalled();
     });
 
     it('throws NotFoundException for an unknown invite code', async () => {
-      matchesRepo.findOne.mockResolvedValue(null);
+      redis.get.mockResolvedValue(null);
       await expect(service.joinMatch('ZZZZ', CALLER_ID)).rejects.toThrow(NotFoundException);
     });
 
-    it('throws GoneException when the invite code has expired', async () => {
-      matchesRepo.findOne.mockResolvedValue(
-        makeMatch({ inviteCodeExpiresAt: new Date(Date.now() - 1000) }),
-      );
-      await expect(service.joinMatch('ABCD', CALLER_ID)).rejects.toThrow(GoneException);
-    });
-
-    it('throws ConflictException when the match is no longer pending', async () => {
-      matchesRepo.findOne.mockResolvedValue(makeMatch({ status: 'active' }));
-      await expect(service.joinMatch('ABCD', CALLER_ID)).rejects.toThrow(ConflictException);
-    });
-
-    it('throws ForbiddenException when the caller is already a player in the match', async () => {
-      matchesRepo.findOne.mockResolvedValue(makeMatch({ player1Id: CALLER_ID }));
+    it('throws ForbiddenException when the caller is the creator', async () => {
+      redis.get.mockResolvedValue(makePendingJson({ playerId: CALLER_ID }));
       await expect(service.joinMatch('ABCD', CALLER_ID)).rejects.toThrow(ForbiddenException);
     });
   });
 
-  describe('listMatches', () => {
-    describe('completed = false', () => {
-      it('returns pending and active matches for the user', async () => {
-        const matches = [makeMatch({ player1Id: CALLER_ID }), makeMatch({ player2Id: CALLER_ID, status: 'active' })];
-        matchesRepo.find.mockResolvedValue(matches);
+  describe('cancelMatch', () => {
+    it('deletes both Redis keys when the creator cancels', async () => {
+      redis.get.mockResolvedValue(makePendingJson({ playerId: CALLER_ID }));
 
-        const result = await service.listMatches(CALLER_ID, false);
+      await service.cancelMatch('ABCD', CALLER_ID);
 
-        expect(result).toBe(matches);
-      });
-
-      it('queries four OR conditions covering both player slots for pending and active', async () => {
-        matchesRepo.find.mockResolvedValue([]);
-
-        await service.listMatches(CALLER_ID, false);
-
-        const [callArg] = matchesRepo.find.mock.calls[0]!;
-        const conditions = (callArg as any).where as any[];
-        expect(conditions).toHaveLength(4);
-        expect(conditions.some((c) => c.player1Id === CALLER_ID && c.status === 'pending')).toBe(true);
-        expect(conditions.some((c) => c.player2Id === CALLER_ID && c.status === 'pending')).toBe(true);
-        expect(conditions.some((c) => c.player1Id === CALLER_ID && c.status === 'active')).toBe(true);
-        expect(conditions.some((c) => c.player2Id === CALLER_ID && c.status === 'active')).toBe(true);
-      });
-
-      it('filters pending matches by non-expired invite code', async () => {
-        matchesRepo.find.mockResolvedValue([]);
-
-        await service.listMatches(CALLER_ID, false);
-
-        const [callArg] = matchesRepo.find.mock.calls[0]!;
-        const conditions = (callArg as any).where as any[];
-        const pendingConditions = conditions.filter((c) => c.status === 'pending');
-        pendingConditions.forEach((c) => expect(c.inviteCodeExpiresAt).toBeDefined());
-      });
-
-      it('filters active matches by inactivity cutoff', async () => {
-        matchesRepo.find.mockResolvedValue([]);
-
-        await service.listMatches(CALLER_ID, false);
-
-        const [callArg] = matchesRepo.find.mock.calls[0]!;
-        const conditions = (callArg as any).where as any[];
-        const activeConditions = conditions.filter((c) => c.status === 'active');
-        activeConditions.forEach((c) => expect(c.updatedAt).toBeDefined());
-      });
+      expect(redis.del).toHaveBeenCalledWith('pending_matches:invite:ABCD');
+      expect(redis.zrem).toHaveBeenCalledWith(`pending_matches:user:${CALLER_ID}`, 'ABCD');
     });
 
-    describe('completed = true', () => {
-      it('returns completed matches for the user', async () => {
-        const matches = [makeMatch({ player1Id: CALLER_ID, status: 'completed' })];
-        matchesRepo.find.mockResolvedValue(matches);
+    it('throws NotFoundException when invite code does not exist', async () => {
+      redis.get.mockResolvedValue(null);
+      await expect(service.cancelMatch('ZZZZ', CALLER_ID)).rejects.toThrow(NotFoundException);
+    });
 
-        const result = await service.listMatches(CALLER_ID, true);
+    it('throws ForbiddenException when caller is not the creator', async () => {
+      redis.get.mockResolvedValue(makePendingJson({ playerId: OTHER_ID }));
+      await expect(service.cancelMatch('ABCD', CALLER_ID)).rejects.toThrow(ForbiddenException);
+    });
+  });
 
-        expect(result).toBe(matches);
-      });
+  describe('abandonMatch', () => {
+    it('sets status to abandoned for player1', async () => {
+      const match = makeMatch({ player1Id: CALLER_ID, player2Id: OTHER_ID });
+      matchesRepo.findOne.mockResolvedValue(match);
+      matchesRepo.save.mockImplementation(async (m) => m as Match);
 
-      it('queries completed status for both player slots', async () => {
-        matchesRepo.find.mockResolvedValue([]);
+      await service.abandonMatch('match-uuid-1', CALLER_ID);
 
-        await service.listMatches(CALLER_ID, true);
+      expect(matchesRepo.save).toHaveBeenCalledWith(expect.objectContaining({ status: 'abandoned' }));
+    });
 
-        const [callArg] = matchesRepo.find.mock.calls[0]!;
-        const conditions = (callArg as any).where as any[];
-        expect(conditions.every((c: any) => c.status === 'completed')).toBe(true);
-        expect(conditions.some((c: any) => c.player1Id === CALLER_ID)).toBe(true);
-        expect(conditions.some((c: any) => c.player2Id === CALLER_ID)).toBe(true);
-      });
+    it('throws NotFoundException when match does not exist in Postgres', async () => {
+      matchesRepo.findOne.mockResolvedValue(null);
+      await expect(service.abandonMatch('ghost-id', CALLER_ID)).rejects.toThrow(NotFoundException);
+    });
 
-      it('orders by updatedAt DESC and limits to 10 results', async () => {
-        matchesRepo.find.mockResolvedValue([]);
+    it('throws ForbiddenException when caller is not a player', async () => {
+      matchesRepo.findOne.mockResolvedValue(makeMatch({ player1Id: OTHER_ID, player2Id: 'THIRD0001' }));
+      await expect(service.abandonMatch('match-uuid-1', CALLER_ID)).rejects.toThrow(ForbiddenException);
+    });
+  });
 
-        await service.listMatches(CALLER_ID, true);
+  describe('listPendingMatches', () => {
+    it('returns empty array when no invite codes in sorted set', async () => {
+      redis.zrange.mockResolvedValue([]);
 
-        const [callArg] = matchesRepo.find.mock.calls[0]!;
-        expect((callArg as any).order).toEqual({ updatedAt: 'DESC' });
-        expect((callArg as any).take).toBe(10);
-        expect((callArg as any).skip).toBe(0);
-      });
+      const result = await service.listPendingMatches(CALLER_ID);
+
+      expect(result).toEqual([]);
+      expect(redis.mget).not.toHaveBeenCalled();
+    });
+
+    it('returns pending match DTOs from Redis', async () => {
+      redis.zrange.mockResolvedValue(['ABCD']);
+      redis.mget.mockResolvedValue([makePendingJson({ inviteCode: 'ABCD', playerId: CALLER_ID })]);
+
+      const result = await service.listPendingMatches(CALLER_ID);
+
+      expect(result).toHaveLength(1);
+      expect((result[0] as any).status).toBe('pending');
+      expect((result[0] as any).inviteCode).toBe('ABCD');
+    });
+
+    it('prunes expired sorted set members before reading', async () => {
+      redis.zrange.mockResolvedValue([]);
+
+      await service.listPendingMatches(CALLER_ID);
+
+      expect(redis.zremrangebyscore).toHaveBeenCalledWith(
+        `pending_matches:user:${CALLER_ID}`,
+        '-inf',
+        expect.any(Number),
+      );
+    });
+  });
+
+  describe('listActiveMatches', () => {
+    it('returns active matches from Postgres for both player slots', async () => {
+      const matches = [makeMatch()];
+      matchesRepo.find.mockResolvedValue(matches);
+
+      const result = await service.listActiveMatches(CALLER_ID);
+
+      expect(result).toBe(matches);
+      const [callArg] = matchesRepo.find.mock.calls[0]!;
+      const conditions = (callArg as any).where as any[];
+      expect(conditions).toHaveLength(2);
+      conditions.forEach((c) => expect(c.status).toBe('active'));
+    });
+
+    it('filters by inactivity cutoff', async () => {
+      matchesRepo.find.mockResolvedValue([]);
+
+      await service.listActiveMatches(CALLER_ID);
+
+      const [callArg] = matchesRepo.find.mock.calls[0]!;
+      const conditions = (callArg as any).where as any[];
+      conditions.forEach((c) => expect(c.updatedAt).toBeDefined());
+    });
+  });
+
+  describe('listCompletedMatches', () => {
+    it('returns completed matches for both player slots', async () => {
+      const matches = [makeMatch({ status: 'completed' })];
+      matchesRepo.find.mockResolvedValue(matches);
+
+      const result = await service.listCompletedMatches(CALLER_ID);
+
+      expect(result).toBe(matches);
+      const [callArg] = matchesRepo.find.mock.calls[0]!;
+      const conditions = (callArg as any).where as any[];
+      expect(conditions.every((c: any) => c.status === 'completed')).toBe(true);
+      expect(conditions.some((c: any) => c.player1Id === CALLER_ID)).toBe(true);
+      expect(conditions.some((c: any) => c.player2Id === CALLER_ID)).toBe(true);
+    });
+
+    it('orders by updatedAt DESC and limits to 10 results', async () => {
+      matchesRepo.find.mockResolvedValue([]);
+
+      await service.listCompletedMatches(CALLER_ID);
+
+      const [callArg] = matchesRepo.find.mock.calls[0]!;
+      expect((callArg as any).order).toEqual({ updatedAt: 'DESC' });
+      expect((callArg as any).take).toBe(10);
+      expect((callArg as any).skip).toBe(0);
     });
   });
 
   describe('cleanupStaleMatches', () => {
-    it('deletes expired pending matches and idle active matches', async () => {
+    it('deletes idle active matches and old abandoned matches', async () => {
       matchesRepo.delete.mockResolvedValue({ affected: 0, raw: [] });
 
       await service.cleanupStaleMatches();
 
       expect(matchesRepo.delete).toHaveBeenCalledTimes(2);
-      // First call: expired pending
       expect(matchesRepo.delete).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'pending', inviteCodeExpiresAt: expect.anything() }),
+        expect.objectContaining({ status: 'abandoned', updatedAt: expect.anything() }),
       );
-      // Second call: idle active
       expect(matchesRepo.delete).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'active', updatedAt: expect.anything() }),
       );

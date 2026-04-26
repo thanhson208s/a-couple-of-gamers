@@ -11,7 +11,7 @@ export class Match {
   game: Game;
 
   @Column({ type: 'text' })
-  status: string; // 'pending' | 'active' | 'completed' | 'abandoned'
+  status: string; // 'active' | 'completed' | 'abandoned'
 
   @Column({ type: 'jsonb' })
   state: object;
@@ -19,25 +19,19 @@ export class Match {
   @Column({ type: 'jsonb', nullable: true })
   options: object | null;
 
-  // Player 1 (creator)
+  // Player 1 (creator if slot=1, joiner if creator chose slot=2)
   @Column({ type: 'char', length: 10, name: 'player1_id', nullable: true })
   player1Id: string | null;
 
-  // Player 2 (joiner) — all null until someone joins
+  // Player 2
   @Column({ type: 'char', length: 10, name: 'player2_id', nullable: true })
   player2Id: string | null;
 
   @Column({ type: 'int', name: 'current_turn', nullable: true })
-  currentTurn: number | null; // 1 or 2; null when pending or game over
+  currentTurn: number | null; // 1 or 2; null when game over
 
   @Column({ type: 'int', name: 'winner', nullable: true })
   winner: number | null; // 1, 2, or 0 for draw; null if not finished
-
-  @Column({ type: 'text', name: 'invite_code', nullable: true, unique: true })
-  inviteCode: string | null;
-
-  @Column({ type: 'timestamptz', name: 'invite_code_expires_at', nullable: true })
-  inviteCodeExpiresAt: Date | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

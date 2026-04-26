@@ -40,22 +40,20 @@ _Bundle version and URL per slug live in `game-bundles/<env>/manifest.json` on R
 
 ### `matches`
 ```sql
-id                  UUID PRIMARY KEY DEFAULT gen_random_uuid()
-game_id             UUID NOT NULL REFERENCES games(id)
-status              TEXT NOT NULL    -- 'pending' | 'active' | 'completed' | 'abandoned'
-state               JSONB NOT NULL   -- full game state; shape owned by game plugin
-player1_id          CHAR(10) REFERENCES users(id) ON DELETE CASCADE
-player2_id          CHAR(10) REFERENCES users(id) ON DELETE CASCADE  -- NULL until someone joins
-options             JSONB            -- game-specific creation options (e.g. difficulty); NULL if omitted
-current_turn        INT              -- 1 or 2; NULL when pending or game over
-winner              INT              -- 1, 2, or 0 (draw); NULL if not finished
-invite_code         TEXT UNIQUE      -- short alphanumeric; NULL after opponent joins or match is cancelled
-invite_code_expires_at TIMESTAMPTZ
-created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
-updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+id           UUID PRIMARY KEY DEFAULT gen_random_uuid()
+game_id      UUID NOT NULL REFERENCES games(id)
+status       TEXT NOT NULL    -- 'active' | 'completed' | 'abandoned'  (pending matches live in Redis only)
+state        JSONB NOT NULL   -- full game state; shape owned by game plugin
+player1_id   CHAR(10) REFERENCES users(id) ON DELETE CASCADE
+player2_id   CHAR(10) REFERENCES users(id) ON DELETE CASCADE
+options      JSONB            -- game-specific creation options (e.g. difficulty); NULL if omitted
+current_turn INT              -- 1 or 2; NULL when game over
+winner       INT              -- 1, 2, or 0 (draw); NULL if not finished
+created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 -- updated_at used by inactive match cleanup worker to detect stale matches
 ```
-_vs AI matches are client-only — no server record is created._
+_Pending matches are stored in Redis only (see Data Ownership below). A Postgres row is created only when the second player joins. vs AI matches are client-only — no server record is created._
 
 ### `moves`
 ```sql
@@ -140,7 +138,9 @@ CREATE INDEX ON rival_stats(user_id, opponent_id);
 
 | Data | Where stored | Notes |
 |------|-------------|-------|
-| Match state | Postgres `matches.state` | Source of truth always |
+| Pending match | Redis `pending_matches:invite:{inviteCode}` (JSON, EX 86400) | Never written to Postgres; auto-expires after 24 h |
+| Pending match user index | Redis `pending_matches:user:{userId}` (sorted set, no TTL) | Secondary index for list/cancel; lazily pruned |
+| Match state | Postgres `matches.state` | Source of truth always; row created on join |
 | Active room cache | Redis | Ephemeral; re-populated from Postgres on reconnect |
 | Logged-in user history | Postgres only | Fetched on demand |
 | User settings | Postgres `users` | Synced on login |

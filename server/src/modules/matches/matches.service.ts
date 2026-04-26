@@ -1,9 +1,7 @@
 import { randomBytes } from 'crypto';
 import {
   BadRequestException,
-  ConflictException,
   ForbiddenException,
-  GoneException,
   Inject,
   Injectable,
   NotImplementedException,
@@ -19,9 +17,21 @@ import { GamesRegistry } from '../games/games.registry';
 import { Match } from './match.entity';
 
 const INVITE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const INVITE_TTL_S = 86_400;
 const INACTIVITY_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-const INVITE_CODE_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // base32, no ambiguous chars
-const INVITE_CODE_LENGTH = 4;
+const ABANDONMENT_TTL_MS = 24 * 60 * 60 * 1000; // 1 days
+const INVITE_CODE_CHARSET = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // base57, no ambiguous chars
+const INVITE_CODE_LENGTH = 8;
+
+interface PendingMatchData {
+  gameId: string;
+  gameSlug: string;
+  playerSlot: 1 | 2;
+  playerId: string;
+  inviteCode: string;
+  options: Record<string, unknown> | null;
+  createdAt: string;
+}
 
 function generateInviteCode(): string {
   const bytes = randomBytes(INVITE_CODE_LENGTH);
@@ -50,88 +60,128 @@ export class MatchesService {
     }
 
     const inviteCode = generateInviteCode();
-    const inviteCodeExpiresAt = new Date(Date.now() + INVITE_TTL_MS);
-
-    const match = this.matches.create({
-      game,
-      status: 'pending',
-      state: {},
-      options: options ?? null,
-      player1Id: playerSlot === 1 ? callerId : null,
-      player2Id: playerSlot === 2 ? callerId : null,
+    const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
+    const data: PendingMatchData = {
+      gameId: game.id,
+      gameSlug: game.slug,
+      playerSlot,
+      playerId: callerId,
       inviteCode,
-      inviteCodeExpiresAt,
-    });
-    const saved = await this.matches.save(match);
+      options: options ?? null,
+      createdAt: new Date().toISOString(),
+    };
+
+    await this.redis.set(`pending_matches:invite:${inviteCode}`, JSON.stringify(data), 'EX', INVITE_TTL_S);
+    await this.redis.zadd(`pending_matches:user:${callerId}`, expiresAt.getTime(), inviteCode);
 
     return {
-      id: saved.id,
-      inviteCode: saved.inviteCode,
-      deepLink: `acog://join?code=${saved.inviteCode}`,
-      expiresAt: saved.inviteCodeExpiresAt,
+      inviteCode,
+      deepLink: `acog://join?code=${inviteCode}`,
+      expiresAt,
     };
   }
 
   async joinMatch(inviteCode: string, callerId: string): Promise<Match> {
-    const match = await this.matches.findOne({ where: { inviteCode }, relations: ['game'] });
-    if (!match) throw new NotFoundException('Invite code not found');
+    const raw = await this.redis.get(`pending_matches:invite:${inviteCode}`);
+    if (!raw) throw new NotFoundException('Invite code not found');
 
-    if (match.inviteCodeExpiresAt && match.inviteCodeExpiresAt < new Date()) {
-      throw new GoneException('Invite code has expired');
-    }
-    if (match.status !== 'pending') {
-      throw new ConflictException('Match is no longer pending');
-    }
-    if (match.player1Id === callerId || match.player2Id === callerId) {
+    const data: PendingMatchData = JSON.parse(raw);
+
+    if (data.playerId === callerId) {
       throw new ForbiddenException('Cannot join your own match');
     }
 
-    const player1Id = match.player1Id ?? callerId;
-    const player2Id = match.player2Id ?? callerId;
+    await this.redis.del(`pending_matches:invite:${inviteCode}`);
+    await this.redis.zrem(`pending_matches:user:${data.playerId}`, inviteCode);
 
-    const plugin = this.gamesRegistry.get(match.game.slug);
-    const state = plugin.initialState((match.options as Record<string, unknown>) ?? undefined);
+    const plugin = this.gamesRegistry.get(data.gameSlug);
+    const state = plugin.initialState(data.options ?? undefined);
 
-    match.status = 'active';
-    match.player1Id = player1Id;
-    match.player2Id = player2Id;
-    match.state = state;
-    match.inviteCode = null;
-    match.inviteCodeExpiresAt = null;
-    match.currentTurn = 1;
+    const player1Id = data.playerSlot === 1 ? data.playerId : callerId;
+    const player2Id = data.playerSlot === 2 ? data.playerId : callerId;
+
+    const match = this.matches.create({
+      game: { id: data.gameId } as any,
+      status: 'active',
+      state,
+      options: data.options,
+      player1Id,
+      player2Id,
+      currentTurn: 1,
+    });
 
     return this.matches.save(match);
   }
 
-  async listMatches(userId: string, completed: boolean) {
-    const now = new Date();
-    const inactivityCutoff = new Date(now.getTime() - INACTIVITY_TTL_MS);
+  async cancelMatch(inviteCode: string, callerId: string): Promise<void> {
+    const raw = await this.redis.get(`pending_matches:invite:${inviteCode}`);
+    if (!raw) throw new NotFoundException('Invite code not found');
 
-    if (!completed) {
-      return this.matches.find({    //find all pending and active matches
-        where: [
-          { player1Id: userId, status: 'pending', inviteCodeExpiresAt: MoreThan(now) },
-          { player2Id: userId, status: 'pending', inviteCodeExpiresAt: MoreThan(now) },
-          { player1Id: userId, status: 'active',  updatedAt: MoreThan(inactivityCutoff) },
-          { player2Id: userId, status: 'active',  updatedAt: MoreThan(inactivityCutoff) },
-        ],
-      });
+    const data: PendingMatchData = JSON.parse(raw);
+
+    if (data.playerId !== callerId) {
+      throw new ForbiddenException('Only the creator can cancel this match');
     }
-    else return this.matches.find({ //find max 10 most recent completed matches
+
+    await this.redis.del(`pending_matches:invite:${inviteCode}`);
+    await this.redis.zrem(`pending_matches:user:${callerId}`, inviteCode);
+  }
+
+  async abandonMatch(id: string, callerId: string): Promise<void> {
+    const match = await this.matches.findOne({ where: { id } });
+    if (!match) throw new NotFoundException('Match not found');
+
+    if (match.player1Id !== callerId && match.player2Id !== callerId) {
+      throw new ForbiddenException('You are not a player in this match');
+    }
+
+    match.status = 'abandoned';
+    await this.matches.save(match);
+  }
+
+  async listPendingMatches(userId: string): Promise<object[]> {
+    const now = new Date();
+    await this.redis.zremrangebyscore(`pending_matches:user:${userId}`, '-inf', now.getTime());
+    const inviteCodes = await this.redis.zrange(`pending_matches:user:${userId}`, 0, -1);
+    if (inviteCodes.length === 0) return [];
+
+    const raws = await this.redis.mget(...inviteCodes.map((c) => `pending_matches:invite:${c}`));
+    return raws
+      .filter((r): r is string => r !== null)
+      .map((r) => {
+        const d: PendingMatchData = JSON.parse(r);
+        return {
+          status: 'pending' as const,
+          inviteCode: d.inviteCode,
+          deepLink: `acog://join?code=${d.inviteCode}`,
+          expiresAt: new Date(new Date(d.createdAt).getTime() + INVITE_TTL_MS),
+          playerSlot: d.playerSlot,
+          gameSlug: d.gameSlug,
+          createdAt: new Date(d.createdAt),
+        };
+      });
+  }
+
+  async listActiveMatches(userId: string): Promise<Match[]> {
+    const inactivityCutoff = new Date(Date.now() - INACTIVITY_TTL_MS);
+    return this.matches.find({
       where: [
-        { player1Id: userId, status: 'completed' },
-        { player2Id: userId, status: 'completed' }
+        { player1Id: userId, status: 'active', updatedAt: MoreThan(inactivityCutoff) },
+        { player2Id: userId, status: 'active', updatedAt: MoreThan(inactivityCutoff) },
       ],
-      order: {
-        updatedAt: 'DESC'
-      },
-      skip: 0,
-      take: 10
     });
   }
 
-  async abandonMatch(id: string) {
-    throw new Error('not implemented');
+  async listCompletedMatches(userId: string): Promise<Match[]> {
+    return this.matches.find({
+      where: [
+        { player1Id: userId, status: 'completed' },
+        { player2Id: userId, status: 'completed' },
+      ],
+      order: { updatedAt: 'DESC' },
+      skip: 0,
+      take: 10,
+    });
   }
 
   async submitMove(_matchId: string, _move: unknown) {
@@ -143,17 +193,14 @@ export class MatchesService {
   // Redis is the fast path; Postgres is flushed at session boundaries (game over, close_match, disconnect).
   // See: docs/game-system.md#match-state-cache
 
-  // Return the current game state. Reads from Redis; on miss loads from Postgres and repopulates.
   private async getStateFromCache(_matchId: string): Promise<GameState> {
     throw new NotImplementedException();
   }
 
-  // Write state to Redis immediately. Flush to Postgres at session boundary checkpoints.
   private async persistState(_matchId: string, _state: GameState): Promise<void> {
     throw new NotImplementedException();
   }
 
-  // Remove the match state entry from Redis. Call on match completion or abandonment.
   private async clearStateFromCache(_matchId: string): Promise<void> {
     throw new NotImplementedException();
   }
@@ -161,13 +208,11 @@ export class MatchesService {
   async cleanupStaleMatches(): Promise<void> {
     const now = new Date();
 
-    // Pending matches with an expired invite code
     await this.matches.delete({
-      status: 'pending',
-      inviteCodeExpiresAt: LessThanOrEqual(now),
+      status: 'abandoned',
+      updatedAt: LessThanOrEqual(new Date(now.getTime() - ABANDONMENT_TTL_MS)),
     });
 
-    // Pending or active matches idle beyond the inactivity threshold
     await this.matches.delete({
       status: 'active',
       updatedAt: LessThanOrEqual(new Date(now.getTime() - INACTIVITY_TTL_MS)),

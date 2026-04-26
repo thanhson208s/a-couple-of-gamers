@@ -75,7 +75,7 @@ External (not in request path):
 | **NestJS Worker Service** | prod-app VPS | Consumes BullMQ jobs from Redis. No HTTP listener. Runs inactive match cleanup (repeatable) and turn reminder dispatch (delayed). |
 | **Caddy** | prod-app VPS | TLS termination (Cloudflare Origin Certificate), WebSocket upgrade headers. Reverse proxy to the API server. |
 | **PostgreSQL** | prod-data VPS | Primary relational database. Single source of truth for all match state, user data, and history. Game state stored as JSONB. |
-| **Redis** | prod-data VPS | Three roles: (1) WebSocket presence — single key `ws:{userId}`: absent = offline, `"lobby"` = connected in lobby, `<matchId>` = connected and viewing that match, (2) BullMQ job queue shared between API server and worker, (3) rate limit counters. |
+| **Redis** | prod-data VPS | Four roles: (1) Pending match storage — `pending_matches:invite:{inviteCode}` (JSON, 24 h TTL) + `pending_matches:user:{userId}` (sorted set index); Postgres row is created only when opponent joins. (2) WebSocket presence — single key `ws:{userId}`: absent = offline, `"lobby"` = connected in lobby, `<matchId>` = connected and viewing that match. (3) BullMQ job queue shared between API server and worker. (4) Rate limit counters. |
 
 ### External Services
 

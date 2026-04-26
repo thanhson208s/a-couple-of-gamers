@@ -16,9 +16,19 @@ export class MatchesController {
     return this.matchesService.createMatch(dto.gameSlug, dto.playerSlot, user.id, dto.options);
   }
 
-  @Get()
-  listMatches(@CurrentUser() user: JwtUser, @Param('completed') completed: boolean) {
-    return this.matchesService.listMatches(user.id, completed);
+  @Get('pending')
+  listPendingMatches(@CurrentUser() user: JwtUser) {
+    return this.matchesService.listPendingMatches(user.id);
+  }
+
+  @Get('active')
+  listActiveMatches(@CurrentUser() user: JwtUser) {
+    return this.matchesService.listActiveMatches(user.id);
+  }
+
+  @Get('history')
+  listCompletedMatches(@CurrentUser() user: JwtUser) {
+    return this.matchesService.listCompletedMatches(user.id);
   }
 
   @Post('join')
@@ -26,8 +36,13 @@ export class MatchesController {
     return this.matchesService.joinMatch(dto.inviteCode, user.id);
   }
 
+  @Delete('pending/:inviteCode')
+  cancelMatch(@Param('inviteCode') inviteCode: string, @CurrentUser() user: JwtUser) {
+    return this.matchesService.cancelMatch(inviteCode, user.id);
+  }
+
   @Delete(':id')
-  abandonMatch(@Param('id') id: string) {
-    return this.matchesService.abandonMatch(id);
+  abandonMatch(@Param('id') id: string, @CurrentUser() user: JwtUser) {
+    return this.matchesService.abandonMatch(id, user.id);
   }
 }
