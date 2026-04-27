@@ -168,17 +168,17 @@ window.DEV_CONFIG = {
       ],
     },
 
-    // ── Dev Cheats ─────────────────────────────────────────────────────────
+    // ── Cheats ─────────────────────────────────────────────────────────
     {
       id: 'cheats',
-      label: 'Dev Cheats',
+      label: 'Dev Endpoints',
       showWhen: (s) => !!s.accessToken,
       endpoints: [
         {
           id: 'force-complete',
           label: 'Force complete match',
           method: 'POST',
-          path: (inputs) => `/v1/dev/cheat/matches/${inputs.matchId}/force-complete`,
+          path: (inputs) => `/v1/dev/matches/${inputs.matchId}/force-complete`,
           inputs: [
             { key: 'matchId', label: 'Match ID', from: 'matchId' },
             { key: 'winner',  label: 'Winner',   type: 'select', options: [

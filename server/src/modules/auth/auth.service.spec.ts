@@ -83,7 +83,7 @@ describe('AuthService', () => {
       firebaseAuth.getUser.mockResolvedValue(userRecord);
       usersService.findOrUpsertByFirebaseUid.mockResolvedValue(user);
 
-      const result = await service.login(idToken);
+      const result = await service.firebaseLogin(idToken);
 
       expect(firebaseAuth.verifyIdToken).toHaveBeenCalledWith(idToken, true);
       expect(firebaseAuth.getUser).toHaveBeenCalledWith(decodedToken.uid);
@@ -102,20 +102,20 @@ describe('AuthService', () => {
 
     it('throws UnauthorizedException when verifyIdToken fails', async () => {
       firebaseAuth.verifyIdToken.mockRejectedValue(new Error('invalid token'));
-      await expect(service.login(idToken)).rejects.toThrow(UnauthorizedException);
+      await expect(service.firebaseLogin(idToken)).rejects.toThrow(UnauthorizedException);
     });
 
     it('throws UnauthorizedException when getUser fails', async () => {
       firebaseAuth.verifyIdToken.mockResolvedValue(decodedToken);
       firebaseAuth.getUser.mockRejectedValue(new Error('user not found'));
-      await expect(service.login(idToken)).rejects.toThrow(UnauthorizedException);
+      await expect(service.firebaseLogin(idToken)).rejects.toThrow(UnauthorizedException);
     });
 
     it('throws UnauthorizedException when findOrUpsertByFirebaseUid fails', async () => {
       firebaseAuth.verifyIdToken.mockResolvedValue(decodedToken);
       firebaseAuth.getUser.mockResolvedValue(userRecord);
       usersService.findOrUpsertByFirebaseUid.mockRejectedValue(new Error('db error'));
-      await expect(service.login(idToken)).rejects.toThrow(UnauthorizedException);
+      await expect(service.firebaseLogin(idToken)).rejects.toThrow(UnauthorizedException);
     });
   });
 

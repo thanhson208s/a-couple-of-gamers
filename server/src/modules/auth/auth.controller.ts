@@ -3,7 +3,7 @@ import { SkipThrottle } from '@nestjs/throttler';
 import { AppThrottle } from '../../app.guard';
 import { AuthService } from './auth.service';
 import { DevAuthGuard } from './guards/dev-auth.guard';
-import { LoginDto } from './login.dto';
+import { FirebaseLoginDto } from './firebase-login.dto';
 import { CurrentUser, JwtAuthGuard, JwtUser } from './guards/jwt-auth.guard';
 
 @Controller('auth')
@@ -19,8 +19,8 @@ export class AuthController {
 
   @Post('login')
   @AppThrottle({ ttl: 60_000, limit: 20 })
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto.idToken);
+  login(@Body() dto: FirebaseLoginDto) {
+    return this.authService.firebaseLogin(dto.idToken);
   }
 
   @Post('refresh')

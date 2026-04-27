@@ -157,7 +157,7 @@ Direct children:
 | File | Purpose |
 |------|---------|
 | `dev.module.ts` | Dev module — imports `AuthModule` and `MatchesModule` |
-| `dev.controller.ts` | `GET /dev` (console page) + `/v1/dev/cheat/*` API endpoints — all guarded by `DevAuthGuard` |
+| `dev.controller.ts` | `GET /dev` (console page) + `/v1/dev/*` API endpoints — all guarded by `DevAuthGuard` |
 
 ### `admin/`
 

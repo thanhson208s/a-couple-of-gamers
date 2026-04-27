@@ -34,7 +34,7 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  async login(idToken: string): Promise<{ accessToken: string; refreshToken: string }> {
+  async firebaseLogin(idToken: string): Promise<{ accessToken: string; refreshToken: string }> {
     try {
       const decodedIdToken = await this.firebaseAuth.verifyIdToken(idToken, true);
       const userRecord = await this.firebaseAuth.getUser(decodedIdToken.uid);

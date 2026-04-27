@@ -44,7 +44,6 @@ Access tokens carry a `type` claim to distinguish identity kind:
 |--------------|-----------|---------|
 | `'anonymous'` | `POST /v1/auth/login` | Anonymous (guest-tier) user; feature limits apply |
 | `'social'` | `POST /v1/auth/login` | Fully linked social account (Google/Apple/Facebook) |
-| `'dev'` | `POST /v1/auth/dev` | Dev-only login; never present on staging/prod |
 
 Derived from `user.provider` via `AuthService.tokenType()` — also applied when `POST /v1/auth/refresh` re-issues an access token. `JwtAuthGuard` can inspect the `type` claim to restrict endpoints that require a social account.
 
@@ -85,7 +84,7 @@ Applied at the API server level via `AppGuard` (extends `@nestjs/throttler`) wit
 | `POST /v1/auth/refresh` | 20 requests | per minute | IP (unauthenticated) |
 | WS event | 30 events | per minute | userId |
 | All other endpoints | 120 requests | per minute | userId (IP fallback) |
-| `GET /dev`, `/v1/dev/cheat/*` | exempt | — | — |
+| `GET /dev`, `/v1/dev/*` | exempt | — | — |
 
 **Implementation:**
 - Throttler `app-throttle` (120 req/user/min) is the global default for all HTTP endpoints; specific endpoints override via `@Throttle({ 'app-throttle': { ttl, limit } })`.
