@@ -193,8 +193,8 @@ describe('UsersService', () => {
     it('returns id, provider, displayName, avatarUrl, favorite slugs, and favoritesLimit', async () => {
       usersRepo.findOne.mockResolvedValue(user);
       userFavoritesRepo.find.mockResolvedValue([
-        { userId: user.id, gameId: 'uuid-1', game: { slug: 'tictactoe' } },
-        { userId: user.id, gameId: 'uuid-2', game: { slug: 'chess' } },
+        { userId: user.id, gameId: 'tictactoe', game: { id: 'tictactoe' } },
+        { userId: user.id, gameId: 'chess', game: { id: 'chess' } },
       ] as UserFavorite[]);
 
       const result = await service.getProfile(user.id);
@@ -288,7 +288,7 @@ describe('UsersService', () => {
 
   describe('addFavorite', () => {
     const userId = 'ABCD123456';
-    const game = { id: 'uuid-1', slug: 'tictactoe' } as Game;
+    const game = { id: 'tictactoe' } as Game;
 
     it('saves a new favorite for a social user below the limit', async () => {
       gamesRepo.findOne.mockResolvedValue(game);
@@ -299,7 +299,7 @@ describe('UsersService', () => {
 
       await service.addFavorite(userId, 'social', 'tictactoe');
 
-      expect(gamesRepo.findOne).toHaveBeenCalledWith({ where: { slug: 'tictactoe' } });
+      expect(gamesRepo.findOne).toHaveBeenCalledWith({ where: { id: 'tictactoe' } });
       expect(userFavoritesRepo.save).toHaveBeenCalledTimes(1);
     });
 
@@ -353,7 +353,7 @@ describe('UsersService', () => {
 
   describe('removeFavorite', () => {
     const userId = 'ABCD123456';
-    const game = { id: 'uuid-1', slug: 'tictactoe' } as Game;
+    const game = { id: 'tictactoe' } as Game;
 
     it('deletes the favorite when game exists', async () => {
       gamesRepo.findOne.mockResolvedValue(game);

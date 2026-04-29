@@ -45,13 +45,13 @@ describe('GamesService', () => {
 
   describe('findBySlug', () => {
     it('returns the game when its status is enabled', async () => {
-      const game = { id: 'g1', slug: 'tictactoe', status: GameStatus.Enabled } as Game;
+      const game = { id: 'tictactoe', status: GameStatus.Enabled } as Game;
       gamesRepo.findOne.mockResolvedValue(game);
 
       const result = await service.findBySlug('tictactoe');
 
       expect(result).toBe(game);
-      expect(gamesRepo.findOne).toHaveBeenCalledWith({ where: { slug: 'tictactoe', status: GameStatus.Enabled } });
+      expect(gamesRepo.findOne).toHaveBeenCalledWith({ where: { id: 'tictactoe', status: GameStatus.Enabled } });
     });
 
     it('returns null when the game is not enabled or not found', async () => {
@@ -63,8 +63,8 @@ describe('GamesService', () => {
   describe('listGames', () => {
     it('returns all games regardless of status', async () => {
       const games = [
-        { id: 'g1', slug: 'tictactoe', status: GameStatus.Enabled },
-        { id: 'g2', slug: 'chess', status: GameStatus.Disabled },
+        { id: 'tictactoe', status: GameStatus.Enabled },
+        { id: 'chess', status: GameStatus.Disabled },
       ] as Game[];
       gamesRepo.find.mockResolvedValue(games);
 
@@ -77,7 +77,7 @@ describe('GamesService', () => {
 
   describe('setGameStatus', () => {
     it('sets status to the given value and saves', async () => {
-      const game = { id: 'g1', slug: 'tictactoe', name: 'Tic-Tac-Toe', status: GameStatus.ComingSoon } as Game;
+      const game = { id: 'tictactoe', name: 'Tic-Tac-Toe', status: GameStatus.ComingSoon } as Game;
       gamesRepo.findOne.mockResolvedValue(game);
       gamesRepo.save.mockImplementation(async (g) => g as Game);
 
@@ -89,7 +89,7 @@ describe('GamesService', () => {
     });
 
     it('sets name to the given value and saves', async () => {
-      const game = { id: 'g1', slug: 'tictactoe', name: 'Tic-Tac-Toe', status: GameStatus.ComingSoon } as Game;
+      const game = { id: 'tictactoe', name: 'Tic-Tac-Toe', status: GameStatus.ComingSoon } as Game;
       gamesRepo.findOne.mockResolvedValue(game);
       gamesRepo.save.mockImplementation(async (g) => g as Game);
 

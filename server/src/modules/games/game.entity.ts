@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { Entity, PrimaryColumn, Column } from 'typeorm';
 
 export enum GameStatus {
   UnderMaintenance = 0,
@@ -9,11 +9,8 @@ export enum GameStatus {
 
 @Entity('games')
 export class Game {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryColumn({ type: 'text' })
   id: string;
-
-  @Column({ type: 'text', unique: true })
-  slug: string;
 
   @Column({ type: 'text' })
   name: string;

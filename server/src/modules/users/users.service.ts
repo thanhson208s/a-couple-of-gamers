@@ -68,7 +68,7 @@ export class UsersService {
     if (!user) throw new NotFoundException();
     const favs = await this.userFavorites.find({ where: { userId }, relations: ['game'] });
     const favoritesLimit = user.provider === 'anonymous' ? FAVORITES_LIMIT.anonymous : FAVORITES_LIMIT.social;
-    return { id: user.id, provider: user.provider, displayName: user.displayName, avatarUrl: user.avatarUrl, favorites: favs.map(f => f.game.slug), favoritesLimit };
+    return { id: user.id, provider: user.provider, displayName: user.displayName, avatarUrl: user.avatarUrl, favorites: favs.map(f => f.game.id), favoritesLimit };
   }
 
   async deleteAccount(userId: string, idToken: string): Promise<void> {
@@ -94,7 +94,7 @@ export class UsersService {
   }
 
   async addFavorite(userId: string, userType: string, gameSlug: string): Promise<void> {
-    const game = await this.games.findOne({ where: { slug: gameSlug } });
+    const game = await this.games.findOne({ where: { id: gameSlug } });
     if (!game) throw new NotFoundException();
     const existing = await this.userFavorites.findOne({ where: { userId, gameId: game.id } });
     if (existing) return;
@@ -105,7 +105,7 @@ export class UsersService {
   }
 
   async removeFavorite(userId: string, gameSlug: string): Promise<void> {
-    const game = await this.games.findOne({ where: { slug: gameSlug } });
+    const game = await this.games.findOne({ where: { id: gameSlug } });
     if (game) await this.userFavorites.delete({ userId, gameId: game.id });
   }
 

@@ -29,13 +29,12 @@ const INVITE_CODE_LENGTH = 8;
 interface MatchMeta {
   player1Id: string;
   player2Id: string;
-  gameSlug: string;
+  gameId: string;
   status: string;
 }
 
 interface MatchInvite {
   gameId: string;
-  gameSlug: string;
   playerSlot: 1 | 2;
   playerId: string;
   inviteCode: string;
@@ -76,7 +75,7 @@ export class MatchesService {
     if (!game) throw new NotFoundException(`Game not found: ${gameSlug}`);
 
     try {
-      this.gamesRegistry.get(game.slug);
+      this.gamesRegistry.get(game.id);
     } catch (e) {
       throw new BadRequestException((e as Error).message);
     }
@@ -85,7 +84,6 @@ export class MatchesService {
     const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
     const data: MatchInvite = {
       gameId: game.id,
-      gameSlug: game.slug,
       playerSlot,
       playerId: callerId,
       inviteCode,
@@ -116,7 +114,7 @@ export class MatchesService {
     await this.redis.del(`invite:code:${inviteCode}`);
     await this.redis.zrem(`invite:user:${data.playerId}`, inviteCode);
 
-    const plugin = this.gamesRegistry.get(data.gameSlug);
+    const plugin = this.gamesRegistry.get(data.gameId);
     const state = plugin.initialState(data.options ?? undefined);
 
     const player1Id = data.playerSlot === 1 ? data.playerId : callerId;
@@ -131,7 +129,7 @@ export class MatchesService {
       player2Id,
     }));
 
-    const meta: MatchMeta = { player1Id, player2Id, gameSlug: data.gameSlug, status: 'active' };
+    const meta: MatchMeta = { player1Id, player2Id, gameId: data.gameId, status: 'active' };
     await this.redis.set(`match:meta:${match.id}`, JSON.stringify(meta), 'PX', INACTIVITY_TTL_MS);
 
     this.eventEmitter.emit('match:start', {
@@ -183,7 +181,7 @@ export class MatchesService {
         deepLink: `acog://join?code=${d.inviteCode}`,
         expiresAfter: new Date(new Date(d.createdAt).getTime() + INVITE_TTL_MS - now.getTime()),
         playerSlot: d.playerSlot,
-        gameSlug: d.gameSlug,
+        gameId: d.gameId,
         createdAt: new Date(d.createdAt),
       };
     });
@@ -219,7 +217,7 @@ export class MatchesService {
     if (meta.status !== 'active')
       throw new BadRequestException('Match is not active');
 
-    const plugin = this.gamesRegistry.get(meta.gameSlug);
+    const plugin = this.gamesRegistry.get(meta.gameId);
     const initialState = await this.getStateFromCache(matchId);
     const playerIndex = await this.getPlayerIndex(matchId, userId);
 
@@ -295,7 +293,7 @@ export class MatchesService {
     if (cached) return JSON.parse(cached) as MatchMeta;
     const match = await this.matches.findOne({ where: { id: matchId }, relations: ['game'] });
     if (!match) return null;
-    const meta: MatchMeta = { player1Id: match.player1Id!, player2Id: match.player2Id!, gameSlug: match.game.slug, status: match.status };
+    const meta: MatchMeta = { player1Id: match.player1Id!, player2Id: match.player2Id!, gameId: match.game.id, status: match.status };
     await this.redis.set(`match:meta:${matchId}`, JSON.stringify(meta), 'PX', meta.status === 'active' ? META_TTL_MS : INACTIVITY_TTL_MS);
     return meta;
   }
@@ -309,7 +307,7 @@ export class MatchesService {
 
   async getMatchGame(matchId: string): Promise<string | null> {
     const meta = await this.getMatchMeta(matchId);
-    return meta?.gameSlug ?? null;
+    return meta?.gameId ?? null;
   }
 
   async getPlayerIndex(matchId: string, userId: string): Promise<1 | 2 | null> {
@@ -323,7 +321,7 @@ export class MatchesService {
     const meta = await this.getMatchMeta(matchId);
     if (!meta || meta.status !== 'active') return null;
     const state = await this.getStateFromCache(matchId);
-    const plugin = this.gamesRegistry.get(meta.gameSlug);
+    const plugin = this.gamesRegistry.get(meta.gameId);
     return plugin.getPlayerView(state, playerIndex);
   }
 

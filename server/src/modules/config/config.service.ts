@@ -9,7 +9,7 @@ export class ConfigService {
     const games = await this.gamesService.listGames();
     const gamesMap: Record<string, unknown> = {};
     for (const game of games) {
-      gamesMap[game.slug] = {
+      gamesMap[game.id] = {
         status: game.status,
       };
     }

@@ -19,14 +19,14 @@ export class GamesService implements OnModuleInit {
         .createQueryBuilder()
         .insert()
         .into(Game)
-        .values({ slug, name: slug, status: GameStatus.ComingSoon })
+        .values({ id: slug, name: slug, status: GameStatus.ComingSoon })
         .orIgnore()
         .execute();
     }
   }
 
   async findBySlug(slug: string): Promise<Game | null> {
-    return this.games.findOne({ where: { slug, status: GameStatus.Enabled } });
+    return this.games.findOne({ where: { id: slug, status: GameStatus.Enabled } });
   }
 
   async listGames(): Promise<Game[]> {
@@ -34,11 +34,11 @@ export class GamesService implements OnModuleInit {
   }
 
   async getGame(slug: string) {
-    return this.games.findOne({ where: { slug }})
+    return this.games.findOne({ where: { id: slug } });
   }
 
   async updateGame(slug: string, name?: string, status?: GameStatus) {
-    const game = await this.games.findOne({ where: { slug } });
+    const game = await this.games.findOne({ where: { id: slug } });
     if (!game) throw new NotFoundException(`Game not found: ${slug}`);
     if (name != null) game.name = name;
     if (status != null) game.status = status;

@@ -20,10 +20,10 @@ describe('ConfigService', () => {
   });
 
   describe('getConfig', () => {
-    it('returns a games map keyed by slug with status only', async () => {
+    it('returns a games map keyed by id with status only', async () => {
       gamesService.listGames.mockResolvedValue([
-        { slug: 'tictactoe', status: GameStatus.Enabled },
-        { slug: 'chess',     status: GameStatus.ComingSoon },
+        { id: 'tictactoe', status: GameStatus.Enabled },
+        { id: 'chess',     status: GameStatus.ComingSoon },
       ] as Game[]);
 
       const result = await service.getConfig() as any;

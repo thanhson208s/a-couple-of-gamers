@@ -7,7 +7,7 @@ export class UserFavorite {
   @PrimaryColumn({ type: 'char', length: 10, name: 'user_id' })
   userId: string;
 
-  @PrimaryColumn({ type: 'uuid', name: 'game_id' })
+  @PrimaryColumn({ type: 'text', name: 'game_id' })
   gameId: string;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })

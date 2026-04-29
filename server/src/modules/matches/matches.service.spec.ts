@@ -19,7 +19,7 @@ const OTHER_ID  = 'OTHER00001';
 const MATCH_ID  = 'match-uuid-1';
 
 function makeGame(overrides: Partial<Game> = {}): Game {
-  return { id: 'g1', slug: 'tictactoe', status: GameStatus.Enabled, name: 'Tic-Tac-Toe', ...overrides } as Game;
+  return { id: 'tictactoe', status: GameStatus.Enabled, name: 'Tic-Tac-Toe', ...overrides } as Game;
 }
 
 function makeMatch(overrides: Partial<Match> = {}): Match {
@@ -39,12 +39,11 @@ function makeMatch(overrides: Partial<Match> = {}): Match {
 }
 
 function makePendingJson(overrides: Partial<{
-  gameId: string; gameSlug: string; playerSlot: 1 | 2; playerId: string;
+  gameId: string; playerSlot: 1 | 2; playerId: string;
   inviteCode: string; options: null; createdAt: string;
 }> = {}): string {
   return JSON.stringify({
-    gameId: 'g1',
-    gameSlug: 'tictactoe',
+    gameId: 'tictactoe',
     playerSlot: 1,
     playerId: OTHER_ID,
     inviteCode: 'ABCD',
@@ -55,12 +54,12 @@ function makePendingJson(overrides: Partial<{
 }
 
 function makeMetaJson(overrides: Partial<{
-  player1Id: string; player2Id: string; gameSlug: string; status: string;
+  player1Id: string; player2Id: string; gameId: string; status: string;
 }> = {}): string {
   return JSON.stringify({
     player1Id: OTHER_ID,
     player2Id: CALLER_ID,
-    gameSlug: 'tictactoe',
+    gameId: 'tictactoe',
     status: 'active',
     ...overrides,
   });
@@ -610,7 +609,7 @@ describe('MatchesService', () => {
   // ─── getMatchGame ─────────────────────────────────────────────────────────
 
   describe('getMatchGame', () => {
-    it('returns gameSlug for a known match', async () => {
+    it('returns gameId for a known match', async () => {
       redis.get.mockResolvedValue(makeMetaJson());
 
       expect(await service.getMatchGame(MATCH_ID)).toBe('tictactoe');

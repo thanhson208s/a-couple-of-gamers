@@ -31,9 +31,8 @@ _Rotation: each use revokes the old row and inserts a new one. Reuse of a revoke
 
 ### `games`
 ```sql
-id               UUID PRIMARY KEY DEFAULT gen_random_uuid()
-slug             TEXT NOT NULL UNIQUE   -- e.g. 'tictactoe', 'battleship'
-name             TEXT NOT NULL          -- display name; initially set to slug, update via admin
+id               TEXT PRIMARY KEY       -- slug, e.g. 'tictactoe', 'battleship'
+name             TEXT NOT NULL          -- display name; initially set to id, update via admin
 status           INTEGER NOT NULL DEFAULT 1  -- 0=under_maintenance, 1=coming_soon, 2=enabled, 3=disabled; admin-set via dashboard
 ```
 _Bundle version and URL per slug live in `game-bundles/<env>/manifest.json` on R2 (written by CI — see [hot-update.md#source-of-truth](hot-update.md#source-of-truth)); game metadata (display name, icons, banners, intro/rule images) and the canonical slug list live in the client catalog (hot-updated — see [features/games-management.md](features/games-management.md)). Neither lives in this table._
@@ -41,7 +40,7 @@ _Bundle version and URL per slug live in `game-bundles/<env>/manifest.json` on R
 ### `matches`
 ```sql
 id           UUID PRIMARY KEY DEFAULT gen_random_uuid()
-game_id      UUID NOT NULL REFERENCES games(id)
+game_id      TEXT NOT NULL REFERENCES games(id)
 status       TEXT NOT NULL    -- 'active' | 'completed' | 'abandoned'  (pending matches live in Redis only)
 state        JSONB NOT NULL   -- full game state; shape owned by game plugin
 player1_id   CHAR(10) REFERENCES users(id) ON DELETE CASCADE
@@ -68,7 +67,7 @@ _Single-row table. Always update in place. `GET /v1/config` reads this row._
 ```sql
 user_id     CHAR(10) NOT NULL REFERENCES users(id)
 opponent_id CHAR(10) NOT NULL REFERENCES users(id)
-game_id     UUID NOT NULL REFERENCES games(id)
+game_id     TEXT NOT NULL REFERENCES games(id)
 wins        INT NOT NULL DEFAULT 0
 losses      INT NOT NULL DEFAULT 0
 draws       INT NOT NULL DEFAULT 0
@@ -79,7 +78,7 @@ _Updated at match completion._
 ### `user_favorites` `[DRAFT]`
 ```sql
 user_id CHAR(10) NOT NULL REFERENCES users(id)
-game_id UUID NOT NULL REFERENCES games(id)
+game_id TEXT NOT NULL REFERENCES games(id)
 PRIMARY KEY (user_id, game_id)
 ```
 
@@ -129,7 +128,7 @@ CREATE INDEX ON rival_stats(user_id, opponent_id);
 | Pending match user index | Redis `invite:user:{userId}` (sorted set, no TTL) | Secondary index for list/cancel; lazily pruned |
 | Match state | Postgres `matches.state` | Source of truth; flushed at session boundaries (close_match, disconnect, game over) |
 | Match state cache | Redis `match:state:{matchId}` (JSON, PX 3 600 000) | Fast path for move processing; Postgres fallback on miss; preserved across restarts |
-| Match metadata cache | Redis `match:meta:{matchId}` (JSON, PX 30 days) | `{ player1Id, player2Id, gameSlug, status }`; populated on join; Postgres fallback on miss; deleted on completion, abandonment, and cleanup |
+| Match metadata cache | Redis `match:meta:{matchId}` (JSON, PX 30 days) | `{ player1Id, player2Id, gameId, status }`; populated on join; Postgres fallback on miss; deleted on completion, abandonment, and cleanup |
 | WS presence | Redis `ws:user:{userId}` (`"lobby"` or `<matchId>`) | Set on connect; deleted on disconnect; drives opponent notifications |
 | Move replay buffer | Redis `match:replay:{matchId}:{playerId}` (JSON array, EX 7 days) | Buffered moves for offline player; GETDEL on open_match |
 | WS ticket | Redis `ws:ticket:{ticket}` (EX 30 s) | One-time auth token for WS handshake; deleted on use |
