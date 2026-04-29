@@ -1,6 +1,12 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { Game } from '../games/game.entity';
 
+export enum MatchStatus {
+  Active = 'active',
+  Completed = 'completed',
+  Abandoned = 'abandoned',
+}
+
 @Entity('matches')
 export class Match {
   @PrimaryGeneratedColumn('uuid')
@@ -11,7 +17,7 @@ export class Match {
   game: Game;
 
   @Column({ type: 'text' })
-  status: string; // 'active' | 'completed' | 'abandoned'
+  status: MatchStatus;
 
   @Column({ type: 'jsonb' })
   state: object;
@@ -19,16 +25,14 @@ export class Match {
   @Column({ type: 'jsonb', nullable: true })
   options: object | null;
 
-  // Player 1 (creator if slot=1, joiner if creator chose slot=2)
-  @Column({ type: 'char', length: 10, name: 'player1_id', nullable: true })
-  player1Id: string | null;
+  @Column({ type: 'char', length: 10, name: 'player1_id' })
+  player1Id: string;
 
-  // Player 2
-  @Column({ type: 'char', length: 10, name: 'player2_id', nullable: true })
-  player2Id: string | null;
+  @Column({ type: 'char', length: 10, name: 'player2_id' })
+  player2Id: string;
 
   @Column({ type: 'int', name: 'winner', nullable: true })
-  winner: number | null; // 1, 2, or 0 for draw; null if not finished
+  winner: number | null; // 1v1: 1=p1 wins, 2=p2 wins, 0=draw; coop: 1=both win, 0=both lose; null if not finished
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

@@ -1,20 +1,32 @@
 import { Injectable } from '@nestjs/common';
 import { GamePlugin } from '../../logic';
 import { TicTacToePlugin } from '../../logic/tictactoe';
+import { GameType } from './game.entity';
+
+interface RegistryEntry {
+  plugin: GamePlugin;
+  type: GameType;
+}
 
 @Injectable()
 export class GamesRegistry {
-  private readonly plugins = new Map<string, GamePlugin>([
-    ['tictactoe', new TicTacToePlugin()],
+  private readonly entries = new Map<string, RegistryEntry>([
+    ['tictactoe', { plugin: new TicTacToePlugin(), type: GameType.Versus }],
   ]);
 
   slugs(): string[] {
-    return [...this.plugins.keys()];
+    return [...this.entries.keys()];
   }
 
   get(slug: string): GamePlugin {
-    const plugin = this.plugins.get(slug);
-    if (!plugin) throw new Error(`No plugin registered for game: ${slug}`);
-    return plugin;
+    const entry = this.entries.get(slug);
+    if (!entry) throw new Error(`No plugin registered for game: ${slug}`);
+    return entry.plugin;
+  }
+
+  getType(slug: string): GameType {
+    const entry = this.entries.get(slug);
+    if (!entry) throw new Error(`No plugin registered for game: ${slug}`);
+    return entry.type;
   }
 }

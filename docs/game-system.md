@@ -4,6 +4,19 @@ Covers the full runtime lifecycle of a match: the `GamePlugin` interface every g
 
 ---
 
+## Game Types
+
+Every game has a `GameType` declared in `GamesRegistry` alongside its plugin. This is immutable — it is a fundamental property of the game, not a configurable field.
+
+| Type | Value | Winner semantics |
+|------|-------|-----------------|
+| `Versus` | 0 | Competitive. `getWinner` returns 1 (player 1 wins), 2 (player 2 wins), or 0 (draw). |
+| `Coop` | 1 | Cooperative. `getWinner` returns 1 (both win) or 0 (both lose). |
+
+Both game types use the same Match structure (player1 vs player2). The server uses the registry type to correctly handle winner semantics. The client knows the game type from its own catalog (hot-updated) — it does not query the server for it.
+
+---
+
 ## Game Plugin Interface
 
 Every game is a TypeScript module that implements this interface. The server calls these methods; the client only renders.
@@ -39,8 +52,9 @@ interface GamePlugin {
   // Return true if the game has ended (win, loss, draw, or forfeit).
   isGameOver(state: GameState): boolean
 
-  // Return the winning player index (1 or 2), or 0 for draw, or null if not finished.
-  // Only call when isGameOver() is true.
+  // Return the outcome as an int, or null if not finished. Only call when isGameOver() is true.
+  // 1v1: 1=player 1 wins, 2=player 2 wins, 0=draw
+  // Coop: 1=both win, 0=both lose
   getWinner(state: GameState): number | null
 }
 ```

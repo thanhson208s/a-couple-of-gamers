@@ -43,11 +43,10 @@ id           UUID PRIMARY KEY DEFAULT gen_random_uuid()
 game_id      TEXT NOT NULL REFERENCES games(id)
 status       TEXT NOT NULL    -- 'active' | 'completed' | 'abandoned'  (pending matches live in Redis only)
 state        JSONB NOT NULL   -- full game state; shape owned by game plugin
-player1_id   CHAR(10) REFERENCES users(id) ON DELETE CASCADE
-player2_id   CHAR(10) REFERENCES users(id) ON DELETE CASCADE
+player1_id   CHAR(10) NOT NULL REFERENCES users(id) ON DELETE CASCADE
+player2_id   CHAR(10) NOT NULL REFERENCES users(id) ON DELETE CASCADE
 options      JSONB            -- game-specific creation options (e.g. difficulty); NULL if omitted
-current_turn INT              -- 1 or 2; NULL when game over
-winner       INT              -- 1, 2, or 0 (draw); NULL if not finished
+winner       INT              -- 1v1: 1=p1 wins, 2=p2 wins, 0=draw; coop: 1=both win, 0=both lose; NULL if not finished
 created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 -- updated_at used by inactive match cleanup worker to detect stale matches

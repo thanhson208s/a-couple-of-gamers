@@ -6,10 +6,10 @@ import {
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { MatchesService } from './matches.service';
-import { Match } from './match.entity';
+import { Match, MatchStatus } from './match.entity';
 import { GamesService } from '../games/games.service';
 import { GamesRegistry } from '../games/games.registry';
-import { Game, GameStatus } from '../games/game.entity';
+import { Game, GameStatus, GameType } from '../games/game.entity';
 import { REDIS_CLIENT } from '../../common/redis/redis.module';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { mockRepository } from '../../common/test/helpers';
@@ -19,14 +19,14 @@ const OTHER_ID  = 'OTHER00001';
 const MATCH_ID  = 'match-uuid-1';
 
 function makeGame(overrides: Partial<Game> = {}): Game {
-  return { id: 'tictactoe', status: GameStatus.Enabled, name: 'Tic-Tac-Toe', ...overrides } as Game;
+  return { id: 'tictactoe', status: GameStatus.Enabled, name: 'Tic-Tac-Toe', type: GameType.Versus, ...overrides } as Game;
 }
 
 function makeMatch(overrides: Partial<Match> = {}): Match {
   return {
     id: MATCH_ID,
     game: makeGame(),
-    status: 'active',
+    status: MatchStatus.Active,
     state: { board: [] },
     options: null,
     player1Id: OTHER_ID,
@@ -60,7 +60,7 @@ function makeMetaJson(overrides: Partial<{
     player1Id: OTHER_ID,
     player2Id: CALLER_ID,
     gameId: 'tictactoe',
-    status: 'active',
+    status: MatchStatus.Active,
     ...overrides,
   });
 }
@@ -376,7 +376,7 @@ describe('MatchesService', () => {
     });
 
     it('throws BadRequestException when match is not active', async () => {
-      mockRedisGet({ meta: makeMetaJson({ status: 'completed' }) });
+      mockRedisGet({ meta: makeMetaJson({ status: MatchStatus.Completed }) });
 
       await expect(service.submitAction(MATCH_ID, CALLER_ID, action)).rejects.toThrow(BadRequestException);
     });
@@ -421,7 +421,7 @@ describe('MatchesService', () => {
 
       await service.submitAction(MATCH_ID, CALLER_ID, action);
 
-      expect(matchesRepo.save).toHaveBeenCalledWith(expect.objectContaining({ status: 'completed' }));
+      expect(matchesRepo.save).toHaveBeenCalledWith(expect.objectContaining({ status: MatchStatus.Completed }));
       expect(redis.del).toHaveBeenCalled();
       expect(eventEmitter.emit).toHaveBeenCalledWith('match:over', expect.anything());
     });
@@ -559,7 +559,7 @@ describe('MatchesService', () => {
 
   describe('listCompletedMatches', () => {
     it('returns completed matches for both player slots', async () => {
-      const matches = [makeMatch({ status: 'completed' })];
+      const matches = [makeMatch({ status: MatchStatus.Completed })];
       matchesRepo.find.mockResolvedValue(matches);
 
       const result = await service.listCompletedMatches(CALLER_ID);
@@ -658,7 +658,7 @@ describe('MatchesService', () => {
     });
 
     it('returns null when match is not active', async () => {
-      redis.get.mockResolvedValue(makeMetaJson({ status: 'completed' }));
+      redis.get.mockResolvedValue(makeMetaJson({ status: MatchStatus.Completed }));
 
       expect(await service.getPlayerView(MATCH_ID, 1)).toBeNull();
     });

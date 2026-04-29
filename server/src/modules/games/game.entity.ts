@@ -7,6 +7,11 @@ export enum GameStatus {
   Disabled = 3,
 }
 
+export enum GameType {
+  Versus = 0, // competitive: one player wins, or draw
+  Coop = 1,   // cooperative: both players win or lose
+}
+
 @Entity('games')
 export class Game {
   @PrimaryColumn({ type: 'text' })

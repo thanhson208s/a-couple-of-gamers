@@ -15,7 +15,7 @@ import { REDIS_CLIENT } from '../../common/redis/redis.module';
 import type { GameMove, GameEvent, GameAction, GameState, GameView } from '../../logic';
 import { GamesService } from '../games/games.service';
 import { GamesRegistry } from '../games/games.registry';
-import { Match } from './match.entity';
+import { Match, MatchStatus } from './match.entity';
 
 const META_TTL_MS = 24 * 60 * 60 * 1000; // 1 days
 const INACTIVITY_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -122,14 +122,14 @@ export class MatchesService {
 
     const match = await this.matches.save(this.matches.create({
       game: { id: data.gameId } as any,
-      status: 'active',
+      status: MatchStatus.Active,
       state,
       options: data.options,
       player1Id,
       player2Id,
     }));
 
-    const meta: MatchMeta = { player1Id, player2Id, gameId: data.gameId, status: 'active' };
+    const meta: MatchMeta = { player1Id, player2Id, gameId: data.gameId, status: MatchStatus.Active };
     await this.redis.set(`match:meta:${match.id}`, JSON.stringify(meta), 'PX', INACTIVITY_TTL_MS);
 
     this.eventEmitter.emit('match:start', {
@@ -159,7 +159,7 @@ export class MatchesService {
       throw new ForbiddenException('You are not a player in this match');
     }
 
-    match.status = 'abandoned';
+    match.status = MatchStatus.Abandoned;
     await this.matches.save(match);
     await this.flushStateToDB(id);
     await this.clearStateFromCache(id);
@@ -191,8 +191,8 @@ export class MatchesService {
     const inactivityCutoff = new Date(Date.now() - INACTIVITY_TTL_MS);
     return this.matches.find({
       where: [
-        { player1Id: userId, status: 'active', updatedAt: MoreThan(inactivityCutoff) },
-        { player2Id: userId, status: 'active', updatedAt: MoreThan(inactivityCutoff) },
+        { player1Id: userId, status: MatchStatus.Active, updatedAt: MoreThan(inactivityCutoff) },
+        { player2Id: userId, status: MatchStatus.Active, updatedAt: MoreThan(inactivityCutoff) },
       ],
     });
   }
@@ -200,8 +200,8 @@ export class MatchesService {
   async listCompletedMatches(userId: string): Promise<Match[]> {
     return this.matches.find({
       where: [
-        { player1Id: userId, status: 'completed' },
-        { player2Id: userId, status: 'completed' },
+        { player1Id: userId, status: MatchStatus.Completed },
+        { player2Id: userId, status: MatchStatus.Completed },
       ],
       order: { updatedAt: 'DESC' },
       skip: 0,
@@ -214,7 +214,7 @@ export class MatchesService {
     if (!meta) throw new NotFoundException('Match not found');
     if (meta.player1Id !== userId && meta.player2Id !== userId)
       throw new ForbiddenException('You are not a player in this match');
-    if (meta.status !== 'active')
+    if (meta.status !== MatchStatus.Active)
       throw new BadRequestException('Match is not active');
 
     const plugin = this.gamesRegistry.get(meta.gameId);
@@ -252,7 +252,7 @@ export class MatchesService {
     if (plugin.isGameOver(finalState)) {
       const match: Match = await this.matches.findOneOrFail({ where: { id: matchId }});
       
-      match.status = 'completed';
+      match.status = MatchStatus.Completed;
       match.winner = plugin.getWinner(finalState);
       match.state = finalState as object;
 
@@ -293,8 +293,8 @@ export class MatchesService {
     if (cached) return JSON.parse(cached) as MatchMeta;
     const match = await this.matches.findOne({ where: { id: matchId }, relations: ['game'] });
     if (!match) return null;
-    const meta: MatchMeta = { player1Id: match.player1Id!, player2Id: match.player2Id!, gameId: match.game.id, status: match.status };
-    await this.redis.set(`match:meta:${matchId}`, JSON.stringify(meta), 'PX', meta.status === 'active' ? META_TTL_MS : INACTIVITY_TTL_MS);
+    const meta: MatchMeta = { player1Id: match.player1Id, player2Id: match.player2Id, gameId: match.game.id, status: match.status };
+    await this.redis.set(`match:meta:${matchId}`, JSON.stringify(meta), 'PX', meta.status === MatchStatus.Active ? META_TTL_MS : INACTIVITY_TTL_MS);
     return meta;
   }
 
@@ -319,7 +319,7 @@ export class MatchesService {
 
   async getPlayerView(matchId: string, playerIndex: 1 | 2): Promise<GameView | null> {
     const meta = await this.getMatchMeta(matchId);
-    if (!meta || meta.status !== 'active') return null;
+    if (!meta || meta.status !== MatchStatus.Active) return null;
     const state = await this.getStateFromCache(matchId);
     const plugin = this.gamesRegistry.get(meta.gameId);
     return plugin.getPlayerView(state, playerIndex);
@@ -360,11 +360,11 @@ export class MatchesService {
 
     const [abandoned, inactive] = await Promise.all([
       this.matches.find({
-        where: { status: 'abandoned', updatedAt: LessThanOrEqual(new Date(now.getTime() - ABANDONMENT_TTL_MS)) },
+        where: { status: MatchStatus.Abandoned, updatedAt: LessThanOrEqual(new Date(now.getTime() - ABANDONMENT_TTL_MS)) },
         select: ['id'],
       }),
       this.matches.find({
-        where: { status: 'active', updatedAt: LessThanOrEqual(new Date(now.getTime() - INACTIVITY_TTL_MS)) },
+        where: { status: MatchStatus.Active, updatedAt: LessThanOrEqual(new Date(now.getTime() - INACTIVITY_TTL_MS)) },
         select: ['id'],
       }),
     ]);
