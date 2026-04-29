@@ -206,7 +206,7 @@ describe('AuthService', () => {
       cryptoRandomBytes.mockRestore();
 
       expect(result).toBe(ticket);
-      expect(redisSet).toHaveBeenCalledWith(`ws_ticket:${ticket}`, userId, 'EX', 60);
+      expect(redisSet).toHaveBeenCalledWith(`ws:ticket:${ticket}`, userId, 'EX', 60);
     });
 
     it('generate different keys every time', async () => {
@@ -231,8 +231,8 @@ describe('AuthService', () => {
       const result = await service.validateWsTicket(ticket);
 
       expect(result).toBe(userId);
-      expect(redisGet).toHaveBeenCalledWith(`ws_ticket:${ticket}`);
-      expect(redisDel).toHaveBeenCalledWith(`ws_ticket:${ticket}`);
+      expect(redisGet).toHaveBeenCalledWith(`ws:ticket:${ticket}`);
+      expect(redisDel).toHaveBeenCalledWith(`ws:ticket:${ticket}`);
     });
 
     it('validate failed if ticket does not exist', async () => {
@@ -243,7 +243,7 @@ describe('AuthService', () => {
       const result = await service.validateWsTicket(ticket);
 
       expect(result).toBeNull();
-      expect(redisGet).toHaveBeenCalledWith(`ws_ticket:${ticket}`);
+      expect(redisGet).toHaveBeenCalledWith(`ws:ticket:${ticket}`);
     });
   });
 });

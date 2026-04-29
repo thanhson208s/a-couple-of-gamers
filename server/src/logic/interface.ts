@@ -6,11 +6,15 @@ export interface GameState {
   [key: string]: unknown;
 }
 
-export interface Move {
+export interface GameAction {
   [key: string]: unknown;
 }
 
-export interface PlayerView {
+export interface GameMove {
+  [key: string]: unknown;
+}
+
+export interface GameView {
   [key: string]: unknown;
 }
 
@@ -20,26 +24,34 @@ export interface GameOptions {
   [key: string]: unknown;
 }
 
+// One step in the move sequence returned by applyAction.
+export interface GameEvent<T extends GameMove = GameMove, U extends GameState = GameState> {
+  move: T;
+  state: U;
+  playerIndex: number;
+}
+
 export interface GamePlugin {
-  // Return the initial game state for a new match (before any moves).
+  // Return the initial game state for a new match (before any actions).
   // options is game-specific (e.g. difficulty, selected roles). Omit for defaults.
   initialState(options?: GameOptions): GameState;
 
-  // Apply a move and return the new state. Throw if move is invalid.
-  // playerIndex is 0-based: 0 = first player, 1 = second player.
-  // The server maps playerId → playerIndex before calling this method.
-  applyMove(state: GameState, move: Move, playerIndex: number): GameState;
+  // Apply a move and return an ordered sequence of (move, resulting-state) events.
+  // Empty array = move was cached (e.g. simultaneous-move game waiting for opponent).
+  // For sequential games: one event. For auto-agent or phase transitions: multiple.
+  // playerIndex: 1 = player1, 2 = player2. 0 is reserved (draw / both).
+  // Throw if move is invalid.
+  applyAction(state: GameState, action: GameAction, playerIndex: number): GameEvent[];
 
   // Return the subset of state visible to a specific player.
   // For open-information games, return full state unchanged.
   // For hidden-information games, strip opponent's private data.
-  getPlayerView(state: GameState, playerIndex: number): PlayerView;
+  getPlayerView(state: GameState, playerIndex: number): GameView;
 
   // Return true if the game has ended (win, loss, draw, or forfeit).
   isGameOver(state: GameState): boolean;
 
-  // Return the winning player index (0 or 1), or null for a draw.
+  // Return the winning player index (1 or 2), or 0 for a draw.
   // Only call when isGameOver() is true.
-  // The server maps the returned index back to a playerId.
   getWinner(state: GameState): number | null;
 }

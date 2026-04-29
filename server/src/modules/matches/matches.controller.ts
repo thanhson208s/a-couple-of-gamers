@@ -1,9 +1,10 @@
-import { Controller, Get, Post, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { AppThrottle } from '../../app.guard';
 import { CurrentUser, JwtAuthGuard, JwtUser } from '../auth/guards/jwt-auth.guard';
 import { MatchesService } from './matches.service';
 import { CreateMatchDto } from './create-match.dto';
 import { JoinMatchDto } from './join-match.dto';
+import { SubmitActionDto } from './submit-action.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('matches')
@@ -44,5 +45,12 @@ export class MatchesController {
   @Delete(':id')
   abandonMatch(@Param('id') id: string, @CurrentUser() user: JwtUser) {
     return this.matchesService.abandonMatch(id, user.id);
+  }
+
+  @Post('/action')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @AppThrottle({ ttl: 1_000, limit: 10 })
+  submitAction(@Body() dto: SubmitActionDto, @CurrentUser() user: JwtUser) {
+    return this.matchesService.submitAction(dto.matchId, user.id, dto.action);
   }
 }

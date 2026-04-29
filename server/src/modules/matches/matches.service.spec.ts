@@ -11,6 +11,7 @@ import { GamesService } from '../games/games.service';
 import { GamesRegistry } from '../games/games.registry';
 import { Game, GameStatus } from '../games/game.entity';
 import { REDIS_CLIENT } from '../../common/redis/redis.module';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { mockRepository } from '../../common/test/helpers';
 
 const CALLER_ID = 'CALLER0001';
@@ -29,7 +30,6 @@ function makeMatch(overrides: Partial<Match> = {}): Match {
     options: null,
     player1Id: OTHER_ID,
     player2Id: CALLER_ID,
-    currentTurn: 1,
     winner: null,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -87,6 +87,7 @@ describe('MatchesService', () => {
         { provide: GamesService, useValue: gamesService },
         { provide: GamesRegistry, useValue: gamesRegistry },
         { provide: REDIS_CLIENT, useValue: redis },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
     }).compile();
     service = module.get(MatchesService);
@@ -110,10 +111,10 @@ describe('MatchesService', () => {
       const result = await service.createMatch('tictactoe', 1, CALLER_ID) as any;
 
       expect(redis.set).toHaveBeenCalledWith(
-        `pending_matches:invite:${result.inviteCode}`,
+        `invite:code:${result.inviteCode}`,
         expect.any(String),
-        'EX',
-        86_400,
+        'PX',
+        24 * 60 * 60 * 1000,
       );
     });
 
@@ -123,7 +124,7 @@ describe('MatchesService', () => {
       const result = await service.createMatch('tictactoe', 1, CALLER_ID) as any;
 
       expect(redis.zadd).toHaveBeenCalledWith(
-        `pending_matches:user:${CALLER_ID}`,
+        `invite:user:${CALLER_ID}`,
         expect.any(Number),
         result.inviteCode,
       );
@@ -166,11 +167,10 @@ describe('MatchesService', () => {
       matchesRepo.create.mockReturnValue(saved);
       matchesRepo.save.mockResolvedValue(saved);
 
-      const result = await service.joinMatch('ABCD', CALLER_ID);
+      await service.joinMatch('ABCD', CALLER_ID);
 
-      expect(result.status).toBe('active');
-      expect(redis.del).toHaveBeenCalledWith('pending_matches:invite:ABCD');
-      expect(redis.zrem).toHaveBeenCalledWith(`pending_matches:user:${OTHER_ID}`, 'ABCD');
+      expect(redis.del).toHaveBeenCalledWith('invite:code:ABCD');
+      expect(redis.zrem).toHaveBeenCalledWith(`invite:user:${OTHER_ID}`, 'ABCD');
     });
 
     it('places the creator in their chosen slot and joiner in the other', async () => {
@@ -212,8 +212,8 @@ describe('MatchesService', () => {
 
       await service.cancelMatch('ABCD', CALLER_ID);
 
-      expect(redis.del).toHaveBeenCalledWith('pending_matches:invite:ABCD');
-      expect(redis.zrem).toHaveBeenCalledWith(`pending_matches:user:${CALLER_ID}`, 'ABCD');
+      expect(redis.del).toHaveBeenCalledWith('invite:code:ABCD');
+      expect(redis.zrem).toHaveBeenCalledWith(`invite:user:${CALLER_ID}`, 'ABCD');
     });
 
     it('throws NotFoundException when invite code does not exist', async () => {
@@ -276,7 +276,7 @@ describe('MatchesService', () => {
       await service.listPendingMatches(CALLER_ID);
 
       expect(redis.zremrangebyscore).toHaveBeenCalledWith(
-        `pending_matches:user:${CALLER_ID}`,
+        `invite:user:${CALLER_ID}`,
         '-inf',
         expect.any(Number),
       );
@@ -336,18 +336,32 @@ describe('MatchesService', () => {
   });
 
   describe('cleanupStaleMatches', () => {
-    it('deletes idle active matches and old abandoned matches', async () => {
-      matchesRepo.delete.mockResolvedValue({ affected: 0, raw: [] });
+    it('finds stale matches, deletes them from DB, and clears their Redis keys', async () => {
+      const abandoned = [{ id: 'a1' }, { id: 'a2' }] as Match[];
+      const staleActive = [{ id: 's1' }] as Match[];
+      matchesRepo.find
+        .mockResolvedValueOnce(abandoned)
+        .mockResolvedValueOnce(staleActive);
+      matchesRepo.delete.mockResolvedValue({ affected: 3, raw: [] });
 
       await service.cleanupStaleMatches();
 
-      expect(matchesRepo.delete).toHaveBeenCalledTimes(2);
-      expect(matchesRepo.delete).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'abandoned', updatedAt: expect.anything() }),
+      expect(matchesRepo.find).toHaveBeenCalledTimes(2);
+      expect(matchesRepo.delete).toHaveBeenCalledWith(['a1', 'a2', 's1']);
+      expect(redis.del).toHaveBeenCalledWith(
+        'match:state:a1', 'match:meta:a1',
+        'match:state:a2', 'match:meta:a2',
+        'match:state:s1', 'match:meta:s1',
       );
-      expect(matchesRepo.delete).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'active', updatedAt: expect.anything() }),
-      );
+    });
+
+    it('does nothing when there are no stale matches', async () => {
+      matchesRepo.find.mockResolvedValue([]);
+
+      await service.cleanupStaleMatches();
+
+      expect(matchesRepo.delete).not.toHaveBeenCalled();
+      expect(redis.del).not.toHaveBeenCalled();
     });
   });
 });

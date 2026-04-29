@@ -27,9 +27,6 @@ export class Match {
   @Column({ type: 'char', length: 10, name: 'player2_id', nullable: true })
   player2Id: string | null;
 
-  @Column({ type: 'int', name: 'current_turn', nullable: true })
-  currentTurn: number | null; // 1 or 2; null when game over
-
   @Column({ type: 'int', name: 'winner', nullable: true })
   winner: number | null; // 1, 2, or 0 for draw; null if not finished
 

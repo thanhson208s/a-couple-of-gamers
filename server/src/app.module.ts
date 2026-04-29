@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
@@ -25,6 +26,7 @@ import { AppHealth as AppHealth } from './app.health';
       synchronize: false,
       autoLoadEntities: true,
     }),
+    EventEmitterModule.forRoot(),
     RedisModule,
     ThrottlerModule.forRootAsync({
       inject: [REDIS_CLIENT],

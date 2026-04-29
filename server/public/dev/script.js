@@ -143,26 +143,26 @@ window.DEV_CONFIG = {
       ],
     },
 
-    // ── Moves ──────────────────────────────────────────────────────────────
+    // ── Actions ──────────────────────────────────────────────────────────────
     {
-      id: 'moves',
+      id: 'actions',
       label: 'Moves',
       showWhen: (s) => !!s.accessToken,
       endpoints: [
         {
-          id: 'submit-move',
-          label: 'Submit move',
+          id: 'submit-action',
+          label: 'Submit action',
           method: 'POST',
-          path: (inputs) => `/v1/matches/${inputs.matchId}/moves`,
+          path: (inputs) => `/v1/matches/action`,
           inputs: [
             { key: 'matchId', label: 'Match ID',           from: 'matchId' },
-            { key: 'move',    label: 'Move payload (JSON)', type: 'textarea', placeholder: '{"position": 0}' },
+            { key: 'action',    label: 'Move payload (JSON)', type: 'textarea', placeholder: '{"position": 0}' },
           ],
           body: (inputs) => {
-            let parsed;
-            try { parsed = JSON.parse(inputs.move); }
+            let action;
+            try { action = JSON.parse(inputs.action); }
             catch { throw new Error('Invalid JSON in move payload'); }
-            return { move: parsed };
+            return { matchId: inputs.matchId, action };
           },
         },
       ],
