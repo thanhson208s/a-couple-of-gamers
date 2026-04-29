@@ -71,11 +71,11 @@ External (not in request path):
 
 | Service | Runs on | Purpose |
 |---------|---------|---------|
-| **NestJS API Server** | prod-app VPS | Handles all HTTP and WebSocket traffic. Validates and applies game moves via the game plugin interface. Enqueues BullMQ jobs for background work. Also consumes the `websocket` queue for maintenance announcements (broadcast directly to WS clients). On SIGTERM: broadcasts `system:shutdown`, terminates all WS connections, clears `ws:*` Redis presence keys, then exits within 30 s. |
+| **NestJS API Server** | prod-app VPS | Handles all HTTP and WebSocket traffic. Validates and applies game actions via the game plugin interface. Enqueues BullMQ jobs for background work. Also consumes the `websocket` queue for maintenance announcements (broadcast directly to WS clients). On SIGTERM: broadcasts `system:shutdown`, terminates all WS connections, clears `ws:user:{userId}` Redis presence keys, then exits within 30 s. |
 | **NestJS Worker Service** | prod-app VPS | Consumes BullMQ jobs from Redis. No HTTP listener. Runs inactive match cleanup (repeatable) and turn reminder dispatch (delayed). |
 | **Caddy** | prod-app VPS | TLS termination (Cloudflare Origin Certificate), WebSocket upgrade headers. Reverse proxy to the API server. |
 | **PostgreSQL** | prod-data VPS | Primary relational database. Single source of truth for all match state, user data, and history. Game state stored as JSONB. |
-| **Redis** | prod-data VPS | Four roles: (1) Pending match storage — `pending_matches:invite:{inviteCode}` (JSON, 24 h TTL) + `pending_matches:user:{userId}` (sorted set index); Postgres row is created only when opponent joins. (2) WebSocket presence — single key `ws:{userId}`: absent = offline, `"lobby"` = connected in lobby, `<matchId>` = connected and viewing that match. (3) BullMQ job queue shared between API server and worker. (4) Rate limit counters. |
+| **Redis** | prod-data VPS | Four roles: (1) Pending match storage — `invite:code:{inviteCode}` (JSON, 24 h TTL) + `invite:user:{userId}` (sorted set index); Postgres row is created only when opponent joins. (2) WebSocket presence — single key `ws:user:{userId}`: absent = offline, `"lobby"` = connected in lobby, `<matchId>` = connected and viewing that match. (3) BullMQ job queue shared between API server and worker. (4) Rate limit counters. |
 
 ### External Services
 

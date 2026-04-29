@@ -100,7 +100,7 @@ Rate limit state stored in Redis. Limits are conservative starting points — ad
 
 - All request bodies validated at the API boundary using NestJS `ValidationPipe` with `class-validator`
 - Unknown properties stripped (`whitelist: true`, `forbidNonWhitelisted: true`)
-- Game-specific move payloads validated inside `applyMove` — the game plugin throws on invalid input; the server catches and returns a 400
+- Game-specific move payloads validated inside `applyAction` — the game plugin throws on invalid input; the server catches and returns a 400
 - No raw SQL; all DB access through TypeORM (parameterized queries by default)
 
 ---

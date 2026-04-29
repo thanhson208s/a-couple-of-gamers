@@ -118,9 +118,8 @@ modules/games/
 ├── game.entity.ts          # games
 modules/matches/
 ├── match.entity.ts         # matches (includes embedded player identity)
-├── move.entity.ts          # moves
 modules/config/
-├── config.entity.ts    # config
+├── config.entity.ts        # config
 ```
 
 If module A needs to query module B's entity, import module B and call its service — no direct cross-module entity references.

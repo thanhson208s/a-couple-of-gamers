@@ -32,7 +32,7 @@ Covers match creation, invitation, joining, cancellation, abandonment, and compl
 
 ## Invite Flow
 
-1. Creator calls `POST /v1/matches` with `{ gameSlug, playerSlot: 1|2 }` → server stores match data in **Redis only** (key `pending_matches:invite:{inviteCode}`, TTL 24 h); response includes `inviteCode` + `deepLink` + `expiresAt`. No Postgres write.
+1. Creator calls `POST /v1/matches` with `{ gameSlug, playerSlot: 1|2 }` → server stores match data in **Redis only** (key `invite:code:{inviteCode}`, TTL 24 h); response includes `inviteCode` + `deepLink` + `expiresAt`. No Postgres write.
 2. Creator shares the deep link or invite code with opponent.
 3. Opponent calls `POST /v1/matches/join` with `{ inviteCode }` — server reads pending data from Redis, deletes the Redis keys, then creates the Postgres `matches` row with `status='active'`; `initialState` is called at this point.
 4. Invite code is single-use and expires after 24 h (Redis TTL); anyone with it can join (no identity check).
@@ -40,7 +40,7 @@ Covers match creation, invitation, joining, cancellation, abandonment, and compl
 ## Cancellation
 
 - Creator calls `DELETE /v1/matches/pending/:inviteCode`
-- Redis keys (`pending_matches:invite:{inviteCode}` and sorted-set entry in `pending_matches:user:{userId}`) are deleted immediately
+- Redis keys (`invite:code:{inviteCode}` and sorted-set entry in `invite:user:{userId}`) are deleted immediately
 - No Postgres record exists, so no DB write needed
 
 ## Abandonment
@@ -65,10 +65,10 @@ No stats recorded — cleanup deletion is not a forfeit.
 
 ## Completion (Server-Driven)
 
-1. Player submits move → server calls `applyMove` → calls `isGameOver`
+1. Player submits move → server calls `applyAction` → calls `isGameOver`
 2. If game is over: record `winner_id` (null for draw), transition match status to `completed`
 3. Update `rival_stats` for both players
-4. Return final player view with `matchStatus: 'completed'` to the submitting player; broadcast to both via WS if both connected
+4. Broadcast final views to both via WS if both connected
 
 ## Client-Side Steps
 

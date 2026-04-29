@@ -55,16 +55,6 @@ updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 ```
 _Pending matches are stored in Redis only (see Data Ownership below). A Postgres row is created only when the second player joins. vs AI matches are client-only — no server record is created._
 
-### `moves`
-```sql
-id          UUID PRIMARY KEY DEFAULT gen_random_uuid()
-match_id    UUID NOT NULL REFERENCES matches(id)
-player_id   CHAR(10) REFERENCES users(id) ON DELETE SET NULL  -- NULL if AI move
-move_data   JSONB NOT NULL   -- game-specific move payload
-created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-```
-_Purpose: audit log and foundation for future replay feature. Not used to reconstruct current state (state is stored directly in `matches.state`)._
-
 ### `config`
 ```sql
 id         SERIAL PRIMARY KEY   -- always a single row (id = 1)
@@ -125,9 +115,6 @@ CREATE INDEX ON matches(updated_at);   -- inactive match cleanup worker
 CREATE INDEX ON matches(player1_id);
 CREATE INDEX ON matches(player2_id);
 
--- Move history
-CREATE INDEX ON moves(match_id, created_at);
-
 -- Rival stats lookups
 CREATE INDEX ON rival_stats(user_id, opponent_id);
 ```
@@ -138,10 +125,14 @@ CREATE INDEX ON rival_stats(user_id, opponent_id);
 
 | Data | Where stored | Notes |
 |------|-------------|-------|
-| Pending match | Redis `pending_matches:invite:{inviteCode}` (JSON, EX 86400) | Never written to Postgres; auto-expires after 24 h |
-| Pending match user index | Redis `pending_matches:user:{userId}` (sorted set, no TTL) | Secondary index for list/cancel; lazily pruned |
-| Match state | Postgres `matches.state` | Source of truth always; row created on join |
-| Active room cache | Redis | Ephemeral; re-populated from Postgres on reconnect |
+| Pending match | Redis `invite:code:{inviteCode}` (JSON, EX 86400) | Never written to Postgres; auto-expires after 24 h |
+| Pending match user index | Redis `invite:user:{userId}` (sorted set, no TTL) | Secondary index for list/cancel; lazily pruned |
+| Match state | Postgres `matches.state` | Source of truth; flushed at session boundaries (close_match, disconnect, game over) |
+| Match state cache | Redis `match:state:{matchId}` (JSON, PX 3 600 000) | Fast path for move processing; Postgres fallback on miss; preserved across restarts |
+| Match metadata cache | Redis `match:meta:{matchId}` (JSON, PX 30 days) | `{ player1Id, player2Id, gameSlug, status }`; populated on join; Postgres fallback on miss; deleted on completion, abandonment, and cleanup |
+| WS presence | Redis `ws:user:{userId}` (`"lobby"` or `<matchId>`) | Set on connect; deleted on disconnect; drives opponent notifications |
+| Move replay buffer | Redis `match:replay:{matchId}:{playerId}` (JSON array, EX 7 days) | Buffered moves for offline player; GETDEL on open_match |
+| WS ticket | Redis `ws:ticket:{ticket}` (EX 30 s) | One-time auth token for WS handshake; deleted on use |
 | Logged-in user history | Postgres only | Fetched on demand |
 | User settings | Postgres `users` | Synced on login |
 | Favorites | Postgres `user_favorites` | |

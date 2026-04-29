@@ -65,11 +65,11 @@ if (!match) throw new Error('Match not found');
 
 ### Game plugin errors
 
-`applyMove()` throws a plain `Error` when a move is invalid. Catch it at the service boundary and rethrow as `BadRequestException`:
+`applyAction()` throws a plain `Error` when a move is invalid. Catch it at the service boundary and rethrow as `BadRequestException`:
 
 ```typescript
 try {
-  newState = plugin.applyMove(state, move, playerId);
+  newState = plugin.applyAction(state, action, playerIndex);
 } catch (e) {
   throw new BadRequestException((e as Error).message);
 }

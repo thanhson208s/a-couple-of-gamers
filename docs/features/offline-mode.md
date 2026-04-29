@@ -95,8 +95,8 @@ User opens AI match (bundle cached AND catalog.aiAvailable === true)
   → No WS connection, no server calls, no match id
 
 User and AI take turns locally:
-  → User submits move → plugin.applyMove() runs client-side
-  → AI component reads PlayerView, computes Move, calls applyMove() again
+  → User submits move → plugin.applyAction() runs client-side
+  → AI component reads View, computes Move, calls applyAction() again
   → Client renders updated state
   → Repeat until plugin.isGameOver() returns true
 
@@ -123,7 +123,7 @@ User opens PnP match (bundle cached AND catalog.pnpAvailable === true)
     never passed into plugin logic
 
 Turns alternate on the same device:
-  → Active player (by slot) submits move → plugin.applyMove() runs client-side
+  → Active player (by slot) submits move → plugin.applyAction() runs client-side
   → Client renders updated state; UI surfaces "<color>'s turn" prompt
   → Repeat until plugin.isGameOver() returns true
 

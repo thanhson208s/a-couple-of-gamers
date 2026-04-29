@@ -81,8 +81,9 @@ mkdir -p packages/game-logic/src
 **`packages/game-logic/src/interface.ts`** — the `GamePlugin` contract:
 ```typescript
 export interface GameState   { [key: string]: unknown; }
-export interface Move        { [key: string]: unknown; }
-export interface PlayerView  { [key: string]: unknown; }
+export interface GameAction. { [key: string]: unknown; }
+export interface GameMove    { [key: string]: unknown; }
+export interface GameView    { [key: string]: unknown; }
 export interface GameOptions { [key: string]: unknown; }
 
 export interface GamePlugin {
@@ -94,7 +95,7 @@ See [game-system.md](game-system.md) for the full contract semantics.
 
 **`packages/game-logic/src/index.ts`**
 ```typescript
-export type { GamePlugin, GameOptions, GameState, Move, PlayerView } from './interface';
+export type { GamePlugin, GameOptions, GameState, GameAction, GameMove, GameView } from './interface';
 ```
 
 **Verify:** `npm run build --workspace=packages/game-logic` produces `packages/game-logic/dist/`.
@@ -135,10 +136,9 @@ mkdir -p packages/game-logic/tictactoe/src
 **`packages/game-logic/tictactoe/tsconfig.json`** — identical to the base package tsconfig.
 
 **`packages/game-logic/tictactoe/src/index.ts`** — fully implemented (see source for details). Key points:
-- State uses player indices (`0 | 1`) for board cells, `currentTurn`, and `winner` — no player IDs stored
+- State uses player indices (`1 | 2`) for board cells, `currentTurn`, and `winner` — no player IDs stored
 - `initialState` ignores options (no TicTacToe variants)
 - `getPlayerView` returns full state unchanged (open-information game)
-- `winner: 'draw'` is the draw sentinel; `getWinner` maps it to `null` per the interface contract
 
 **Verify:** `npm run build --workspace=packages/game-logic/tictactoe` produces `packages/game-logic/tictactoe/dist/`.
 

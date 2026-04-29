@@ -66,7 +66,7 @@ Direct children:
 
 | File | Purpose |
 |------|---------|
-| `interface.ts` | `GamePlugin` TypeScript interface and shared types (`GameState`, `Move`, `PlayerView`, `GameOptions`) |
+| `interface.ts` | `GamePlugin` TypeScript interface and shared types |
 | `index.ts` | Re-exports all types from `interface.ts` |
 | `*/index.ts` | Games reference implementation |
 
@@ -124,7 +124,6 @@ Direct children:
 | `matches.controller.ts` | `/v1/matches/*` HTTP controller |
 | `matches.service.ts` | Match lifecycle business logic |
 | `match.entity.ts` | `matches` table |
-| `move.entity.ts` | `moves` table |
 
 ### `ws/`
 
