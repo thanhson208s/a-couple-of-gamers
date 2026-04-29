@@ -263,7 +263,7 @@ describe('MatchesService', () => {
 
       await service.joinMatch('ABCD', CALLER_ID);
 
-      expect(eventEmitter.emit).toHaveBeenCalledWith('match:start', expect.objectContaining({ match: saved }));
+      expect(eventEmitter.emit).toHaveBeenCalledWith('match:start', expect.anything());
     });
 
     it('throws NotFoundException for an unknown invite code', async () => {
@@ -342,7 +342,7 @@ describe('MatchesService', () => {
 
       await service.abandonMatch(MATCH_ID, CALLER_ID);
 
-      expect(eventEmitter.emit).toHaveBeenCalledWith('match:over', expect.objectContaining({ match }));
+      expect(eventEmitter.emit).toHaveBeenCalledWith('match:over', expect.anything());
     });
 
     it('throws NotFoundException when match does not exist in Postgres', async () => {

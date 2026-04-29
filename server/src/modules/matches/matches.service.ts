@@ -106,7 +106,6 @@ export class MatchesService {
     if (!raw) throw new NotFoundException('Invite code not found');
 
     const data: MatchInvite = JSON.parse(raw);
-
     if (data.playerId === callerId) {
       throw new ForbiddenException('Cannot join your own match');
     }
@@ -115,25 +114,29 @@ export class MatchesService {
     await this.redis.zrem(`invite:user:${data.playerId}`, inviteCode);
 
     const plugin = this.gamesRegistry.get(data.gameId);
-    const state = plugin.initialState(data.options ?? undefined);
-
-    const player1Id = data.playerSlot === 1 ? data.playerId : callerId;
-    const player2Id = data.playerSlot === 2 ? data.playerId : callerId;
-
     const match = await this.matches.save(this.matches.create({
       game: { id: data.gameId } as any,
       status: MatchStatus.Active,
-      state,
+      state: plugin.initialState(data.options ?? undefined),
       options: data.options,
-      player1Id,
-      player2Id,
+      player1Id: data.playerSlot === 1 ? data.playerId : callerId,
+      player2Id: data.playerSlot === 2 ? data.playerId : callerId,
     }));
+    const initialView1 = plugin.getPlayerView(match.state as GameState, 1);
+    const initialView2 = plugin.getPlayerView(match.state as GameState, 2);
 
-    const meta: MatchMeta = { player1Id, player2Id, gameId: data.gameId, status: MatchStatus.Active };
+    const meta: MatchMeta = { player1Id: match.player1Id, player2Id: match.player2Id, gameId: data.gameId, status: MatchStatus.Active };
     await this.redis.set(`match:meta:${match.id}`, JSON.stringify(meta), 'PX', INACTIVITY_TTL_MS);
 
     this.eventEmitter.emit('match:start', {
-      inviteCode, match
+      inviteCode, initialView1, initialView2, match: {
+        id: match.id,
+        status: match.status,
+        gameId: match.game.id,
+        options: match.options,
+        player1Id: match.player1Id,
+        player2Id: match.player2Id,
+      }
     });
   }
 
@@ -163,7 +166,7 @@ export class MatchesService {
     await this.matches.save(match);
     await this.flushStateToDB(id);
     await this.clearStateFromCache(id);
-    this.eventEmitter.emit('match:over', { match });
+    this.eventEmitter.emit('match:over', { match: { id: match.id, status: match.status, state: match.state } });
   }
 
   async listPendingMatches(userId: string): Promise<object[]> {
@@ -259,7 +262,7 @@ export class MatchesService {
       await this.matches.save(match);
       await this.clearStateFromCache(matchId);
       
-      this.eventEmitter.emit('match:over', match);
+      this.eventEmitter.emit('match:over', { match: { id: match.id, status: match.status, state: match.state } });
     }
   }
 

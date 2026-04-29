@@ -246,17 +246,15 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect, OnAp
   }
 
   @OnEvent('match:start')
-  onMatchStart(payload: { inviteCode: string, match: Match }): void {
-    const data = { event: 'match:start', ...payload };
-    if (payload.match.player1Id) this.sendToUser(payload.match.player1Id, data);
-    if (payload.match.player2Id) this.sendToUser(payload.match.player2Id, data);
+  onMatchStart(payload: { inviteCode: string, initialView1: GameView, initialView2: GameView, match: Record<string, unknown> }): void {
+    if (payload.match.player1Id) this.sendToUser(payload.match.player1Id as string, { event: 'match:start', inviteCode: payload.inviteCode, initialView: payload.initialView1, match: payload.match });
+    if (payload.match.player2Id) this.sendToUser(payload.match.player2Id as string, { event: 'match:start', inviteCode: payload.inviteCode, initialView: payload.initialView2, match: payload.match });
   }
 
   @OnEvent('match:over')
-  onMatchOver(payload: { match: Match }): void {
-    const data = { event: 'match:over', match: payload.match };
-    if (payload.match.player1Id) this.sendToUser(payload.match.player1Id, data);
-    if (payload.match.player2Id) this.sendToUser(payload.match.player2Id, data);
+  onMatchOver(payload: { match: Record<string, unknown> }): void {
+    if (payload.match.player1Id) this.sendToUser(payload.match.player1Id as string, { event: 'match:over', match: payload.match });
+    if (payload.match.player2Id) this.sendToUser(payload.match.player2Id as string, { event: 'match:over', match: payload.match });
   }
 
   @SubscribeMessage('ping')
