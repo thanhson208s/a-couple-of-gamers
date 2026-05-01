@@ -11,7 +11,7 @@ import { GamesService } from '../games/games.service';
 import { GamesRegistry } from '../games/games.registry';
 import { Game, GameStatus, GameType } from '../games/game.entity';
 import { REDIS_CLIENT } from '../../common/redis/redis.module';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { WsGateway } from '../ws/ws.gateway';
 import { mockRepository } from '../../common/test/helpers';
 
 const CALLER_ID = 'CALLER0001';
@@ -75,7 +75,7 @@ describe('MatchesService', () => {
     zadd: jest.Mock; zrem: jest.Mock; zrange: jest.Mock;
     zremrangebyscore: jest.Mock; mget: jest.Mock; getdel: jest.Mock;
   };
-  let eventEmitter: { emit: jest.Mock };
+  let wsGateway: { sendToUser: jest.Mock; errorToUser: jest.Mock };
   let mockPlugin: {
     initialState: jest.Mock; applyAction: jest.Mock;
     isGameOver: jest.Mock; getWinner: jest.Mock; getPlayerView: jest.Mock;
@@ -93,7 +93,7 @@ describe('MatchesService', () => {
     matchesRepo = Object.assign(mockRepository<Match>(), { findOneOrFail: jest.fn() }) as any;
     gamesService = { findBySlug: jest.fn() };
     gamesRegistry = { get: jest.fn().mockReturnValue(mockPlugin) };
-    eventEmitter = { emit: jest.fn() };
+    wsGateway = { sendToUser: jest.fn(), errorToUser: jest.fn() };
     redis = {
       get: jest.fn().mockResolvedValue(null),
       set: jest.fn().mockResolvedValue('OK'),
@@ -113,7 +113,7 @@ describe('MatchesService', () => {
         { provide: GamesService, useValue: gamesService },
         { provide: GamesRegistry, useValue: gamesRegistry },
         { provide: REDIS_CLIENT, useValue: redis },
-        { provide: EventEmitter2, useValue: eventEmitter },
+        { provide: WsGateway, useValue: wsGateway },
       ],
     }).compile();
     service = module.get(MatchesService);
@@ -121,14 +121,18 @@ describe('MatchesService', () => {
 
   // ─── helpers ──────────────────────────────────────────────────────────────
 
-  /** Mock redis.get to return match meta and/or state by key. */
+  /** Mock redis.get to return match meta, state, and current-match pointers by key. */
   function mockRedisGet(opts: {
     meta?: string | null;
     state?: string | null;
+    callerMatch?: string | null;
+    opponentMatch?: string | null;
   } = {}) {
     redis.get.mockImplementation((key: string) => {
       if (key === `match:meta:${MATCH_ID}`) return Promise.resolve(opts.meta ?? null);
       if (key === `match:state:${MATCH_ID}`) return Promise.resolve(opts.state ?? null);
+      if (key === `match:user:${CALLER_ID}`) return Promise.resolve(opts.callerMatch ?? MATCH_ID);
+      if (key === `match:user:${OTHER_ID}`) return Promise.resolve(opts.opponentMatch ?? null);
       return Promise.resolve(null);
     });
   }
@@ -255,7 +259,7 @@ describe('MatchesService', () => {
       );
     });
 
-    it('emits match:start event after match is created', async () => {
+    it('sends match:start to both players after match is created', async () => {
       redis.get.mockResolvedValue(makePendingJson({ playerSlot: 1, playerId: OTHER_ID }));
       const saved = makeMatch({ player1Id: OTHER_ID, player2Id: CALLER_ID });
       matchesRepo.create.mockReturnValue(saved);
@@ -263,7 +267,8 @@ describe('MatchesService', () => {
 
       await service.joinMatch('ABCD', CALLER_ID);
 
-      expect(eventEmitter.emit).toHaveBeenCalledWith('match:start', expect.anything());
+      expect(wsGateway.sendToUser).toHaveBeenCalledWith(OTHER_ID, 'match:start', expect.any(Object));
+      expect(wsGateway.sendToUser).toHaveBeenCalledWith(CALLER_ID, 'match:start', expect.any(Object));
     });
 
     it('throws NotFoundException for an unknown invite code', async () => {
@@ -335,14 +340,15 @@ describe('MatchesService', () => {
       expect(redis.del).toHaveBeenCalledWith(`match:state:${MATCH_ID}`, `match:meta:${MATCH_ID}`);
     });
 
-    it('emits match:over event', async () => {
-      const match = makeMatch({ player1Id: CALLER_ID });
+    it('sends match:over to both players', async () => {
+      const match = makeMatch({ player1Id: CALLER_ID, player2Id: OTHER_ID });
       matchesRepo.findOne.mockResolvedValue(match);
       matchesRepo.save.mockImplementation(async (m) => m as Match);
 
       await service.abandonMatch(MATCH_ID, CALLER_ID);
 
-      expect(eventEmitter.emit).toHaveBeenCalledWith('match:over', expect.anything());
+      expect(wsGateway.sendToUser).toHaveBeenCalledWith(CALLER_ID, 'match:over', expect.any(Object));
+      expect(wsGateway.sendToUser).toHaveBeenCalledWith(OTHER_ID, 'match:over', expect.any(Object));
     });
 
     it('throws NotFoundException when match does not exist in Postgres', async () => {
@@ -388,17 +394,17 @@ describe('MatchesService', () => {
       await expect(service.submitAction(MATCH_ID, CALLER_ID, action)).rejects.toThrow(BadRequestException);
     });
 
-    it('returns early without persisting or emitting when plugin returns empty events', async () => {
+    it('returns early without persisting or sending when plugin returns empty events', async () => {
       mockRedisGet({ meta: makeMetaJson(), state: JSON.stringify({ board: [] }) });
       mockPlugin.applyAction.mockReturnValue([]);
 
       await service.submitAction(MATCH_ID, CALLER_ID, action);
 
       expect(redis.set).not.toHaveBeenCalled();
-      expect(eventEmitter.emit).not.toHaveBeenCalled();
+      expect(wsGateway.sendToUser).not.toHaveBeenCalled();
     });
 
-    it('persists final state and emits match:moves on a valid action', async () => {
+    it('persists final state and sends match:moves on a valid action', async () => {
       mockRedisGet({ meta: makeMetaJson(), state: JSON.stringify({ board: [] }) });
       mockPlugin.applyAction.mockReturnValue(events);
 
@@ -407,12 +413,14 @@ describe('MatchesService', () => {
       expect(redis.set).toHaveBeenCalledWith(
         `match:state:${MATCH_ID}`, JSON.stringify(finalState), 'PX', expect.any(Number),
       );
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
-        'match:moves', expect.objectContaining({ matchId: MATCH_ID }),
+      expect(wsGateway.sendToUser).toHaveBeenCalledWith(
+        CALLER_ID,
+        'match:moves',
+        expect.objectContaining({ matchId: MATCH_ID }),
       );
     });
 
-    it('marks the match completed, clears cache, and emits match:over when game ends', async () => {
+    it('marks the match completed, clears cache, and sends match:over when game ends', async () => {
       mockRedisGet({ meta: makeMetaJson(), state: JSON.stringify({ board: [] }) });
       mockPlugin.applyAction.mockReturnValue(events);
       mockPlugin.isGameOver.mockReturnValue(true);
@@ -423,7 +431,11 @@ describe('MatchesService', () => {
 
       expect(matchesRepo.save).toHaveBeenCalledWith(expect.objectContaining({ status: MatchStatus.Completed }));
       expect(redis.del).toHaveBeenCalled();
-      expect(eventEmitter.emit).toHaveBeenCalledWith('match:over', expect.anything());
+      expect(wsGateway.sendToUser).toHaveBeenCalledWith(
+        expect.any(String),
+        'match:over',
+        expect.any(Object),
+      );
     });
   });
 
@@ -581,112 +593,6 @@ describe('MatchesService', () => {
       expect((callArg as any).order).toEqual({ updatedAt: 'DESC' });
       expect((callArg as any).take).toBe(10);
       expect((callArg as any).skip).toBe(0);
-    });
-  });
-
-  // ─── getMatchOpponent ─────────────────────────────────────────────────────
-
-  describe('getMatchOpponent', () => {
-    it('returns player2Id when caller is player1', async () => {
-      redis.get.mockResolvedValue(makeMetaJson({ player1Id: CALLER_ID, player2Id: OTHER_ID }));
-
-      expect(await service.getMatchOpponent(MATCH_ID, CALLER_ID)).toBe(OTHER_ID);
-    });
-
-    it('returns player1Id when caller is player2', async () => {
-      redis.get.mockResolvedValue(makeMetaJson({ player1Id: OTHER_ID, player2Id: CALLER_ID }));
-
-      expect(await service.getMatchOpponent(MATCH_ID, CALLER_ID)).toBe(OTHER_ID);
-    });
-
-    it('returns null when caller is not in the match', async () => {
-      redis.get.mockResolvedValue(makeMetaJson({ player1Id: OTHER_ID, player2Id: 'THIRD' }));
-
-      expect(await service.getMatchOpponent(MATCH_ID, CALLER_ID)).toBeNull();
-    });
-  });
-
-  // ─── getMatchGame ─────────────────────────────────────────────────────────
-
-  describe('getMatchGame', () => {
-    it('returns gameId for a known match', async () => {
-      redis.get.mockResolvedValue(makeMetaJson());
-
-      expect(await service.getMatchGame(MATCH_ID)).toBe('tictactoe');
-    });
-
-    it('returns null when match meta is not found', async () => {
-      matchesRepo.findOne.mockResolvedValue(null);
-
-      expect(await service.getMatchGame(MATCH_ID)).toBeNull();
-    });
-  });
-
-  // ─── getPlayerIndex ───────────────────────────────────────────────────────
-
-  describe('getPlayerIndex', () => {
-    it('returns 1 when user is player1', async () => {
-      redis.get.mockResolvedValue(makeMetaJson({ player1Id: CALLER_ID }));
-
-      expect(await service.getPlayerIndex(MATCH_ID, CALLER_ID)).toBe(1);
-    });
-
-    it('returns 2 when user is player2', async () => {
-      redis.get.mockResolvedValue(makeMetaJson({ player1Id: OTHER_ID, player2Id: CALLER_ID }));
-
-      expect(await service.getPlayerIndex(MATCH_ID, CALLER_ID)).toBe(2);
-    });
-
-    it('returns null when user is not in the match', async () => {
-      redis.get.mockResolvedValue(makeMetaJson({ player1Id: OTHER_ID, player2Id: 'THIRD' }));
-
-      expect(await service.getPlayerIndex(MATCH_ID, CALLER_ID)).toBeNull();
-    });
-  });
-
-  // ─── getPlayerView ────────────────────────────────────────────────────────
-
-  describe('getPlayerView', () => {
-    it('returns view from plugin for an active match', async () => {
-      const state = { board: [] };
-      mockRedisGet({ meta: makeMetaJson(), state: JSON.stringify(state) });
-
-      const result = await service.getPlayerView(MATCH_ID, 1);
-
-      expect(mockPlugin.getPlayerView).toHaveBeenCalledWith(state, 1);
-      expect(result).toEqual({ cells: [] });
-    });
-
-    it('returns null when match is not active', async () => {
-      redis.get.mockResolvedValue(makeMetaJson({ status: MatchStatus.Completed }));
-
-      expect(await service.getPlayerView(MATCH_ID, 1)).toBeNull();
-    });
-
-    it('returns null when match meta is not found', async () => {
-      matchesRepo.findOne.mockResolvedValue(null);
-
-      expect(await service.getPlayerView(MATCH_ID, 1)).toBeNull();
-    });
-  });
-
-  // ─── findMatch ────────────────────────────────────────────────────────────
-
-  describe('findMatch', () => {
-    it('returns the match from the repository', async () => {
-      const match = makeMatch();
-      matchesRepo.findOne.mockResolvedValue(match);
-
-      const result = await service.findMatch(MATCH_ID);
-
-      expect(result).toBe(match);
-      expect(matchesRepo.findOne).toHaveBeenCalledWith({ where: { id: MATCH_ID } });
-    });
-
-    it('returns null when the match does not exist', async () => {
-      matchesRepo.findOne.mockResolvedValue(null);
-
-      expect(await service.findMatch(MATCH_ID)).toBeNull();
     });
   });
 

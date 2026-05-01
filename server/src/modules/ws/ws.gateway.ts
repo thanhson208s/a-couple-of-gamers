@@ -2,77 +2,93 @@ import { IncomingMessage } from 'http';
 import {
   WebSocketGateway,
   WebSocketServer,
-  SubscribeMessage,
   OnGatewayConnection,
   OnGatewayDisconnect,
-  MessageBody,
-  ConnectedSocket,
 } from '@nestjs/websockets';
 
-import { Inject, OnApplicationShutdown } from '@nestjs/common';
-import { Server, WebSocket } from 'ws';
-import { Redis } from 'ioredis';
-import { REDIS_CLIENT } from '../../common/redis/redis.module';
-import { MatchesService } from '../matches/matches.service';
-import { Match } from '../matches/match.entity';
-import type { GameMove, GameView } from '../../logic';
+import { ArgumentMetadata, OnApplicationShutdown, OnModuleInit, ValidationPipe } from '@nestjs/common';
+import { DiscoveryService, MetadataScanner, Reflector } from '@nestjs/core';
+import { Server, WebSocket, RawData } from 'ws';
 import { AuthService } from '../auth/auth.service';
-import { OnEvent } from '@nestjs/event-emitter';
+import {
+  WS_CONNECTED_METADATA,
+  WS_DISCONNECTED_METADATA,
+  WS_MESSAGE_METADATA,
+  WS_DTO_METADATA,
+} from './ws.decorators';
 
 interface AuthedSocket extends WebSocket {
   userId?: string;
 }
+
+type MessageHandler = (payload: { userId: string } & Record<string, unknown>) => unknown | Promise<unknown>;
+type LifecycleHandler = (payload: { userId: string }) => unknown | Promise<unknown>;
 
 // Connection URL: wss://<host>/v1/ws?ticket=<ws-ticket>
 // User-scoped persistent connection — opened once after login.
 // Authentication: one-time WS ticket from POST /v1/auth/ws-ticket
 // See: docs/security.md#websocket-authentication
 // See: docs/features/match-session.md
+//
+// Inbound dispatch: handlers register via @OnWsMessage(event), @OnWsConnected,
+// @OnWsDisconnected on any provider class. The gateway scans all providers at
+// module init and routes incoming messages / lifecycle transitions directly to
+// them — no EventEmitter bridge.
 @WebSocketGateway({ path: '/v1/ws', server: 'ws' })
-export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect, OnApplicationShutdown
+export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect, OnApplicationShutdown, OnModuleInit
 {
   @WebSocketServer()
   server!: Server;
 
-  private maintenanceState: {
-    maintenanceTime: string;
-    maintenanceDuration: number;
-  } | null = null;
-
   // userId → socket for O(1) targeted sends
   private readonly clientMap = new Map<string, AuthedSocket>();
 
+  private readonly messageHandlers = new Map<string, MessageHandler[]>();
+  private readonly connectedHandlers: LifecycleHandler[] = [];
+  private readonly disconnectedHandlers: LifecycleHandler[] = [];
+  
+  private readonly validationPipe = new ValidationPipe({
+    whitelist: true,
+    transform: true,
+    forbidNonWhitelisted: true
+  });
+  private readonly messageDtos = new Map<string, new (...args: any[]) => any>();
+
   constructor(
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly authService: AuthService,
-    private readonly matchesService: MatchesService,
+    private readonly discoveryService: DiscoveryService,
+    private readonly metadataScanner: MetadataScanner,
+    private readonly reflector: Reflector,
   ) {}
 
-  async setPresence(userId: string, presence: string) {
-    await this.redis.set(`ws:user:${userId}`, presence);
-  }
+  onModuleInit(): void {
+    for (const wrapper of this.discoveryService.getProviders()) {
+      const instance = wrapper.instance;
+      if (!instance || typeof instance !== 'object') continue;
+      const prototype = Object.getPrototypeOf(instance);
+      if (!prototype) continue;
 
-  async getPresence(userId: string) {
-    return await this.redis.get(`ws:user:${userId}`);
-  }
+      for (const methodName of this.metadataScanner.getAllMethodNames(prototype)) {
+        const method = (instance as Record<string, unknown>)[methodName];
+        if (typeof method !== 'function') continue;
 
-  async delPresence(userId: string) {
-    await this.redis.del(`ws:user:${userId}`);
-  }
+        const messageEvent = this.reflector.get<string>(WS_MESSAGE_METADATA, method);
+        if (messageEvent) {
+          if (!this.messageHandlers.has(messageEvent)) this.messageHandlers.set(messageEvent, []);
+          this.messageHandlers.get(messageEvent)!.push(method.bind(instance) as MessageHandler);
 
-  async clearAllPresences() {
-    let cursor = '0';
-    do {
-      const [next, keys] = await this.redis.scan(cursor, 'MATCH', 'ws:user:*', 'COUNT', 100);
-      cursor = next;
-      if (keys.length > 0) await this.redis.del(...keys);
-    } while (cursor !== '0');
-  }
+          const dto = this.reflector.get(WS_DTO_METADATA, method);
+          if (dto) this.messageDtos.set(messageEvent, dto);
+        }
 
-  setMaintenance(
-    data: { maintenanceTime: string; maintenanceDuration: number } | null,
-  ): void {
-    this.maintenanceState = data;
+        if (this.reflector.get<boolean>(WS_CONNECTED_METADATA, method)) {
+          this.connectedHandlers.push(method.bind(instance) as LifecycleHandler);
+        }
+        if (this.reflector.get<boolean>(WS_DISCONNECTED_METADATA, method)) {
+          this.disconnectedHandlers.push(method.bind(instance) as LifecycleHandler);
+        }
+      }
+    }
   }
 
   broadcastToAll(data: Record<string, unknown>): void {
@@ -84,10 +100,24 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect, OnAp
     }
   }
 
-  sendToUser(userId: string, data: Record<string, unknown>): void {
+  broadcastToUser(userId: string, data: Record<string, unknown>): void {
     const client = this.clientMap.get(userId);
     if (client?.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify(data));
+    }
+  }
+
+  sendToUser(userId: string, event: string, data: Record<string, unknown>): void {
+    const client = this.clientMap.get(userId);
+    if (client?.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify({ event, data }));
+    }
+  }
+
+  errorToUser(userId: string, event: string, error: number): void {
+    const client = this.clientMap.get(userId);
+    if (client?.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify({ error, event }));
     }
   }
 
@@ -96,8 +126,6 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect, OnAp
     for (const client of this.server.clients) {
       client.terminate();
     }
-    
-    this.clearAllPresences();
   }
 
   async handleConnection(client: AuthedSocket, request: IncomingMessage): Promise<void> {
@@ -116,11 +144,9 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect, OnAp
 
     client.userId = userId;
     this.clientMap.set(userId, client);
-    await this.setPresence(userId, 'lobby');
+    client.on('message', (raw) => this.dispatchMessage(userId, raw));
 
-    if (this.maintenanceState && client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify({ event: 'system:maintenance', ...this.maintenanceState }));
-    }
+    await Promise.all(this.connectedHandlers.map((h) => h({ userId })));
   }
 
   async handleDisconnect(client: AuthedSocket): Promise<void> {
@@ -129,136 +155,41 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect, OnAp
 
     this.clientMap.delete(userId);
 
-    const presence = await this.getPresence(userId);
-    if (presence && presence !== 'lobby') {
-      const matchId = presence;
-      await this.matchesService.flushStateToDB(matchId);
-      const opponentId = await this.matchesService.getMatchOpponent(matchId, userId);
-      if (opponentId) {
-        const opponentPresence = await this.getPresence(opponentId);
-        if (opponentPresence === matchId)
-          this.sendToUser(opponentId, { event: 'opponent_disconnected', matchId });
+    await Promise.all(this.disconnectedHandlers.map((h) => h({ userId })));
+  }
+
+  private async dispatchMessage(userId: string, raw: RawData): Promise<void> {
+    let parsed: { event?: unknown; data?: unknown };
+    try {
+      parsed = JSON.parse(raw.toString());
+    } catch {
+      return;
+    }
+    if (typeof parsed.event !== 'string') return;
+
+    if (parsed.event === 'ping') {
+      this.broadcastToUser(userId, { event: 'pong' });
+      return;
+    }
+
+    const handlers = this.messageHandlers.get(parsed.event);
+    if (!handlers?.length) return;
+
+    let data = (parsed.data && typeof parsed.data === 'object') ? parsed.data as Record<string, unknown> : {};
+    
+    // Data validation
+    const DtoClass = this.messageDtos.get(parsed.event);
+    if (DtoClass) {
+      try {
+        const metadata: ArgumentMetadata = { type: 'body', metatype: DtoClass, data: '' };
+        data = await this.validationPipe.transform(data, metadata);
+      } catch (e) {
+        this.errorToUser(userId, parsed.event, 400);
+        return;
       }
     }
-    await this.delPresence(userId);
-  }
-
-  @SubscribeMessage('open_match')
-  async handleOpenMatch(
-    @ConnectedSocket() client: AuthedSocket,
-    @MessageBody() data: { matchId: string },
-  ): Promise<void> {
-    const userId = client.userId!;
-    const { matchId } = data;
-
-    // Validate user is a player in this match
-    const playerIndex = await this.matchesService.getPlayerIndex(matchId, userId);
-    if (!playerIndex) return;
-
-    // If navigating from another match, close it first (flushes state + notifies old opponent)
-    const curPresence = await this.getPresence(userId);
-    if (curPresence && curPresence !== 'lobby') {
-      await this.handleCloseMatch(client, { matchId: curPresence });
-    }
-    await this.setPresence(userId, matchId);
-
-    // Drain replay buffer
-    const replay = await this.matchesService.popReplay(matchId, userId);
-    if (replay) {
-      client.send(JSON.stringify({ event: 'match:replay', matchId, replay }));
-    }
-
-    // Send current state view; null means match is completed/abandoned (game key cleared from cache)
-    const view = await this.matchesService.getPlayerView(matchId, playerIndex);
-    if (view) {
-      client.send(JSON.stringify({ event: 'match:state', matchId, view }));
-    } else {
-      const match = await this.matchesService.findMatch(matchId);
-      if (match) client.send(JSON.stringify({ event: 'match:over', match }));
-    }
-
-    // Notify both players if opponent is also viewing this match
-    const opponentId = await this.matchesService.getMatchOpponent(matchId, userId);
-    if (opponentId) {
-      const opponentPresence = await this.getPresence(opponentId);
-      if (opponentPresence === matchId) {
-        this.sendToUser(userId, { event: 'opponent_connected', matchId, playerId: opponentId });
-        this.sendToUser(opponentId, { event: 'opponent_connected', matchId, playerId: userId });
-      }
-    }
-  }
-
-  @SubscribeMessage('close_match')
-  async handleCloseMatch(
-    @ConnectedSocket() client: AuthedSocket,
-    @MessageBody() data: { matchId: string },
-  ): Promise<void> {
-    const userId = client.userId!;
-    const { matchId } = data;
-
-    await this.setPresence(userId, 'lobby');
-    await this.matchesService.flushStateToDB(matchId);
-
-    const opponentId = await this.matchesService.getMatchOpponent(matchId, userId)
-    if (opponentId) {
-      const opponentPresence = await this.getPresence(opponentId);
-      if (opponentPresence === matchId)
-        this.sendToUser(opponentId, { event: 'opponent_disconnected', matchId });
-    }
-  }
-
-  @OnEvent('match:moves')
-  async onMatchMoves(payload: {
-    matchId: string;
-    initialView1: GameView;
-    initialView2: GameView;
-    player1Id: string;
-    player2Id: string;
-    steps: Array<{ move: GameMove; playerIndex: number; player1View: GameView; player2View: GameView }>;
-  }): Promise<void> {
-    const { matchId, initialView1, initialView2, player1Id, player2Id, steps } = payload;
-
-    const p1Presence = await this.getPresence(player1Id);
-    const p2Presence = await this.getPresence(player2Id);
-    const p1Viewing = p1Presence === matchId;
-    const p2Viewing = p2Presence === matchId;
-
-    const p1Buffer: { move: GameMove, view: GameView, playerIndex: number }[] = [];
-    const p2Buffer: { move: GameMove, view: GameView, playerIndex: number }[] = [];
-
-    for (const step of steps) {
-      const base = { event: 'match:move', matchId, move: step.move, playerIndex: step.playerIndex };
-      if (p1Viewing) {
-        this.sendToUser(player1Id, { ...base, view: step.player1View });
-      } else {
-        p1Buffer.push({ move: step.move, view: step.player1View, playerIndex: step.playerIndex });
-      }
-      if (p2Viewing) {
-        this.sendToUser(player2Id, { ...base, view: step.player2View });
-      } else {
-        p2Buffer.push({ move: step.move, view: step.player2View, playerIndex: step.playerIndex });
-      }
-    }
-
-    this.matchesService.pushReplay(matchId, initialView1, player1Id, p1Buffer);
-    this.matchesService.pushReplay(matchId, initialView2, player2Id, p2Buffer);
-    // TODO: enqueue FCM notification (BullMQ short-delay job, cancel on open_match)
-  }
-
-  @OnEvent('match:start')
-  onMatchStart(payload: { inviteCode: string, initialView1: GameView, initialView2: GameView, match: Record<string, unknown> }): void {
-    if (payload.match.player1Id) this.sendToUser(payload.match.player1Id as string, { event: 'match:start', inviteCode: payload.inviteCode, initialView: payload.initialView1, match: payload.match });
-    if (payload.match.player2Id) this.sendToUser(payload.match.player2Id as string, { event: 'match:start', inviteCode: payload.inviteCode, initialView: payload.initialView2, match: payload.match });
-  }
-
-  @OnEvent('match:over')
-  onMatchOver(payload: { match: Record<string, unknown> }): void {
-    if (payload.match.player1Id) this.sendToUser(payload.match.player1Id as string, { event: 'match:over', match: payload.match });
-    if (payload.match.player2Id) this.sendToUser(payload.match.player2Id as string, { event: 'match:over', match: payload.match });
-  }
-
-  @SubscribeMessage('ping')
-  handlePing(@ConnectedSocket() client: WebSocket) {
-    client.send(JSON.stringify({ event: 'pong' }));
+    
+    const payload = { userId, ...data };
+    await Promise.all(handlers.map((h) => h(payload)));
   }
 }
