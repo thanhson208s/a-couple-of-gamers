@@ -12,7 +12,7 @@ import { GamesRegistry } from '../games/games.registry';
 import { Game, GameStatus, GameType } from '../games/game.entity';
 import { REDIS_CLIENT } from '../../common/redis/redis.module';
 import { WsGateway } from '../ws/ws.gateway';
-import { mockRepository } from '../../common/test/helpers';
+import { mockRepository } from '../../common/helpers/test.helper';
 
 const CALLER_ID = 'CALLER0001';
 const OTHER_ID  = 'OTHER00001';

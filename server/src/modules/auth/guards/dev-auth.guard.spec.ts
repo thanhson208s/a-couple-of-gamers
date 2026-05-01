@@ -1,6 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { DevAuthGuard } from './dev-auth.guard';
-import { mockHttpContext } from '../../../common/test/helpers';
+import { mockHttpContext } from '../../../common/helpers/test.helper';
 
 describe('DevAuthGuard', () => {
   let guard: DevAuthGuard;

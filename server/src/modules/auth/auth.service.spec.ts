@@ -6,7 +6,7 @@ import { AuthService } from './auth.service';
 import { RefreshToken } from './refresh-token.entity';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/user.entity';
-import { mockRepository } from '../../common/test/helpers';
+import { mockRepository } from '../../common/helpers/test.helper';
 import { REDIS_CLIENT } from '../../common/redis/redis.module';
 import { FIREBASE_AUTH } from '../../common/firebase/firebase.module';
 

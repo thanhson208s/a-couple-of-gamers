@@ -4,7 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { GamesService } from './games.service';
 import { Game, GameStatus } from './game.entity';
 import { GamesRegistry } from './games.registry';
-import { mockRepository } from '../../common/test/helpers';
+import { mockRepository } from '../../common/helpers/test.helper';
 
 describe('GamesService', () => {
   let service: GamesService;

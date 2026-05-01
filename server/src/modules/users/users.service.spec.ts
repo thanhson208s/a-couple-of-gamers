@@ -5,7 +5,7 @@ import { FAVORITES_LIMIT, UsersService } from './users.service';
 import { User } from './user.entity';
 import { UserFavorite } from './user-favorite.entity';
 import { Game } from '../games/game.entity';
-import { mockRepository } from '../../common/test/helpers';
+import { mockRepository } from '../../common/helpers/test.helper';
 import { FIREBASE_AUTH } from '../../common/firebase/firebase.module';
 
 describe('UsersService', () => {

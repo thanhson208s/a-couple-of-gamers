@@ -2,7 +2,7 @@ import { generateKeyPairSync } from 'crypto';
 import { UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AdminAuthGuard } from './admin-auth.guard';
-import { mockHttpContext } from '../../../common/test/helpers';
+import { mockHttpContext } from '../../../common/helpers/test.helper';
 
 describe('AdminAuthGuard', () => {
   let guard: AdminAuthGuard;
