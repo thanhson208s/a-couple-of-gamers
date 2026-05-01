@@ -15,6 +15,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { ConfigModule } from './modules/config/config.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { WsModule } from './modules/ws/ws.module';
+import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 import { DevModule } from './modules/dev/dev.module';
 import { AppHealth as AppHealth } from './app.health';
 
@@ -46,6 +47,7 @@ import { AppHealth as AppHealth } from './app.health';
     ConfigModule,
     AdminModule,
     WsModule,
+    MaintenanceModule,
     DevModule,
   ],
   controllers: [AppHealth],
