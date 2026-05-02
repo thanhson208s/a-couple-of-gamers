@@ -12,9 +12,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { LessThanOrEqual, MoreThan, Repository } from 'typeorm';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../common/redis/redis.module';
-import type {GameMove, GameAction, GameState, GameView } from '../../logic';
+import type { GameMove, GameAction, GameState, GameView, GamePlugin, GameEvent } from '../../logic';
 import { GamesService } from '../games/games.service';
 import { GamesRegistry } from '../games/games.registry';
+import { UsersService } from '../users/users.service';
 import { WsGateway } from '../ws/ws.gateway';
 import { Match, MatchStatus } from './match.entity';
 import { OnWsDisconnected, OnWsMessage } from '../ws/ws.decorators';
@@ -91,6 +92,7 @@ export class MatchesService {
     private readonly gamesRegistry: GamesRegistry,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly wsGateway: WsGateway,
+    private readonly usersService: UsersService,
   ) {}
 
   async createMatch(gameSlug: string, playerSlot: 1 | 2, callerId: string, options?: Record<string, unknown>): Promise<object> {
@@ -248,17 +250,11 @@ export class MatchesService {
     if (meta.player1Id !== callerId && meta.player2Id !== callerId)
       throw new ForbiddenException('You are not a player in this match');
     
-    // If navigating from another match
     const curMatchId = await this.redis.get(`match:user:${callerId}`);
-    if (curMatchId) {
-      if (curMatchId === matchId) return;
-      else {
-        await this.flushStateToDB(curMatchId);
-
-        //Notify other player
-        const prevOpponentId = getOpponentId(meta.player1Id, meta.player2Id, callerId);
-        this.wsGateway.sendToUser(prevOpponentId, 'opponent:disconnected', { matchId: curMatchId, opponentId: callerId });
-      }
+    if (curMatchId && curMatchId !== matchId) {
+      await this.flushStateToDB(curMatchId);
+      const prevOpponentId = getOpponentId(meta.player1Id, meta.player2Id, callerId);
+      this.wsGateway.sendToUser(prevOpponentId, 'opponent:disconnected', { matchId: curMatchId, opponentId: callerId });
     }
 
     const plugin = this.gamesRegistry.get(meta.gameId);
@@ -323,6 +319,8 @@ export class MatchesService {
     const plugin = this.gamesRegistry.get(meta.gameId);
     const initialState = await this.getStateFromCache(matchId);
     const playerIndex = getPlayerIndex(meta.player1Id, meta.player2Id, callerId);
+    const opponentId = getOpponentId(meta.player1Id, meta.player2Id, callerId);
+    const opponentIndex = getPlayerIndex(meta.player1Id, meta.player2Id, opponentId);
 
     let events;
     try {
@@ -335,50 +333,77 @@ export class MatchesService {
 
     const finalState = events[events.length - 1].state;
     await this.persistState(matchId, finalState);
+    await this.broadcastMoves(matchId, callerId, opponentId, playerIndex!, opponentIndex!, initialState, events, plugin);
+    await this.handleMatchOver(matchId, meta, finalState, callerId, opponentId, plugin);
+  }
 
-    this.wsGateway.sendToUser(callerId, 'match:moves', {
-      matchId,
-      steps: events.map(event => ({
-        move: event.move,
-        view: plugin.getPlayerView(event.state, playerIndex!),
-        playerIndex: event.playerIndex,
-      })),
-    });
-
-    const opponentId = getOpponentId(meta.player1Id, meta.player2Id, callerId);
-    const opponentIndex = getPlayerIndex(meta.player1Id, meta.player2Id, opponentId);
-    const steps = events.map(event => ({
+  private async broadcastMoves(
+    matchId: string,
+    callerId: string,
+    opponentId: string,
+    playerIndex: 1 | 2,
+    opponentIndex: 1 | 2,
+    initialState: GameState,
+    events: GameEvent[],
+    plugin: GamePlugin,
+  ): Promise<void> {
+    const callerSteps = events.map(event => ({
       move: event.move,
-      view: plugin.getPlayerView(event.state, opponentIndex!),
-      playerIndex: event.playerIndex
+      view: plugin.getPlayerView(event.state, playerIndex),
+      playerIndex: event.playerIndex,
+    }));
+    const opponentSteps = events.map(event => ({
+      move: event.move,
+      view: plugin.getPlayerView(event.state, opponentIndex),
+      playerIndex: event.playerIndex,
     }));
 
-    const curOpponentMatch = await this.redis.get(`match:user:${opponentId}`);
-    if (curOpponentMatch && curOpponentMatch === matchId) {
-      this.wsGateway.sendToUser(opponentId, 'match:moves', { matchId, steps });
+    const [curCallerMatch, curOpponentMatch] = await Promise.all([
+      this.redis.get(`match:user:${callerId}`),
+      this.redis.get(`match:user:${opponentId}`),
+    ]);
+
+    if (curCallerMatch === matchId) {
+      this.wsGateway.sendToUser(callerId, 'match:moves', { matchId, steps: callerSteps });
     } else {
-      await this.pushReplay(matchId, plugin.getPlayerView(initialState, opponentIndex!), opponentId, steps);
+      await this.pushReplay(matchId, plugin.getPlayerView(initialState, playerIndex), callerId, callerSteps);
     }
 
-    if (plugin.isGameOver(finalState)) {
-      const match: Match = await this.matches.findOneOrFail({ where: { id: matchId }});
-
-      match.status = MatchStatus.Completed;
-      match.winner = plugin.getWinner(finalState);
-      match.state = finalState as object;
-
-      await this.matches.save(match);
-      await this.clearStateFromCache(matchId);
-
-      const matchPayload = {
-        id: match.id,
-        status: match.status,
-        state: match.state,
-        winner: match.winner,
-      };
-      this.wsGateway.sendToUser(callerId, 'match:over', { match: matchPayload });
-      this.wsGateway.sendToUser(opponentId, 'match:over', { match: matchPayload });
+    if (curOpponentMatch === matchId) {
+      this.wsGateway.sendToUser(opponentId, 'match:moves', { matchId, steps: opponentSteps });
+    } else {
+      await this.pushReplay(matchId, plugin.getPlayerView(initialState, opponentIndex), opponentId, opponentSteps);
     }
+  }
+
+  private async handleMatchOver(
+    matchId: string,
+    meta: MatchMeta,
+    finalState: GameState,
+    callerId: string,
+    opponentId: string,
+    plugin: GamePlugin,
+  ): Promise<void> {
+    if (!plugin.isGameOver(finalState)) return;
+
+    const match = await this.matches.findOneOrFail({ where: { id: matchId } });
+    match.status = MatchStatus.Completed;
+    match.winner = plugin.getWinner(finalState);
+    match.state = finalState as object;
+
+    await this.matches.save(match);
+    await this.clearStateFromCache(matchId);
+    await this.usersService.updateRival(
+      meta.player1Id,
+      meta.player2Id,
+      meta.gameId,
+      match.winner!,
+      this.gamesRegistry.getType(meta.gameId),
+    );
+
+    const matchPayload = { id: match.id, status: match.status, state: match.state, winner: match.winner };
+    this.wsGateway.sendToUser(callerId, 'match:over', { match: matchPayload });
+    this.wsGateway.sendToUser(opponentId, 'match:over', { match: matchPayload });
   }
 
   // ---
@@ -500,7 +525,10 @@ export class MatchesService {
   async onUserDisconnected(payload: { userId: string }) {
     const matchId = await this.redis.get(`match:user:${payload.userId}`);
     if (matchId) {
-      await this.flushStateToDB(matchId);
+      await Promise.all([
+        this.flushStateToDB(matchId),
+        this.redis.del(`match:user:${payload.userId}`),
+      ]);
 
       const meta = await this.getMatchMeta(matchId);
       if (!meta) return;
