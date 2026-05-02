@@ -1,13 +1,16 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
+import { NotificationsService } from '../../modules/notifications/notifications.service';
 
-// Delayed job: dispatches a push notification when it's a player's turn
-// and they haven't acted within the reminder threshold.
-// Enqueued by: MatchesService after each move, with a configurable delay.
 @Processor('reminders')
 export class ReminderProcessor extends WorkerHost {
-  async process(_job: Job) {
-    // TODO: send FCM push via NotificationsService
-    throw new Error('not implemented');
+  constructor(private readonly notificationsService: NotificationsService) {
+    super();
+  }
+
+  async process(job: Job<{ matchId: string; opponentId: string }>): Promise<void> {
+    const { matchId, opponentId } = job.data;
+    
+    await this.notificationsService.sendPush(opponentId, job.name, { matchId });
   }
 }

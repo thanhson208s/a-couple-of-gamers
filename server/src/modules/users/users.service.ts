@@ -94,6 +94,10 @@ export class UsersService {
     }
   }
 
+  async getDeviceTokens(userId: string) {
+    return this.userDevices.find({ where: { userId } });
+  }
+
   async upsertDeviceToken(userId: string, token: string, platform: string): Promise<void> {
     await this.userDevices
       .createQueryBuilder()
