@@ -93,7 +93,7 @@ export class TicTacToePlugin implements GamePlugin {
     return state.winner !== null;
   }
 
-  getWinner(state: TicTacToeState): number | null {
+  getWinner(state: TicTacToeState): 0 | 1 | 2 | null {
     return state.winner;
   }
 }

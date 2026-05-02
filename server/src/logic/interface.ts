@@ -25,9 +25,9 @@ export interface GameOptions {
 }
 
 // One step in the move sequence returned by applyAction.
-export interface GameEvent {
-  move: GameMove;
-  state: GameState;
+export interface GameEvent<M extends GameMove = GameMove, S extends GameState = GameState> {
+  move: M;
+  state: S;
   playerIndex: number;
 }
 
