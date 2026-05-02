@@ -23,14 +23,14 @@ export class UsersController {
     return this.usersService.upsertDeviceToken(body);
   }
 
-  @Put('favorites/:gameSlug')
-  addFavorite(@CurrentUser() user: JwtUser, @Param('gameSlug') gameSlug: string) {
-    return this.usersService.addFavorite(user.id, user.type, gameSlug);
+  @Put('favorites/:gameId')
+  addFavorite(@CurrentUser() user: JwtUser, @Param('gameId') gameId: string) {
+    return this.usersService.addFavorite(user.id, gameId);
   }
 
-  @Delete('favorites/:gameSlug')
-  removeFavorite(@CurrentUser() user: JwtUser, @Param('gameSlug') gameSlug: string) {
-    return this.usersService.removeFavorite(user.id, gameSlug);
+  @Delete('favorites/:gameId')
+  removeFavorite(@CurrentUser() user: JwtUser, @Param('gameId') gameId: string) {
+    return this.usersService.removeFavorite(user.id, gameId);
   }
 
   @Get('rivals')

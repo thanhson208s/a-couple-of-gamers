@@ -65,7 +65,7 @@ describe('AuthService', () => {
       const result = await service.devLogin('alice');
 
       expect(usersService.findOrCreate).toHaveBeenCalledWith('dev', 'alice', 'dev_alice');
-      expect(jwtService.sign).toHaveBeenCalledWith({ id: user.id, type: 'dev' });
+      expect(jwtService.sign).toHaveBeenCalledWith({ id: user.id });
       expect(result.accessToken).toBe('access_token');
       expect(typeof result.refreshToken).toBe('string');
       expect(result.refreshToken).toHaveLength(64); // 32 random bytes as hex
@@ -94,7 +94,7 @@ describe('AuthService', () => {
         userRecord.email,
         userRecord.photoURL,
       );
-      expect(jwtService.sign).toHaveBeenCalledWith({ id: user.id, type: 'social' });
+      expect(jwtService.sign).toHaveBeenCalledWith({ id: user.id });
       expect(result.accessToken).toBe('access_token');
       expect(typeof result.refreshToken).toBe('string');
       expect(result.refreshToken).toHaveLength(64);

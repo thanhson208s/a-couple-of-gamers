@@ -1,9 +1,10 @@
 import { ForbiddenException, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { FAVORITES_LIMIT, UsersService } from './users.service';
+import { UsersService } from './users.service';
 import { User } from './user.entity';
 import { UserFavorite } from './user-favorite.entity';
+import { UserStat } from './user-stat.entity';
 import { Game } from '../games/game.entity';
 import { mockRepository } from '../../common/helpers/test.helper';
 import { FIREBASE_AUTH } from '../../common/firebase/firebase.module';
@@ -12,12 +13,14 @@ describe('UsersService', () => {
   let service: UsersService;
   let usersRepo: ReturnType<typeof mockRepository<User>> & { findOneOrFail: jest.Mock };
   let userFavoritesRepo: ReturnType<typeof mockRepository<UserFavorite>>;
+  let userStatsRepo: ReturnType<typeof mockRepository<UserStat>>;
   let gamesRepo: ReturnType<typeof mockRepository<Game>>;
   let firebaseAuth: { deleteUser: jest.Mock; verifyIdToken: jest.Mock };
 
   beforeEach(async () => {
     usersRepo = { ...mockRepository<User>(), findOneOrFail: jest.fn() };
     userFavoritesRepo = mockRepository<UserFavorite>();
+    userStatsRepo = mockRepository<UserStat>();
     gamesRepo = mockRepository<Game>();
     firebaseAuth = { deleteUser: jest.fn(), verifyIdToken: jest.fn() };
 
@@ -26,6 +29,7 @@ describe('UsersService', () => {
         UsersService,
         { provide: getRepositoryToken(User), useValue: usersRepo },
         { provide: getRepositoryToken(UserFavorite), useValue: userFavoritesRepo },
+        { provide: getRepositoryToken(UserStat), useValue: userStatsRepo },
         { provide: getRepositoryToken(Game), useValue: gamesRepo },
         { provide: FIREBASE_AUTH, useValue: firebaseAuth },
       ],
@@ -199,7 +203,7 @@ describe('UsersService', () => {
 
       const result = await service.getProfile(user.id);
 
-      expect(result).toEqual({ id: 'ABCD123456', provider: 'google.com', displayName: 'Test User', avatarUrl: 'https://photo.example.com/u.jpg', favorites: ['tictactoe', 'chess'], favoritesLimit: FAVORITES_LIMIT.social });
+      expect(result).toEqual({ id: 'ABCD123456', provider: 'google.com', displayName: 'Test User', avatarUrl: 'https://photo.example.com/u.jpg', favorites: ['tictactoe', 'chess'], favoritesLimit: UsersService.getFavoriteLimit('social') });
       expect(usersRepo.findOne).toHaveBeenCalledWith({ where: { id: user.id } });
       expect(userFavoritesRepo.find).toHaveBeenCalledWith({ where: { userId: user.id }, relations: ['game'] });
     });
@@ -220,7 +224,7 @@ describe('UsersService', () => {
 
       const result = await service.getProfile(user.id);
 
-      expect(result.favoritesLimit).toBe(FAVORITES_LIMIT.anonymous);
+      expect(result.favoritesLimit).toBe(UsersService.getFavoriteLimit('anonymous'));
     });
 
     it('throws NotFoundException when user does not exist', async () => {
@@ -291,62 +295,68 @@ describe('UsersService', () => {
     const game = { id: 'tictactoe' } as Game;
 
     it('saves a new favorite for a social user below the limit', async () => {
-      gamesRepo.findOne.mockResolvedValue(game);
+      usersRepo.findOne.mockResolvedValue({ id: userId, provider: 'google.com' } as User);
+      gamesRepo.existsBy.mockResolvedValue(true);
       userFavoritesRepo.findOne.mockResolvedValue(null);
       userFavoritesRepo.count.mockResolvedValue(0);
       userFavoritesRepo.create.mockImplementation((data) => ({ ...data } as UserFavorite));
       userFavoritesRepo.save.mockImplementation(async (f) => f as UserFavorite);
 
-      await service.addFavorite(userId, 'social', 'tictactoe');
+      await service.addFavorite(userId, 'tictactoe');
 
-      expect(gamesRepo.findOne).toHaveBeenCalledWith({ where: { id: 'tictactoe' } });
+      expect(gamesRepo.existsBy).toHaveBeenCalledWith({ id: 'tictactoe' });
       expect(userFavoritesRepo.save).toHaveBeenCalledTimes(1);
     });
 
     it('saves a new favorite for an anonymous user below the limit', async () => {
-      gamesRepo.findOne.mockResolvedValue(game);
+      usersRepo.findOne.mockResolvedValue({ id: userId, provider: 'anonymous' } as User);
+      gamesRepo.existsBy.mockResolvedValue(true);
       userFavoritesRepo.findOne.mockResolvedValue(null);
       userFavoritesRepo.count.mockResolvedValue(2);
       userFavoritesRepo.create.mockImplementation((data) => ({ ...data } as UserFavorite));
       userFavoritesRepo.save.mockImplementation(async (f) => f as UserFavorite);
 
-      await service.addFavorite(userId, 'anonymous', 'tictactoe');
+      await service.addFavorite(userId, 'tictactoe');
 
       expect(userFavoritesRepo.save).toHaveBeenCalledTimes(1);
     });
 
     it('throws ForbiddenException when anonymous user reaches the limit', async () => {
-      gamesRepo.findOne.mockResolvedValue(game);
+      usersRepo.findOne.mockResolvedValue({ id: userId, provider: 'anonymous' } as User);
+      gamesRepo.existsBy.mockResolvedValue(true);
       userFavoritesRepo.findOne.mockResolvedValue(null);
-      userFavoritesRepo.count.mockResolvedValue(FAVORITES_LIMIT.anonymous);
+      userFavoritesRepo.count.mockResolvedValue(UsersService.getFavoriteLimit('anonymous'));
 
-      await expect(service.addFavorite(userId, 'anonymous', 'tictactoe')).rejects.toThrow(ForbiddenException);
+      await expect(service.addFavorite(userId, 'tictactoe')).rejects.toThrow(ForbiddenException);
       expect(userFavoritesRepo.save).not.toHaveBeenCalled();
     });
 
     it('throws ForbiddenException when social user reaches the limit', async () => {
-      gamesRepo.findOne.mockResolvedValue(game);
+      usersRepo.findOne.mockResolvedValue({ id: userId, provider: 'google.com' } as User);
+      gamesRepo.existsBy.mockResolvedValue(true);
       userFavoritesRepo.findOne.mockResolvedValue(null);
-      userFavoritesRepo.count.mockResolvedValue(FAVORITES_LIMIT.social);
+      userFavoritesRepo.count.mockResolvedValue(UsersService.getFavoriteLimit('social'));
 
-      await expect(service.addFavorite(userId, 'social', 'tictactoe')).rejects.toThrow(ForbiddenException);
+      await expect(service.addFavorite(userId, 'tictactoe')).rejects.toThrow(ForbiddenException);
       expect(userFavoritesRepo.save).not.toHaveBeenCalled();
     });
 
     it('is idempotent when game is already favorited', async () => {
-      gamesRepo.findOne.mockResolvedValue(game);
+      usersRepo.findOne.mockResolvedValue({ id: userId, provider: 'google.com' } as User);
+      gamesRepo.existsBy.mockResolvedValue(true);
       userFavoritesRepo.findOne.mockResolvedValue({ userId, gameId: game.id } as UserFavorite);
 
-      await service.addFavorite(userId, 'social', 'tictactoe');
+      await service.addFavorite(userId, 'tictactoe');
 
       expect(userFavoritesRepo.count).not.toHaveBeenCalled();
       expect(userFavoritesRepo.save).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException when game does not exist', async () => {
-      gamesRepo.findOne.mockResolvedValue(null);
+      usersRepo.findOne.mockResolvedValue({ id: userId, provider: 'google.com' } as User);
+      gamesRepo.existsBy.mockResolvedValue(false);
 
-      await expect(service.addFavorite(userId, 'social', 'unknown')).rejects.toThrow(NotFoundException);
+      await expect(service.addFavorite(userId, 'unknown')).rejects.toThrow(NotFoundException);
       expect(userFavoritesRepo.save).not.toHaveBeenCalled();
     });
   });
@@ -364,12 +374,12 @@ describe('UsersService', () => {
       expect(userFavoritesRepo.delete).toHaveBeenCalledWith({ userId, gameId: game.id });
     });
 
-    it('is idempotent when game does not exist', async () => {
-      gamesRepo.findOne.mockResolvedValue(null);
+    it('is idempotent when favorite does not exist', async () => {
+      userFavoritesRepo.delete.mockResolvedValue({ affected: 0, raw: [] });
 
       await service.removeFavorite(userId, 'unknown');
 
-      expect(userFavoritesRepo.delete).not.toHaveBeenCalled();
+      expect(userFavoritesRepo.delete).toHaveBeenCalledWith({ userId, gameId: 'unknown' });
     });
   });
 });

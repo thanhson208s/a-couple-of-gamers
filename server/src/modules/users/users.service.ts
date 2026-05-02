@@ -1,7 +1,6 @@
 import { randomInt } from 'crypto';
 import { ForbiddenException, Inject, Injectable, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 
-export const FAVORITES_LIMIT = { anonymous: 3, social: 100 } as const;
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './user.entity';
@@ -9,12 +8,14 @@ import { UserFavorite } from './user-favorite.entity';
 import { Game } from '../games/game.entity';
 import { FIREBASE_AUTH } from '../../common/firebase/firebase.module';
 import { auth } from 'firebase-admin';
+import { UserStat } from './user-stat.entity';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User) private readonly users: Repository<User>,
     @InjectRepository(UserFavorite) private readonly userFavorites: Repository<UserFavorite>,
+    @InjectRepository(UserStat) private readonly userStats: Repository<UserStat>,
     @InjectRepository(Game) private readonly games: Repository<Game>,
     @Inject(FIREBASE_AUTH) private readonly firebaseAuth: auth.Auth,
   ) {}
@@ -67,7 +68,7 @@ export class UsersService {
     const user = await this.users.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException();
     const favs = await this.userFavorites.find({ where: { userId }, relations: ['game'] });
-    const favoritesLimit = user.provider === 'anonymous' ? FAVORITES_LIMIT.anonymous : FAVORITES_LIMIT.social;
+    const favoritesLimit = UsersService.getFavoriteLimit(user.provider);
     return { id: user.id, provider: user.provider, displayName: user.displayName, avatarUrl: user.avatarUrl, favorites: favs.map(f => f.game.id), favoritesLimit };
   }
 
@@ -93,20 +94,40 @@ export class UsersService {
     throw new Error('not implemented');
   }
 
-  async addFavorite(userId: string, userType: string, gameSlug: string): Promise<void> {
-    const game = await this.games.findOne({ where: { id: gameSlug } });
-    if (!game) throw new NotFoundException();
-    const existing = await this.userFavorites.findOne({ where: { userId, gameId: game.id } });
+  async addFavorite(userId: string, gameId: string): Promise<void> {
+    const user = await this.users.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException();
+    const gameExists = await this.games.existsBy({ id: gameId });
+    if (!gameExists) throw new NotFoundException();
+    const existing = await this.userFavorites.findOne({ where: { userId, gameId } });
     if (existing) return;
-    const limit = userType === 'anonymous' ? FAVORITES_LIMIT.anonymous : FAVORITES_LIMIT.social;
+
+    const limit = UsersService.getFavoriteLimit(user.provider);
     const count = await this.userFavorites.count({ where: { userId } });
-    if (count >= limit) throw new ForbiddenException();
-    await this.userFavorites.save(this.userFavorites.create({ userId, gameId: game.id }));
+    if (limit >= 0 && count >= limit) throw new ForbiddenException();
+    await this.userFavorites.save(this.userFavorites.create({ userId, gameId }));
   }
 
-  async removeFavorite(userId: string, gameSlug: string): Promise<void> {
-    const game = await this.games.findOne({ where: { id: gameSlug } });
-    if (game) await this.userFavorites.delete({ userId, gameId: game.id });
+  async removeFavorite(userId: string, gameId: string): Promise<void> {
+    await this.userFavorites.delete({ userId, gameId });
+  }
+
+  async incMatchCount(userId: string, gameId: string, result: 'win' | 'loss' | 'draw'): Promise<void> {
+    const userExists = await this.users.existsBy({ id: userId });
+    if (!userExists) throw new NotFoundException();
+    const gameExists = await this.games.existsBy({ id: gameId });
+    if (!gameExists) throw new NotFoundException();
+    
+    let stat = await this.userStats.findOne({ where: { userId, gameId }});
+    if (!stat) {
+      await this.userStats.save(this.userStats.create({ userId, gameId }));
+    }
+
+    let columnName =
+      result === 'win' ? 'winCount' :
+      result === 'loss' ? 'lossCount' :
+      result === 'draw' ? 'drawCount' : "";
+    await this.userStats.increment({ userId, gameId }, columnName, 1);
   }
 
   async getRivals() {
@@ -115,5 +136,11 @@ export class UsersService {
 
   async getRivalStats(_opponentId: string) {
     throw new Error('not implemented');
+  }
+
+  static getFavoriteLimit(provider: string): number {
+    if (provider === 'anonymous') 4;
+    if (provider === 'dev') -1;
+    return 100;
   }
 }

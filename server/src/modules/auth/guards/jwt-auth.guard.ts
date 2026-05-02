@@ -31,7 +31,6 @@ function extractBearer(header: string | undefined): string | null {
 
 export interface JwtUser {
   id: string;
-  type: string;
 }
 
 export const CurrentUser = createParamDecorator(

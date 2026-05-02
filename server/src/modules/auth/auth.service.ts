@@ -65,7 +65,7 @@ export class AuthService {
     if (!user) throw new UnauthorizedException();
 
     const newRefreshToken = await this.issueRefreshToken(token.userId);
-    const accessToken = this.jwtService.sign({ id: user.id, type: AuthService.tokenType(user.provider) } satisfies JwtUser);
+    const accessToken = this.jwtService.sign({ id: user.id } satisfies JwtUser);
     return { accessToken, refreshToken: newRefreshToken };
   }
 
@@ -81,15 +81,8 @@ export class AuthService {
     return userId;
   }
 
-  static tokenType(provider: string): 'anonymous' | 'password' | 'dev' | 'social' {
-    if (provider === 'anonymous') return 'anonymous';
-    if (provider === 'password') return 'password';
-    if (provider === 'dev') return 'dev';
-    return 'social';
-  }
-
   private issueAccessToken(id: string, provider: string): string {
-    return this.jwtService.sign({ id, type: AuthService.tokenType(provider) } satisfies JwtUser); 
+    return this.jwtService.sign({ id } satisfies JwtUser); 
   }
 
   private async issueRefreshToken(userId: string): Promise<string> {
