@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Put, Delete, Body, Param, UseGuards, HttpCode } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CurrentUser, JwtAuthGuard, JwtUser } from '../auth/guards/jwt-auth.guard';
 import { DeleteAccountDto } from './delete-account.dto';
@@ -19,8 +19,15 @@ export class UsersController {
   }
 
   @Put('device')
-  upsertDeviceToken(@Body() body: { token: string; platform: 'ios' | 'android' }) {
-    return this.usersService.upsertDeviceToken(body);
+  @HttpCode(204)
+  upsertDeviceToken(@CurrentUser() user: JwtUser, @Body() body: { token: string; platform: string }) {
+    return this.usersService.upsertDeviceToken(user.id, body.token, body.platform);
+  }
+
+  @Delete('device')
+  @HttpCode(204)
+  deleteDeviceToken(@CurrentUser() user: JwtUser, @Body() body: { token: string }) {
+    return this.usersService.deleteDeviceToken(user.id, body.token);
   }
 
   @Put('favorites/:gameId')

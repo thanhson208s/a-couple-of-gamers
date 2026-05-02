@@ -81,16 +81,15 @@ game_id TEXT NOT NULL REFERENCES games(id)
 PRIMARY KEY (user_id, game_id)
 ```
 
-### `device_tokens` `[DRAFT]`
+### `user_devices`
 ```sql
-id          UUID PRIMARY KEY DEFAULT gen_random_uuid()
-user_id     CHAR(10) NOT NULL REFERENCES users(id)
-token       TEXT NOT NULL
-platform    TEXT NOT NULL    -- 'ios' | 'android'
+token       TEXT PRIMARY KEY             -- FCM token; globally unique — one device registration per token
+user_id     CHAR(10) NOT NULL REFERENCES users(id) ON DELETE CASCADE
+platform    TEXT NOT NULL                -- 'ios' | 'android'
+created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-UNIQUE (user_id, token)
 ```
-_FCM device tokens. A user may have multiple devices. Tokens are upserted on login/app open._
+_FCM device tokens. A user may have multiple devices. Upserted on login/app open; hard-deleted on logout or FCM `UNREGISTERED` error. PK on `token` enables account-switch upsert: if the same token reappears under a new user, `user_id` is updated in place._
 
 ### `notifications` `[DRAFT]`
 ```sql

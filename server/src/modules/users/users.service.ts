@@ -5,6 +5,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './user.entity';
 import { UserFavorite } from './user-favorite.entity';
+import { UserDevice } from './user-device.entity';
 import { Game, GameType } from '../games/game.entity';
 import { FIREBASE_AUTH } from '../../common/firebase/firebase.module';
 import { auth } from 'firebase-admin';
@@ -17,6 +18,7 @@ export class UsersService {
     @InjectRepository(User) private readonly users: Repository<User>,
     @InjectRepository(UserFavorite) private readonly userFavorites: Repository<UserFavorite>,
     @InjectRepository(UserRival) private readonly userRivals: Repository<UserRival>,
+    @InjectRepository(UserDevice) private readonly userDevices: Repository<UserDevice>,
     @InjectRepository(Game) private readonly games: Repository<Game>,
     @Inject(FIREBASE_AUTH) private readonly firebaseAuth: auth.Auth,
     private readonly gamesRegistry: GamesRegistry,
@@ -92,8 +94,17 @@ export class UsersService {
     }
   }
 
-  async upsertDeviceToken(_body: { token: string; platform: string }) {
-    throw new Error('not implemented');
+  async upsertDeviceToken(userId: string, token: string, platform: string): Promise<void> {
+    await this.userDevices
+      .createQueryBuilder()
+      .insert()
+      .values({ token, userId, platform })
+      .orUpdate(['user_id', 'platform', 'updated_at'], ['token'])
+      .execute();
+  }
+
+  async deleteDeviceToken(userId: string, token: string): Promise<void> {
+    await this.userDevices.delete({ token, userId });
   }
 
   async addFavorite(userId: string, gameId: string): Promise<void> {
