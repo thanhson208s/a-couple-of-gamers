@@ -62,17 +62,17 @@ updated_by TEXT                 -- admin identifier for audit trail
 ```
 _Single-row table. Always update in place. `GET /v1/config` reads this row._
 
-### `rival_stats` `[DRAFT]`
+### `user_rivals`
 ```sql
-user_id     CHAR(10) NOT NULL REFERENCES users(id)
-opponent_id CHAR(10) NOT NULL REFERENCES users(id)
+user_id1    CHAR(10) NOT NULL REFERENCES users(id) ON DELETE CASCADE
+user_id2    CHAR(10) NOT NULL REFERENCES users(id) ON DELETE CASCADE
 game_id     TEXT NOT NULL REFERENCES games(id)
-wins        INT NOT NULL DEFAULT 0
-losses      INT NOT NULL DEFAULT 0
-draws       INT NOT NULL DEFAULT 0
-PRIMARY KEY (user_id, opponent_id, game_id)
+win_count   INT NOT NULL DEFAULT 0
+loss_count  INT NOT NULL DEFAULT 0
+draw_count  INT NOT NULL DEFAULT 0
+PRIMARY KEY (user_id1, user_id2, game_id)
 ```
-_Updated at match completion._
+_One row per (ordered) pair per game. `user_id1 < user_id2` (lexicographic). Counts are from `user_id1`'s perspective: `win_count` = times `user_id1` beat `user_id2` (versus) or both won (coop); `loss_count` = times `user_id1` lost (versus) or both lost (coop); `draw_count` = draws (versus only). Updated at match completion._
 
 ### `user_favorites` `[DRAFT]`
 ```sql

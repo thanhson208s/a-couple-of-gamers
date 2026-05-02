@@ -33,13 +33,13 @@ export class UsersController {
     return this.usersService.removeFavorite(user.id, gameId);
   }
 
-  @Get('rivals')
-  getRivals() {
-    return this.usersService.getRivals();
+  @Get('stats')
+  getStats(@CurrentUser() user: JwtUser) {
+    return this.usersService.getStats(user.id);
   }
 
   @Get('rivals/:opponentId')
-  getRivalStats(@Param('opponentId') opponentId: string) {
-    return this.usersService.getRivalStats(opponentId);
+  getRival(@CurrentUser() user: JwtUser, @Param('opponentId') opponentId: string) {
+    return this.usersService.getRival(user.id, opponentId);
   }
 }
