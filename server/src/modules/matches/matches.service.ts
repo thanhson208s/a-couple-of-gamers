@@ -100,7 +100,7 @@ export class MatchesService {
     if (!game) throw new NotFoundException(`Game not found: ${gameSlug}`);
 
     try {
-      this.gamesRegistry.get(game.id);
+      this.gamesRegistry.getPlugin(game.id);
     } catch (e) {
       throw new BadRequestException((e as Error).message);
     }
@@ -138,7 +138,7 @@ export class MatchesService {
     await this.redis.del(`invite:code:${inviteCode}`);
     await this.redis.zrem(`invite:user:${data.playerId}`, inviteCode);
 
-    const plugin = this.gamesRegistry.get(data.gameId);
+    const plugin = this.gamesRegistry.getPlugin(data.gameId);
     const match = await this.matches.save(this.matches.create({
       game: { id: data.gameId } as any,
       status: MatchStatus.Active,
@@ -149,6 +149,7 @@ export class MatchesService {
     }));
     const initialView1 = plugin.getPlayerView(match.state as GameState, 1);
     const initialView2 = plugin.getPlayerView(match.state as GameState, 2);
+    const nextTurns = plugin.getNextTurns(match.state as GameState);
 
     const meta: MatchMeta = { player1Id: match.player1Id, player2Id: match.player2Id, gameId: data.gameId, status: MatchStatus.Active };
     await this.redis.set(`match:meta:${match.id}`, JSON.stringify(meta), 'PX', INACTIVITY_TTL_MS);
@@ -160,8 +161,8 @@ export class MatchesService {
       player1Id: match.player1Id,
       player2Id: match.player2Id,
     };
-    this.wsGateway.sendToUser(match.player1Id, 'match:start', { inviteCode, initialView: initialView1, match: matchPayload });
-    this.wsGateway.sendToUser(match.player2Id, 'match:start', { inviteCode, initialView: initialView2, match: matchPayload });
+    this.wsGateway.sendToUser(match.player1Id, 'match:start', { inviteCode, initialView: initialView1, nextTurns, match: matchPayload });
+    this.wsGateway.sendToUser(match.player2Id, 'match:start', { inviteCode, initialView: initialView2, nextTurns, match: matchPayload });
   }
 
   async cancelMatch(inviteCode: string, callerId: string): Promise<void> {
@@ -186,17 +187,24 @@ export class MatchesService {
       throw new ForbiddenException('You are not a player in this match');
     }
 
+    if (match.status === MatchStatus.Completed) {
+      throw new BadRequestException('Match already completed');
+    }
+
     match.status = MatchStatus.Abandoned;
     await this.matches.save(match);
     await this.flushStateToDB(id);
     await this.clearStateFromCache(id);
+    await this.clearReplay(id, match.player1Id, match.player2Id);
 
     const matchPayload = {
       id: match.id,
       status: match.status,
-      state: match.state,
-      winner: match.winner,
+      winner: null,
+      player1Id: match.player1Id,
+      player2Id: match.player2Id,
     };
+
     this.wsGateway.sendToUser(match.player1Id, 'match:over', { match: matchPayload });
     this.wsGateway.sendToUser(match.player2Id, 'match:over', { match: matchPayload });
   }
@@ -222,13 +230,28 @@ export class MatchesService {
     });
   }
 
-  async listActiveMatches(userId: string): Promise<Match[]> {
+  async listActiveMatches(userId: string): Promise<object[]> {
     const inactivityCutoff = new Date(Date.now() - INACTIVITY_TTL_MS);
-    return this.matches.find({
+    const matches = await this.matches.find({
       where: [
         { player1Id: userId, status: MatchStatus.Active, updatedAt: MoreThan(inactivityCutoff) },
         { player2Id: userId, status: MatchStatus.Active, updatedAt: MoreThan(inactivityCutoff) },
       ],
+      relations: ['game'],
+    });
+    
+    return matches.map(match => {
+      const plugin = this.gamesRegistry.getPlugin(match.game.id);
+      return {
+        match: {
+          id: match.id,
+          status: match.status,
+          gameId: match.game.id,
+          player1Id: match.player1Id,
+          player2Id: match.player2Id,
+        },
+        nextTurns: plugin.getNextTurns(match.state as GameState),
+      }
     });
   }
 
@@ -257,7 +280,7 @@ export class MatchesService {
       this.wsGateway.sendToUser(prevOpponentId, 'opponent:disconnected', { matchId: curMatchId, opponentId: callerId });
     }
 
-    const plugin = this.gamesRegistry.get(meta.gameId);
+    const plugin = this.gamesRegistry.getPlugin(meta.gameId);
     const playerIndex = getPlayerIndex(meta.player1Id, meta.player2Id, callerId);
     let state;
 
@@ -316,7 +339,7 @@ export class MatchesService {
     const curMatchId = await this.redis.get(`match:user:${callerId}`);
     if (!curMatchId || curMatchId !== matchId) return;
 
-    const plugin = this.gamesRegistry.get(meta.gameId);
+    const plugin = this.gamesRegistry.getPlugin(meta.gameId);
     const initialState = await this.getStateFromCache(matchId);
     const playerIndex = getPlayerIndex(meta.player1Id, meta.player2Id, callerId);
     const opponentId = getOpponentId(meta.player1Id, meta.player2Id, callerId);
@@ -333,7 +356,7 @@ export class MatchesService {
 
     const finalState = events[events.length - 1].state;
     await this.persistState(matchId, finalState);
-    await this.broadcastMoves(matchId, callerId, opponentId, playerIndex!, opponentIndex!, initialState, events, plugin);
+    await this.broadcastMoves(matchId, callerId, opponentId, playerIndex!, opponentIndex!, initialState, finalState, events, plugin);
     await this.handleMatchOver(matchId, meta, finalState, callerId, opponentId, plugin);
   }
 
@@ -344,6 +367,7 @@ export class MatchesService {
     playerIndex: 1 | 2,
     opponentIndex: 1 | 2,
     initialState: GameState,
+    finalState: GameState,
     events: GameStep[],
     plugin: GamePlugin,
   ): Promise<void> {
@@ -357,6 +381,7 @@ export class MatchesService {
       view: plugin.getPlayerView(event.state, opponentIndex),
       playerIndex: event.playerIndex,
     }));
+    const nextTurns = plugin.getNextTurns(finalState);
 
     const [curCallerMatch, curOpponentMatch] = await Promise.all([
       this.redis.get(`match:user:${callerId}`),
@@ -364,14 +389,17 @@ export class MatchesService {
     ]);
 
     if (curCallerMatch === matchId) {
-      this.wsGateway.sendToUser(callerId, 'match:moves', { matchId, steps: callerSteps });
+      this.wsGateway.sendToUser(callerId, 'match:moves', { matchId, steps: callerSteps, nextTurns });
     } else {
+      this.wsGateway.sendToUser(callerId, 'match:turns', { matchId, nextTurns });
       await this.pushReplay(matchId, plugin.getPlayerView(initialState, playerIndex), callerId, callerSteps);
     }
+    
 
     if (curOpponentMatch === matchId) {
-      this.wsGateway.sendToUser(opponentId, 'match:moves', { matchId, steps: opponentSteps });
+      this.wsGateway.sendToUser(opponentId, 'match:moves', { matchId, steps: opponentSteps, nextTurns });
     } else {
+      this.wsGateway.sendToUser(opponentId, 'match:turns', { matchId, nextTurns });
       await this.pushReplay(matchId, plugin.getPlayerView(initialState, opponentIndex), opponentId, opponentSteps);
     }
   }
@@ -401,7 +429,13 @@ export class MatchesService {
       this.gamesRegistry.getType(meta.gameId),
     );
 
-    const matchPayload = { id: match.id, status: match.status, state: match.state, winner: match.winner };
+    const matchPayload = {
+      id: match.id,
+      status: match.status,
+      winner: match.winner,
+      player1Id: match.player1Id,
+      player2Id: match.player2Id,
+    };
     this.wsGateway.sendToUser(callerId, 'match:over', { match: matchPayload });
     this.wsGateway.sendToUser(opponentId, 'match:over', { match: matchPayload });
   }
@@ -465,6 +499,11 @@ export class MatchesService {
     
     if (replayRaw) return JSON.parse(replayRaw) as MatchReplay;
     else return null;
+  }
+
+  async clearReplay(matchId: string, player1Id: string, player2Id: string) {
+    await this.redis.del(`match:replay:${matchId}:${player1Id}`);
+    await this.redis.del(`match:replay:${matchId}:${player2Id}`);
   }
 
   async cleanupStaleMatches(): Promise<void> {

@@ -18,15 +18,15 @@ export class GamesRegistry {
     return [...this.entries.keys()];
   }
 
-  get(slug: string): GamePlugin {
-    const entry = this.entries.get(slug);
-    if (!entry) throw new Error(`No plugin registered for game: ${slug}`);
+  getPlugin(gameId: string): GamePlugin {
+    const entry = this.entries.get(gameId);
+    if (!entry) throw new Error(`${gameId} is not a registered game.`);
     return entry.plugin;
   }
 
-  getType(slug: string): GameType {
-    const entry = this.entries.get(slug);
-    if (!entry) throw new Error(`No plugin registered for game: ${slug}`);
+  getType(gameId: string): GameType {
+    const entry = this.entries.get(gameId);
+    if (!entry) throw new Error(`${gameId} is not a registered game.`);
     return entry.type;
   }
 }

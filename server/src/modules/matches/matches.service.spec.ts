@@ -70,7 +70,7 @@ describe('MatchesService', () => {
   let service: MatchesService;
   let matchesRepo: ReturnType<typeof mockRepository<Match>> & { findOneOrFail: jest.Mock };
   let gamesService: jest.Mocked<Pick<GamesService, 'findBySlug'>>;
-  let gamesRegistry: jest.Mocked<Pick<GamesRegistry, 'get' | 'getType'>>;
+  let gamesRegistry: jest.Mocked<Pick<GamesRegistry, 'getPlugin' | 'getType'>>;
   let usersService: jest.Mocked<Pick<UsersService, 'updateRival'>>;
   let redis: {
     get: jest.Mock; set: jest.Mock; del: jest.Mock;
@@ -79,7 +79,7 @@ describe('MatchesService', () => {
   };
   let wsGateway: { sendToUser: jest.Mock; errorToUser: jest.Mock };
   let mockPlugin: {
-    initialState: jest.Mock; applyAction: jest.Mock;
+    initialState: jest.Mock; applyAction: jest.Mock; getNextTurns: jest.Mock;
     isGameOver: jest.Mock; getWinner: jest.Mock; getPlayerView: jest.Mock;
   };
 
@@ -90,11 +90,12 @@ describe('MatchesService', () => {
       isGameOver: jest.fn().mockReturnValue(false),
       getWinner: jest.fn().mockReturnValue(0),
       getPlayerView: jest.fn().mockReturnValue({ cells: [] }),
+      getNextTurns: jest.fn().mockReturnValue([]),
     };
 
     matchesRepo = Object.assign(mockRepository<Match>(), { findOneOrFail: jest.fn() }) as any;
     gamesService = { findBySlug: jest.fn() };
-    gamesRegistry = { get: jest.fn().mockReturnValue(mockPlugin), getType: jest.fn().mockReturnValue(GameType.Versus) };
+    gamesRegistry = { getPlugin: jest.fn().mockReturnValue(mockPlugin), getType: jest.fn().mockReturnValue(GameType.Versus) };
     usersService = { updateRival: jest.fn().mockResolvedValue(undefined) };
     wsGateway = { sendToUser: jest.fn(), errorToUser: jest.fn() };
     redis = {
@@ -205,7 +206,7 @@ describe('MatchesService', () => {
 
     it('throws BadRequestException when no plugin is registered for the game', async () => {
       gamesService.findBySlug.mockResolvedValue(makeGame());
-      gamesRegistry.get.mockImplementation(() => { throw new Error('No plugin'); });
+      gamesRegistry.getPlugin.mockImplementation(() => { throw new Error('No plugin'); });
       await expect(service.createMatch('tictactoe', 1, CALLER_ID)).rejects.toThrow(BadRequestException);
     });
   });
@@ -553,7 +554,13 @@ describe('MatchesService', () => {
 
       const result = await service.listActiveMatches(CALLER_ID);
 
-      expect(result).toBe(matches);
+      expect(result).toStrictEqual(matches.map((match) => ({ match: {
+        id: match.id,
+        status: match.status,
+        gameId: match.game.id,
+        player1Id: match.player1Id,
+        player2Id: match.player2Id,
+      }, nextTurns: [] })));
       const [callArg] = matchesRepo.find.mock.calls[0]!;
       const conditions = (callArg as any).where as any[];
       expect(conditions).toHaveLength(2);
