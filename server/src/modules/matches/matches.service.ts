@@ -12,7 +12,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { LessThanOrEqual, MoreThan, Repository } from 'typeorm';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../common/redis/redis.module';
-import type { GameMove, GameAction, GameState, GameView, GamePlugin, GameEvent } from '../../logic';
+import type { GameMove, GameAction, GameState, GameView, GamePlugin, GameStep } from '../../logic';
 import { GamesService } from '../games/games.service';
 import { GamesRegistry } from '../games/games.registry';
 import { UsersService } from '../users/users.service';
@@ -49,7 +49,7 @@ interface MatchInvite {
 interface MatchStep {
   move: GameMove;
   view: GameView;
-  playerIndex: number;
+  playerIndex: null | 1 | 2;
 }
 
 interface MatchReplay {
@@ -344,7 +344,7 @@ export class MatchesService {
     playerIndex: 1 | 2,
     opponentIndex: 1 | 2,
     initialState: GameState,
-    events: GameEvent[],
+    events: GameStep[],
     plugin: GamePlugin,
   ): Promise<void> {
     const callerSteps = events.map(event => ({
@@ -445,7 +445,7 @@ export class MatchesService {
     await this.redis.del(`match:state:${matchId}`, `match:meta:${matchId}`);
   }
 
-  async pushReplay(matchId: string, initialView: GameView, userId: string, steps: { move: GameMove, view: GameView, playerIndex: number }[]) {
+  async pushReplay(matchId: string, initialView: GameView, userId: string, steps: MatchStep[]) {
     if (steps.length === 0) return;
 
     const replayKey = `match:replay:${matchId}:${userId}`;

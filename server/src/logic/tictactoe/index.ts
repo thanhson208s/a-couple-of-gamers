@@ -1,4 +1,4 @@
-import type { GameOptions, GamePlugin, GameEvent, GameState, GameAction, GameMove, GameView } from '../';
+import type { GamePlugin, GameStep, GameState, GameAction, GameMove, GameView,  } from '../';
 
 interface TicTacToeState extends GameState {
   board: (1 | 2 | null)[][];
@@ -21,8 +21,6 @@ interface TicTacToeView extends GameView {
   board: (1 | 2 | null)[][];
   currentTurn: 0 | 1 | 2;
 }
-
-type TicTacToeEvent = GameEvent<TicTacToeMove, TicTacToeState>;
 
 const WIN_LINES = [
   [[0, 0], [0, 1], [0, 2]],
@@ -57,7 +55,7 @@ export class TicTacToePlugin implements GamePlugin {
     };
   }
 
-  applyAction(state: TicTacToeState, action: TicTacToeAction, playerIndex: number): TicTacToeEvent[] {
+  applyAction(state: TicTacToeState, action: TicTacToeAction, playerIndex: 1 | 2) {
     const s = state;
     const a = action;
 
@@ -81,7 +79,7 @@ export class TicTacToePlugin implements GamePlugin {
   }
 
   // Open-information game — full state is the player view
-  getPlayerView(state: TicTacToeState, playerIndex: number): TicTacToeView {
+  getPlayerView(state: TicTacToeState, playerIndex: 1 | 2) {
     return {
       playerIndex,
       board: state.board,
@@ -89,11 +87,15 @@ export class TicTacToePlugin implements GamePlugin {
     } satisfies TicTacToeView;
   }
 
-  isGameOver(state: TicTacToeState): boolean {
+  getNextTurns(state: TicTacToeState) {
+    return state.currentTurn === 0 ? [] : [state.currentTurn];
+  }
+
+  isGameOver(state: TicTacToeState) {
     return state.winner !== null;
   }
 
-  getWinner(state: TicTacToeState): 0 | 1 | 2 | null {
+  getWinner(state: TicTacToeState) {
     return state.winner;
   }
 }

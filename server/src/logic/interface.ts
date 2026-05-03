@@ -25,10 +25,10 @@ export interface GameOptions {
 }
 
 // One step in the move sequence returned by applyAction.
-export interface GameEvent<M extends GameMove = GameMove, S extends GameState = GameState> {
-  move: M;
-  state: S;
-  playerIndex: number;
+export interface GameStep {
+  move: GameMove;
+  state: GameState;
+  playerIndex: null | 1 | 2;
 }
 
 export interface GamePlugin {
@@ -41,12 +41,15 @@ export interface GamePlugin {
   // For sequential games: one event. For auto-agent or phase transitions: multiple.
   // playerIndex: 1 = player1, 2 = player2. 0 is reserved (draw / both).
   // Throw if move is invalid.
-  applyAction(state: GameState, action: GameAction, playerIndex: 1 | 2): GameEvent[];
+  applyAction(state: GameState, action: GameAction, playerIndex: 1 | 2): GameStep[];
 
   // Return the subset of state visible to a specific player.
   // For open-information games, return full state unchanged.
   // For hidden-information games, strip opponent's private data.
   getPlayerView(state: GameState, playerIndex: 1 | 2): GameView;
+
+  // Return indices of players eligible for playing next
+  getNextTurns(state: GameState): (1 | 2)[];
 
   // Return true if the game has ended (win, loss, draw, or forfeit).
   isGameOver(state: GameState): boolean;
