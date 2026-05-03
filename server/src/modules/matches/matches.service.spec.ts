@@ -12,6 +12,7 @@ import { GamesRegistry } from '../games/games.registry';
 import { Game, GameStatus, GameType } from '../games/game.entity';
 import { REDIS_CLIENT } from '../../common/redis/redis.module';
 import { WsGateway } from '../ws/ws.gateway';
+import { UsersService } from '../users/users.service';
 import { mockRepository } from '../../common/helpers/test.helper';
 
 const CALLER_ID = 'CALLER0001';
@@ -69,7 +70,8 @@ describe('MatchesService', () => {
   let service: MatchesService;
   let matchesRepo: ReturnType<typeof mockRepository<Match>> & { findOneOrFail: jest.Mock };
   let gamesService: jest.Mocked<Pick<GamesService, 'findBySlug'>>;
-  let gamesRegistry: jest.Mocked<Pick<GamesRegistry, 'get'>>;
+  let gamesRegistry: jest.Mocked<Pick<GamesRegistry, 'get' | 'getType'>>;
+  let usersService: jest.Mocked<Pick<UsersService, 'updateRival'>>;
   let redis: {
     get: jest.Mock; set: jest.Mock; del: jest.Mock;
     zadd: jest.Mock; zrem: jest.Mock; zrange: jest.Mock;
@@ -92,7 +94,8 @@ describe('MatchesService', () => {
 
     matchesRepo = Object.assign(mockRepository<Match>(), { findOneOrFail: jest.fn() }) as any;
     gamesService = { findBySlug: jest.fn() };
-    gamesRegistry = { get: jest.fn().mockReturnValue(mockPlugin) };
+    gamesRegistry = { get: jest.fn().mockReturnValue(mockPlugin), getType: jest.fn().mockReturnValue(GameType.Versus) };
+    usersService = { updateRival: jest.fn().mockResolvedValue(undefined) };
     wsGateway = { sendToUser: jest.fn(), errorToUser: jest.fn() };
     redis = {
       get: jest.fn().mockResolvedValue(null),
@@ -114,6 +117,7 @@ describe('MatchesService', () => {
         { provide: GamesRegistry, useValue: gamesRegistry },
         { provide: REDIS_CLIENT, useValue: redis },
         { provide: WsGateway, useValue: wsGateway },
+        { provide: UsersService, useValue: usersService },
       ],
     }).compile();
     service = module.get(MatchesService);
@@ -600,7 +604,7 @@ describe('MatchesService', () => {
 
   describe('pushReplay', () => {
     const initialView = { cells: [] };
-    const steps = [{ move: { type: 'place' }, view: { cells: ['X'] }, playerIndex: 1 }];
+    const steps = [{ move: { type: 'place' }, view: { cells: ['X'] }, playerIndex: 1 as const }];
 
     it('does nothing when steps array is empty', async () => {
       await service.pushReplay(MATCH_ID, initialView, CALLER_ID, []);
