@@ -735,7 +735,7 @@ describe('MatchesService', () => {
         { inviteCode: INVITE_CODE, deepLink, gameId: 'tictactoe' },
         { title: 'Match Invitation', body: 'A friend invited you to play Tic-Tac-Toe!' },
       );
-      expect(wsGateway.sendToUser).toHaveBeenCalledWith(FRIEND_ID, 'match:invite', { inviteCode: INVITE_CODE, deepLink, gameId: 'tictactoe' });
+      expect(wsGateway.sendToUser).toHaveBeenCalledWith(FRIEND_ID, 'friend:invite', { inviteCode: INVITE_CODE, deepLink, gameId: 'tictactoe' });
     });
   });
 });

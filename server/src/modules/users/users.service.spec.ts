@@ -1,6 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { DataSource } from 'typeorm';
 import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
 import { UsersService } from './users.service';
 import { User } from './user.entity';
@@ -11,6 +10,7 @@ import { UserFriend, FriendStatus } from './user-friend.entity';
 import { Game, GameType } from '../games/game.entity';
 import { mockRepository } from '../../common/helpers/test.helper';
 import { FIREBASE_AUTH } from '../../common/firebase/firebase.module';
+import { WsGateway } from '../ws/ws.gateway';
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -47,6 +47,7 @@ describe('UsersService', () => {
         { provide: getRepositoryToken(UserFriend), useValue: userFriendsRepo },
         { provide: getRepositoryToken(Game), useValue: gamesRepo },
         { provide: FIREBASE_AUTH, useValue: firebaseAuth },
+        { provide: WsGateway, useValue: { sendToUser: jest.fn() } },
       ],
     }).compile();
     service = module.get(UsersService);
@@ -573,14 +574,14 @@ describe('UsersService', () => {
       await expect(service.acceptFriendRequest(userId, requesterId)).rejects.toThrow(NotFoundException);
     });
 
-    it('throws BadRequestException when request is already accepted', async () => {
-      userFriendsRepo.findOne.mockResolvedValue({ requesterId, addresseeId: userId, status: FriendStatus.Accepted } as UserFriend);
-      await expect(service.acceptFriendRequest(userId, requesterId)).rejects.toThrow(BadRequestException);
+    it('throws NotFoundException when request is already accepted (Pending filter returns null)', async () => {
+      userFriendsRepo.findOne.mockResolvedValue(null);
+      await expect(service.acceptFriendRequest(userId, requesterId)).rejects.toThrow(NotFoundException);
       expect(userFriendsRepo.save).not.toHaveBeenCalled();
     });
 
     it('updates status to accepted on a pending request', async () => {
-      const row = { requesterId, addresseeId: userId, status: FriendStatus.Pending } as UserFriend;
+      const row = { requesterId, addresseeId: userId, status: FriendStatus.Pending, addressee: { displayName: 'Addr', avatarUrl: null } } as UserFriend;
       userFriendsRepo.findOne.mockResolvedValue(row);
       userFriendsRepo.save.mockResolvedValue(undefined as any);
 
@@ -600,8 +601,8 @@ describe('UsersService', () => {
 
       await service.removeFriend(userId, friendId);
 
-      expect(userFriendsRepo.delete).toHaveBeenCalledWith({ requesterId: userId, addresseeId: friendId });
-      expect(userFriendsRepo.delete).toHaveBeenCalledWith({ requesterId: friendId, addresseeId: userId });
+      expect(userFriendsRepo.delete).toHaveBeenCalledWith({ requesterId: userId, addresseeId: friendId, status: FriendStatus.Accepted });
+      expect(userFriendsRepo.delete).toHaveBeenCalledWith({ requesterId: friendId, addresseeId: userId, status: FriendStatus.Accepted });
       expect(userFriendsRepo.delete).toHaveBeenCalledTimes(2);
     });
 
