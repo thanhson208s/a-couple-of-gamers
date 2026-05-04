@@ -1,23 +1,33 @@
 import { Injectable } from '@nestjs/common';
 import { GamesService } from '../games/games.service';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Config, ConfigData, DEFAULT_CONFIG } from './config.entity';
+import { Repository } from 'typeorm';
 
 @Injectable()
 export class ConfigService {
-  constructor(private readonly gamesService: GamesService) {}
+  configData: ConfigData = DEFAULT_CONFIG;
+
+  constructor(
+    @InjectRepository(Config) private readonly config: Repository<Config>,
+    private readonly gamesService: GamesService,
+  ) {}
 
   async getConfig() {
+    const row = await this.config.findOne({ where: { id: 1 } });
+    this.configData = row?.configData ?? DEFAULT_CONFIG;
+
     const games = await this.gamesService.listGames();
     const gamesMap: Record<string, unknown> = {};
     for (const game of games) {
-      gamesMap[game.id] = {
-        status: game.status,
-      };
+      gamesMap[game.id] = { status: game.status };
     }
-    return { games: gamesMap };
+    return { ...this.configData, games: gamesMap };
   }
 
-  async updateConfig(_config: unknown) {
-    // TODO: persist feature flags to config table
+  async updateConfig(configData: ConfigData) {
+    await this.config.save({ id: 1, configData });
+    this.configData = configData;
     await this.purgeCloudflareCache().catch((err) =>
       console.error('Cloudflare cache purge failed:', err),
     );
