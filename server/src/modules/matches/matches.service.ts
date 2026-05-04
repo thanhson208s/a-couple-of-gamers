@@ -206,7 +206,7 @@ export class MatchesService implements OnModuleInit {
       { inviteCode, deepLink, gameId: data.gameId },
       { title: 'Match Invitation', body: `A friend invited you to play ${data.gameName}!` },
     );
-    this.wsGateway.sendToUser(friendId, 'match:invite', { inviteCode, deepLink, gameId: data.gameId });
+    this.wsGateway.sendToUser(friendId, 'friend:invite', { inviteCode, deepLink, gameId: data.gameId });
   }
 
   async abandonMatch(id: string, callerId: string): Promise<void> {

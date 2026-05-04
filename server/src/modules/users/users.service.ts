@@ -11,7 +11,6 @@ import { auth } from 'firebase-admin';
 import { UserRival } from './user-rival.entity';
 import { FriendStatus, UserFriend } from './user-friend.entity';
 import { WsGateway } from '../ws/ws.gateway';
-import { fdatasync } from 'fs';
 
 @Injectable()
 export class UsersService {
