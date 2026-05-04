@@ -1,4 +1,4 @@
-import { ForbiddenException, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { DataSource } from 'typeorm';
 import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
@@ -7,6 +7,7 @@ import { User } from './user.entity';
 import { UserFavorite } from './user-favorite.entity';
 import { UserRival } from './user-rival.entity';
 import { UserDevice } from './user-device.entity';
+import { UserFriend, FriendStatus } from './user-friend.entity';
 import { Game, GameType } from '../games/game.entity';
 import { mockRepository } from '../../common/helpers/test.helper';
 import { FIREBASE_AUTH } from '../../common/firebase/firebase.module';
@@ -17,6 +18,7 @@ describe('UsersService', () => {
   let userFavoritesRepo: ReturnType<typeof mockRepository<UserFavorite>>;
   let userRivalsRepo: ReturnType<typeof mockRepository<UserRival>>;
   let userDevicesRepo: ReturnType<typeof mockRepository<UserDevice>>;
+  let userFriendsRepo: ReturnType<typeof mockRepository<UserFriend>> & { createQueryBuilder: jest.Mock };
   let gamesRepo: ReturnType<typeof mockRepository<Game>>;
   let dataSource: { transaction: jest.Mock };
   let firebaseAuth: { deleteUser: jest.Mock; verifyIdToken: jest.Mock };
@@ -26,6 +28,7 @@ describe('UsersService', () => {
     userFavoritesRepo = mockRepository<UserFavorite>();
     userRivalsRepo = mockRepository<UserRival>();
     userDevicesRepo = mockRepository<UserDevice>();
+    userFriendsRepo = { ...mockRepository<UserFriend>(), createQueryBuilder: jest.fn() };
     gamesRepo = mockRepository<Game>();
     firebaseAuth = { deleteUser: jest.fn(), verifyIdToken: jest.fn() };
     // transaction() runs the callback with an EntityManager whose getRepository() returns userRivalsRepo
@@ -41,6 +44,7 @@ describe('UsersService', () => {
         { provide: getRepositoryToken(UserFavorite), useValue: userFavoritesRepo },
         { provide: getRepositoryToken(UserRival), useValue: userRivalsRepo },
         { provide: getRepositoryToken(UserDevice), useValue: userDevicesRepo },
+        { provide: getRepositoryToken(UserFriend), useValue: userFriendsRepo },
         { provide: getRepositoryToken(Game), useValue: gamesRepo },
         { provide: FIREBASE_AUTH, useValue: firebaseAuth },
       ],
@@ -511,6 +515,163 @@ describe('UsersService', () => {
       const result = await service.getStats(userId);
 
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('sendFriendRequest', () => {
+    const userId = 'AAAAAAAAAA';
+    const targetId = 'ZZZZZZZZZZ';
+    const socialUser = { id: userId, provider: 'google.com' } as User;
+
+    beforeEach(() => {
+      usersRepo.findOne.mockResolvedValue(socialUser);
+    });
+
+    it('throws ForbiddenException for anonymous accounts', async () => {
+      usersRepo.findOne.mockResolvedValue({ id: userId, provider: 'anonymous' } as User);
+      await expect(service.sendFriendRequest(userId, targetId)).rejects.toThrow(ForbiddenException);
+      expect(usersRepo.existsBy).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when sending to self', async () => {
+      await expect(service.sendFriendRequest(userId, userId)).rejects.toThrow(BadRequestException);
+      expect(usersRepo.existsBy).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException when target user does not exist', async () => {
+      usersRepo.existsBy.mockResolvedValue(false);
+      await expect(service.sendFriendRequest(userId, targetId)).rejects.toThrow(NotFoundException);
+      expect(userFriendsRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('throws ConflictException when a relationship already exists', async () => {
+      usersRepo.existsBy.mockResolvedValue(true);
+      userFriendsRepo.findOne.mockResolvedValue({ requesterId: userId, addresseeId: targetId, status: FriendStatus.Pending } as UserFriend);
+      await expect(service.sendFriendRequest(userId, targetId)).rejects.toThrow(ConflictException);
+      expect(userFriendsRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('creates a pending request when no prior relationship exists', async () => {
+      usersRepo.existsBy.mockResolvedValue(true);
+      userFriendsRepo.findOne.mockResolvedValue(null);
+      userFriendsRepo.create.mockImplementation((data) => ({ ...data } as UserFriend));
+      userFriendsRepo.save.mockResolvedValue(undefined as any);
+
+      await service.sendFriendRequest(userId, targetId);
+
+      expect(userFriendsRepo.create).toHaveBeenCalledWith({ requesterId: userId, addresseeId: targetId });
+      expect(userFriendsRepo.save).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('acceptFriendRequest', () => {
+    const userId = 'AAAAAAAAAA';
+    const requesterId = 'ZZZZZZZZZZ';
+
+    it('throws NotFoundException when no pending request exists', async () => {
+      userFriendsRepo.findOne.mockResolvedValue(null);
+      await expect(service.acceptFriendRequest(userId, requesterId)).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws BadRequestException when request is already accepted', async () => {
+      userFriendsRepo.findOne.mockResolvedValue({ requesterId, addresseeId: userId, status: FriendStatus.Accepted } as UserFriend);
+      await expect(service.acceptFriendRequest(userId, requesterId)).rejects.toThrow(BadRequestException);
+      expect(userFriendsRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('updates status to accepted on a pending request', async () => {
+      const row = { requesterId, addresseeId: userId, status: FriendStatus.Pending } as UserFriend;
+      userFriendsRepo.findOne.mockResolvedValue(row);
+      userFriendsRepo.save.mockResolvedValue(undefined as any);
+
+      await service.acceptFriendRequest(userId, requesterId);
+
+      expect(row.status).toBe(FriendStatus.Accepted);
+      expect(userFriendsRepo.save).toHaveBeenCalledWith(row);
+    });
+  });
+
+  describe('removeFriend', () => {
+    const userId = 'AAAAAAAAAA';
+    const friendId = 'ZZZZZZZZZZ';
+
+    it('deletes both row directions', async () => {
+      userFriendsRepo.delete.mockResolvedValue({ affected: 1, raw: [] });
+
+      await service.removeFriend(userId, friendId);
+
+      expect(userFriendsRepo.delete).toHaveBeenCalledWith({ requesterId: userId, addresseeId: friendId });
+      expect(userFriendsRepo.delete).toHaveBeenCalledWith({ requesterId: friendId, addresseeId: userId });
+      expect(userFriendsRepo.delete).toHaveBeenCalledTimes(2);
+    });
+
+    it('is idempotent when no row exists', async () => {
+      userFriendsRepo.delete.mockResolvedValue({ affected: 0, raw: [] });
+
+      await expect(service.removeFriend(userId, friendId)).resolves.toBeUndefined();
+      expect(userFriendsRepo.delete).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('getFriendList', () => {
+    const userId = 'AAAAAAAAAA';
+
+    it('returns mapped friend list from query builder', async () => {
+      const friends = [
+        { id: 'FRIEND0001', displayName: 'Alice', avatarUrl: null },
+        { id: 'FRIEND0002', displayName: 'Bob', avatarUrl: 'https://photo.jpg' },
+      ];
+      const mockQb = {
+        innerJoin: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue(friends),
+      };
+      userFriendsRepo.createQueryBuilder.mockReturnValue(mockQb);
+
+      const result = await service.getFriendList(userId);
+
+      expect(result).toBe(friends);
+      expect(userFriendsRepo.createQueryBuilder).toHaveBeenCalledWith('uf');
+    });
+
+    it('returns empty array when user has no accepted friends', async () => {
+      const mockQb = {
+        innerJoin: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([]),
+      };
+      userFriendsRepo.createQueryBuilder.mockReturnValue(mockQb);
+
+      const result = await service.getFriendList(userId);
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('areFriends', () => {
+    const userId1 = 'AAAAAAAAAA';
+    const userId2 = 'ZZZZZZZZZZ';
+
+    it('returns true when an accepted row exists with userId1 as requester', async () => {
+      userFriendsRepo.existsBy.mockResolvedValue(true);
+
+      expect(await service.areFriends(userId1, userId2)).toBe(true);
+      expect(userFriendsRepo.existsBy).toHaveBeenCalledWith([
+        { requesterId: userId1, addresseeId: userId2, status: FriendStatus.Accepted },
+        { requesterId: userId2, addresseeId: userId1, status: FriendStatus.Accepted },
+      ]);
+    });
+
+    it('returns false when no accepted friendship exists', async () => {
+      userFriendsRepo.existsBy.mockResolvedValue(false);
+
+      expect(await service.areFriends(userId1, userId2)).toBe(false);
     });
   });
 });

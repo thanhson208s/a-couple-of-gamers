@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Delete, Body, Param, UseGuards, HttpCode } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CurrentUser, JwtAuthGuard, JwtUser } from '../auth/guards/jwt-auth.guard';
 import { DeleteAccountDto } from './delete-account.dto';
@@ -19,13 +19,13 @@ export class UsersController {
   }
 
   @Put('device')
-  @HttpCode(204)
+  @HttpCode(HttpStatus.NO_CONTENT)
   upsertDeviceToken(@CurrentUser() user: JwtUser, @Body() body: { token: string; platform: string }) {
     return this.usersService.upsertDeviceToken(user.id, body.token, body.platform);
   }
 
   @Delete('device')
-  @HttpCode(204)
+  @HttpCode(HttpStatus.NO_CONTENT)
   deleteDeviceToken(@CurrentUser() user: JwtUser, @Body() body: { token: string }) {
     return this.usersService.deleteDeviceToken(user.id, body.token);
   }
@@ -48,5 +48,45 @@ export class UsersController {
   @Get('rivals/:opponentId')
   getRival(@CurrentUser() user: JwtUser, @Param('opponentId') opponentId: string) {
     return this.usersService.getRival(user.id, opponentId);
+  }
+
+  @Get('friends')
+  getFriendList(@CurrentUser() user: JwtUser) {
+    return this.usersService.getFriendList(user.id);
+  }
+
+  @Delete('friends/:friendId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  removeFriend(@CurrentUser() user: JwtUser, @Param('friendId') friendId: string) {
+    return this.usersService.removeFriend(user.id, friendId);
+  }
+
+  @Get('friends/requests')
+  getFriendRequests(@CurrentUser() user: JwtUser) {
+    return this.usersService.getFriendRequests(user.id);
+  }
+
+  @Post('friends/:addresseeId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  sendFriendRequest(@CurrentUser() user: JwtUser, @Param('addresseeId') addresseeId: string) {
+    return this.usersService.sendFriendRequest(user.id, addresseeId);
+  }
+
+  @Put('friends/:requesterId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  acceptFriendRequest(@CurrentUser() user: JwtUser, @Param('requesterId') requesterId: string) {
+    return this.usersService.acceptFriendRequest(user.id, requesterId);
+  }
+
+  @Delete('friends/:addresseeId/cancel')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  cancelFriendRequest(@CurrentUser() user: JwtUser, @Param('addresseeId') addresseeId: string) {
+    return this.usersService.cancelFriendRequest(user.id, addresseeId);
+  }
+
+  @Delete('friends/:requesterId/delete')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  deleteFriendRequest(@CurrentUser() user: JwtUser, @Param('requesterId') requesterId: string) {
+    return this.usersService.deleteFriendRequest(user.id, requesterId);
   }
 }

@@ -1,6 +1,5 @@
 import { randomInt } from 'crypto';
-import { ForbiddenException, Inject, Injectable, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
-
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { User } from './user.entity';
@@ -10,6 +9,9 @@ import { Game, GameType } from '../games/game.entity';
 import { FIREBASE_AUTH } from '../../common/firebase/firebase.module';
 import { auth } from 'firebase-admin';
 import { UserRival } from './user-rival.entity';
+import { FriendStatus, UserFriend } from './user-friend.entity';
+import { WsGateway } from '../ws/ws.gateway';
+import { fdatasync } from 'fs';
 
 @Injectable()
 export class UsersService {
@@ -26,7 +28,9 @@ export class UsersService {
     @InjectRepository(UserRival) private readonly userRivals: Repository<UserRival>,
     @InjectRepository(UserDevice) private readonly userDevices: Repository<UserDevice>,
     @InjectRepository(Game) private readonly games: Repository<Game>,
+    @InjectRepository(UserFriend) private readonly userFriends: Repository<UserFriend>,
     @Inject(FIREBASE_AUTH) private readonly firebaseAuth: auth.Auth,
+    private readonly wsGateway: WsGateway,
   ) {}
 
   async findById(id: string): Promise<User | null> {
@@ -185,5 +189,120 @@ export class UsersService {
     if (provider === 'anonymous') 4;
     if (provider === 'dev') -1;
     return 100;
+  }
+
+  async sendFriendRequest(userId: string, addresseeId: string): Promise<void> {
+    const user = await this.users.findOne({ where: { id: userId } });
+    if (!user || user.provider === 'anonymous')
+      throw new ForbiddenException('Guests can not add friends');
+
+    if (userId === addresseeId)
+      throw new BadRequestException('Can not befriend yourself');
+
+    if (!(await this.users.existsBy({ id: addresseeId })))
+      throw new NotFoundException('Friend does not exists');
+
+    const row = await this.userFriends.findOne({
+      where: [
+        { requesterId: userId, addresseeId },
+        { requesterId: addresseeId, addresseeId: userId },
+      ],
+    });
+    if (row) throw new ConflictException("Friend request is already sent");
+
+    await this.userFriends.save(this.userFriends.create({ requesterId: userId, addresseeId }));
+
+    this.wsGateway.sendToUser(addresseeId, 'friend:request', { userId, displayName: user.displayName, avatarUrl: user.avatarUrl });
+  }
+
+  async cancelFriendRequest(userId: string, addresseeId: string): Promise<void> {
+    await this.userFriends.delete({ requesterId: userId, addresseeId, status: FriendStatus.Pending });
+  }
+
+  async acceptFriendRequest(userId: string, requesterId: string): Promise<void> {
+    const row = await this.userFriends.findOne({
+      where: { requesterId, addresseeId: userId, status: FriendStatus.Pending },
+      relations: ['addressee']
+    });
+    if (!row) throw new NotFoundException('Friend request not found');
+
+    row.status = FriendStatus.Accepted;
+    await this.userFriends.save(row);
+
+    this.wsGateway.sendToUser(requesterId, 'friend:accept', { userId, displayName: row.addressee.displayName, avatarUrl: row.addressee.avatarUrl});
+  }
+
+  async deleteFriendRequest(userId: string, requesterId: string): Promise<void> {
+    await this.userFriends.delete({ requesterId, addresseeId: userId, status: FriendStatus.Pending });
+  }
+
+  async removeFriend(userId: string, friendId: string): Promise<void> {
+    await this.userFriends.delete({ requesterId: userId, addresseeId: friendId, status: FriendStatus.Accepted });
+    await this.userFriends.delete({ requesterId: friendId, addresseeId: userId, status: FriendStatus.Accepted });
+  }
+
+  async areFriends(userId1: string, userId2: string): Promise<boolean> {
+    return this.userFriends.existsBy([
+      { requesterId: userId1, addresseeId: userId2, status: FriendStatus.Accepted },
+      { requesterId: userId2, addresseeId: userId1, status: FriendStatus.Accepted },
+    ]);
+  }
+
+  async getFriendList(userId: string): Promise<{ id: string; displayName: string; avatarUrl: string | null }[]> {
+    return this.userFriends
+      .createQueryBuilder('uf')
+      .innerJoin('uf.requester', 'r')
+      .innerJoin('uf.addressee', 'a')
+      .select(`CASE WHEN uf.requester_id = :me THEN a.id ELSE r.id END`, 'id')
+      .addSelect(`CASE WHEN uf.requester_id = :me THEN a.display_name ELSE r.display_name END`, 'displayName')
+      .addSelect(`CASE WHEN uf.requester_id = :me THEN a.avatar_url ELSE r.avatar_url END`, 'avatarUrl')
+      .where('uf.status = :status', { status: FriendStatus.Accepted })
+      .andWhere('(uf.requester_id = :me OR uf.addressee_id = :me)', { me: userId })
+      .getRawMany<{ id: string; displayName: string; avatarUrl: string | null }>();
+  }
+
+  async getFriendRequests(userId: string) {
+    const requests = await this.userFriends.find({
+      where: [
+        {requesterId: userId, status: FriendStatus.Pending },
+        {addresseeId: userId, status: FriendStatus.Pending },
+      ],
+      relations: ['requester', 'addressee'],
+      select: {
+        requesterId: true,
+        addresseeId: true,
+        requester: {
+          id: true,
+          displayName: true,
+          avatarUrl: true
+        },
+        addressee: {
+          id: true,
+          displayName: true,
+          avatarUrl: true,
+        },
+      }
+    });
+
+    return requests.reduce((acc, req) => {
+      if (req.requesterId === userId) {
+        acc.sent.push({
+          friendId: req.addressee.id,
+          displayName: req.addressee.displayName,
+          avatarUrl: req.addressee.avatarUrl,
+        });
+      } else {
+        acc.received.push({
+          friendId: req.addressee.id,
+          displayName: req.addressee.displayName,
+          avatarUrl: req.addressee.avatarUrl,
+        });
+      }
+
+      return acc;
+    }, {
+      sent: [] as {friendId: string, displayName: string, avatarUrl: string | null}[],
+      received: [] as {friendId: string, displayName: string, avatarUrl: string | null}[],
+    });
   }
 }

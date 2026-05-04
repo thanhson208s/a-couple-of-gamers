@@ -41,6 +41,7 @@ interface MatchMeta {
 
 interface MatchInvite {
   gameId: string;
+  gameName: string;
   playerSlot: 1 | 2;
   playerId: string;
   inviteCode: string;
@@ -116,6 +117,7 @@ export class MatchesService implements OnModuleInit {
     const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
     const data: MatchInvite = {
       gameId: game.id,
+      gameName: game.name,
       playerSlot,
       playerId: callerId,
       inviteCode,
@@ -184,6 +186,27 @@ export class MatchesService implements OnModuleInit {
 
     await this.redis.del(`invite:code:${inviteCode}`);
     await this.redis.zrem(`invite:user:${callerId}`, inviteCode);
+  }
+
+  async inviteFriendToMatch(inviteCode: string, callerId: string, friendId: string): Promise<void> {
+    const raw = await this.redis.get(`invite:code:${inviteCode}`);
+    if (!raw) throw new NotFoundException('Invite not found');
+
+    const data: MatchInvite = JSON.parse(raw);
+
+    if (data.playerId !== callerId)
+      throw new ForbiddenException('Not your invite');
+
+    if (!(await this.usersService.areFriends(callerId, friendId)))
+      throw new ForbiddenException('Not a friend');
+
+    const deepLink = `acog://join?code=${inviteCode}`;
+    await this.notificationsService.sendPush(
+      friendId, 'friend-invite',
+      { inviteCode, deepLink, gameId: data.gameId },
+      { title: 'Match Invitation', body: `A friend invited you to play ${data.gameName}!` },
+    );
+    this.wsGateway.sendToUser(friendId, 'match:invite', { inviteCode, deepLink, gameId: data.gameId });
   }
 
   async abandonMatch(id: string, callerId: string): Promise<void> {

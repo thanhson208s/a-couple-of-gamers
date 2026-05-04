@@ -36,6 +36,16 @@ export class MatchesController {
     return this.matchesService.joinMatch(dto.inviteCode, user.id);
   }
 
+  @Post('pending/:inviteCode/invite/:friendId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  inviteFriendToMatch(
+    @Param('inviteCode') inviteCode: string,
+    @Param('friendId') friendId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.matchesService.inviteFriendToMatch(inviteCode, user.id, friendId);
+  }
+
   @Delete('pending/:inviteCode')
   cancelMatch(@Param('inviteCode') inviteCode: string, @CurrentUser() user: JwtUser) {
     return this.matchesService.cancelMatch(inviteCode, user.id);

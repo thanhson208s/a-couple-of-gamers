@@ -13,6 +13,7 @@ import { Game, GameStatus, GameType } from '../games/game.entity';
 import { REDIS_CLIENT } from '../../common/redis/redis.module';
 import { WsGateway } from '../ws/ws.gateway';
 import { UsersService } from '../users/users.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { mockRepository } from '../../common/helpers/test.helper';
 
 const CALLER_ID = 'CALLER0001';
@@ -40,11 +41,12 @@ function makeMatch(overrides: Partial<Match> = {}): Match {
 }
 
 function makePendingJson(overrides: Partial<{
-  gameId: string; playerSlot: 1 | 2; playerId: string;
+  gameId: string; gameName: string; playerSlot: 1 | 2; playerId: string;
   inviteCode: string; options: null; createdAt: string;
 }> = {}): string {
   return JSON.stringify({
     gameId: 'tictactoe',
+    gameName: 'Tic-Tac-Toe',
     playerSlot: 1,
     playerId: OTHER_ID,
     inviteCode: 'ABCD',
@@ -71,7 +73,8 @@ describe('MatchesService', () => {
   let matchesRepo: ReturnType<typeof mockRepository<Match>> & { findOneOrFail: jest.Mock };
   let gamesService: jest.Mocked<Pick<GamesService, 'findBySlug'>>;
   let gamesRegistry: jest.Mocked<Pick<GamesRegistry, 'getPlugin' | 'getType'>>;
-  let usersService: jest.Mocked<Pick<UsersService, 'updateRival'>>;
+  let usersService: jest.Mocked<Pick<UsersService, 'updateRival' | 'areFriends'>>;
+  let notificationsService: { sendPush: jest.Mock; cancelReminders: jest.Mock };
   let redis: {
     get: jest.Mock; set: jest.Mock; del: jest.Mock;
     zadd: jest.Mock; zrem: jest.Mock; zrange: jest.Mock;
@@ -96,7 +99,8 @@ describe('MatchesService', () => {
     matchesRepo = Object.assign(mockRepository<Match>(), { findOneOrFail: jest.fn() }) as any;
     gamesService = { findBySlug: jest.fn() };
     gamesRegistry = { getPlugin: jest.fn().mockReturnValue(mockPlugin), getType: jest.fn().mockReturnValue(GameType.Versus) };
-    usersService = { updateRival: jest.fn().mockResolvedValue(undefined) };
+    usersService = { updateRival: jest.fn().mockResolvedValue(undefined), areFriends: jest.fn().mockResolvedValue(false) };
+    notificationsService = { sendPush: jest.fn().mockResolvedValue(undefined), cancelReminders: jest.fn().mockResolvedValue(undefined) };
     wsGateway = { sendToUser: jest.fn(), errorToUser: jest.fn() };
     redis = {
       get: jest.fn().mockResolvedValue(null),
@@ -119,6 +123,7 @@ describe('MatchesService', () => {
         { provide: REDIS_CLIENT, useValue: redis },
         { provide: WsGateway, useValue: wsGateway },
         { provide: UsersService, useValue: usersService },
+        { provide: NotificationsService, useValue: notificationsService },
       ],
     }).compile();
     service = module.get(MatchesService);
@@ -689,6 +694,48 @@ describe('MatchesService', () => {
 
       expect(matchesRepo.delete).not.toHaveBeenCalled();
       expect(redis.del).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('inviteFriendToMatch', () => {
+    const FRIEND_ID = 'FRIEND0001';
+    const INVITE_CODE = 'ABCD1234';
+
+    it('throws NotFoundException when invite code is not in Redis', async () => {
+      redis.get.mockResolvedValue(null);
+
+      await expect(service.inviteFriendToMatch(INVITE_CODE, CALLER_ID, FRIEND_ID)).rejects.toThrow(NotFoundException);
+      expect(usersService.areFriends).not.toHaveBeenCalled();
+    });
+
+    it('throws ForbiddenException when caller is not the invite creator', async () => {
+      redis.get.mockResolvedValue(makePendingJson({ playerId: OTHER_ID, inviteCode: INVITE_CODE }));
+
+      await expect(service.inviteFriendToMatch(INVITE_CODE, CALLER_ID, FRIEND_ID)).rejects.toThrow(ForbiddenException);
+      expect(usersService.areFriends).not.toHaveBeenCalled();
+    });
+
+    it('throws ForbiddenException when target is not a friend', async () => {
+      redis.get.mockResolvedValue(makePendingJson({ playerId: CALLER_ID, inviteCode: INVITE_CODE }));
+      usersService.areFriends.mockResolvedValue(false);
+
+      await expect(service.inviteFriendToMatch(INVITE_CODE, CALLER_ID, FRIEND_ID)).rejects.toThrow(ForbiddenException);
+      expect(notificationsService.sendPush).not.toHaveBeenCalled();
+    });
+
+    it('sends push notification and WS event to friend on success', async () => {
+      redis.get.mockResolvedValue(makePendingJson({ playerId: CALLER_ID, inviteCode: INVITE_CODE, gameId: 'tictactoe', gameName: 'Tic-Tac-Toe' }));
+      usersService.areFriends.mockResolvedValue(true);
+
+      await service.inviteFriendToMatch(INVITE_CODE, CALLER_ID, FRIEND_ID);
+
+      const deepLink = `acog://join?code=${INVITE_CODE}`;
+      expect(notificationsService.sendPush).toHaveBeenCalledWith(
+        FRIEND_ID, 'friend-invite',
+        { inviteCode: INVITE_CODE, deepLink, gameId: 'tictactoe' },
+        { title: 'Match Invitation', body: 'A friend invited you to play Tic-Tac-Toe!' },
+      );
+      expect(wsGateway.sendToUser).toHaveBeenCalledWith(FRIEND_ID, 'match:invite', { inviteCode: INVITE_CODE, deepLink, gameId: 'tictactoe' });
     });
   });
 });

@@ -11,6 +11,7 @@ const DELAYED_REMINDER_MS = 24 * 60 * 60 * 1000;
 const NOTIFICATION_CONTENT: Record<string, { title: string; body: string }> = {
   'instant-reminder': { title: "It's your turn!", body: "Your opponent just made a move. Don't keep them waiting!" },
   'delayed-reminder': { title: 'Still your turn', body: "It's been a while — your opponent is waiting for your move." },
+  'friend-invite': { title: 'Match Invitation', body: 'A friend invited you to a match!' },
 };
 
 @Injectable()
@@ -21,7 +22,7 @@ export class NotificationsService {
     private readonly usersService: UsersService,
   ) {}
 
-  async sendPush(userId: string, type: string, payload: Record<string, string>): Promise<void> {
+  async sendPush(userId: string, type: string, payload: Record<string, string>, notification?: { title: string, body: string } ): Promise<void> {
     const devices = await this.usersService.getDeviceTokens(userId);
     if (devices.length === 0) return;
 
@@ -29,7 +30,7 @@ export class NotificationsService {
     const result = await this.messaging.sendEachForMulticast({
       tokens,
       data: { type, ...payload },
-      notification: NOTIFICATION_CONTENT[type],
+      notification: notification ?? NOTIFICATION_CONTENT[type],
     });
 
     for (let i = 0; i < result.responses.length; i++) {
