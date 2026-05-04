@@ -22,6 +22,7 @@ import { WsGateway } from '../ws/ws.gateway';
 import { Match, MatchStatus } from './match.entity';
 import { OnWsDisconnected, OnWsMessage } from '../ws/ws.decorators';
 import { SubmitActionDto } from './submit-action.dto';
+import { ConfigService } from '../config/config.service';
 
 const META_TTL_MS = 24 * 60 * 60 * 1000; // 1 days
 const INACTIVITY_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -97,6 +98,7 @@ export class MatchesService implements OnModuleInit {
     private readonly wsGateway: WsGateway,
     private readonly usersService: UsersService,
     private readonly notificationsService: NotificationsService,
+    private readonly configService: ConfigService,
   ) {}
 
   onModuleInit() {
@@ -104,14 +106,39 @@ export class MatchesService implements OnModuleInit {
   }
 
   async createMatch(gameSlug: string, playerSlot: 1 | 2, callerId: string, options?: Record<string, unknown>): Promise<object> {
-    const game = await this.gamesService.findBySlug(gameSlug);
+    const [game, user] = await Promise.all([
+      this.gamesService.findBySlug(gameSlug),
+      this.usersService.findById(callerId),
+    ]);
     if (!game) throw new NotFoundException(`Game not found: ${gameSlug}`);
+    if (!user) throw new NotFoundException('User not found');
 
     try {
       this.gamesRegistry.getPlugin(game.id);
     } catch (e) {
       throw new BadRequestException((e as Error).message);
     }
+
+    const now = new Date();
+    await this.redis.zremrangebyscore(`invite:user:${callerId}`, '-inf', now.getTime());
+    const [pendingCount, activeCount] = await Promise.all([
+      this.redis.zcard(`invite:user:${callerId}`),
+      this.matches.count({
+        where: [
+          { player1Id: callerId, status: MatchStatus.Active },
+          { player2Id: callerId, status: MatchStatus.Active },
+        ],
+      }),
+    ]);
+
+    const { featureLimits } = this.configService.configData;
+    const tier =
+      user.provider === 'anonymous' ? 'anonymous' : 
+      user.provider === 'dev' ? 'dev' :
+      'social';
+    const matchLimit = featureLimits[tier].maxConcurrentMatches;
+    if (matchLimit >= 0 && pendingCount + activeCount >= matchLimit)
+      throw new ForbiddenException('Concurrent match limit reached');
 
     const inviteCode = generateInviteCode();
     const expiresAt = new Date(Date.now() + INVITE_TTL_MS);

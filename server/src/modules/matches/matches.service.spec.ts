@@ -15,6 +15,8 @@ import { WsGateway } from '../ws/ws.gateway';
 import { UsersService } from '../users/users.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { mockRepository } from '../../common/helpers/test.helper';
+import { ConfigService } from '../config/config.service';
+import { DEFAULT_CONFIG } from '../config/config.entity';
 
 const CALLER_ID = 'CALLER0001';
 const OTHER_ID  = 'OTHER00001';
@@ -73,12 +75,12 @@ describe('MatchesService', () => {
   let matchesRepo: ReturnType<typeof mockRepository<Match>> & { findOneOrFail: jest.Mock };
   let gamesService: jest.Mocked<Pick<GamesService, 'findBySlug'>>;
   let gamesRegistry: jest.Mocked<Pick<GamesRegistry, 'getPlugin' | 'getType'>>;
-  let usersService: jest.Mocked<Pick<UsersService, 'updateRival' | 'areFriends'>>;
+  let usersService: jest.Mocked<Pick<UsersService, 'updateRival' | 'areFriends' | 'findById'>>;
   let notificationsService: { sendPush: jest.Mock; cancelReminders: jest.Mock };
   let redis: {
     get: jest.Mock; set: jest.Mock; del: jest.Mock;
     zadd: jest.Mock; zrem: jest.Mock; zrange: jest.Mock;
-    zremrangebyscore: jest.Mock; mget: jest.Mock; getdel: jest.Mock;
+    zremrangebyscore: jest.Mock; zcard: jest.Mock; mget: jest.Mock; getdel: jest.Mock;
   };
   let wsGateway: { sendToUser: jest.Mock; errorToUser: jest.Mock };
   let mockPlugin: {
@@ -99,7 +101,7 @@ describe('MatchesService', () => {
     matchesRepo = Object.assign(mockRepository<Match>(), { findOneOrFail: jest.fn() }) as any;
     gamesService = { findBySlug: jest.fn() };
     gamesRegistry = { getPlugin: jest.fn().mockReturnValue(mockPlugin), getType: jest.fn().mockReturnValue(GameType.Versus) };
-    usersService = { updateRival: jest.fn().mockResolvedValue(undefined), areFriends: jest.fn().mockResolvedValue(false) };
+    usersService = { updateRival: jest.fn().mockResolvedValue(undefined), areFriends: jest.fn().mockResolvedValue(false), findById: jest.fn().mockResolvedValue({ id: CALLER_ID, provider: 'google.com' }) };
     notificationsService = { sendPush: jest.fn().mockResolvedValue(undefined), cancelReminders: jest.fn().mockResolvedValue(undefined) };
     wsGateway = { sendToUser: jest.fn(), errorToUser: jest.fn() };
     redis = {
@@ -110,6 +112,7 @@ describe('MatchesService', () => {
       zrem: jest.fn().mockResolvedValue(1),
       zrange: jest.fn().mockResolvedValue([]),
       zremrangebyscore: jest.fn().mockResolvedValue(0),
+      zcard: jest.fn().mockResolvedValue(0),
       mget: jest.fn().mockResolvedValue([]),
       getdel: jest.fn().mockResolvedValue(null),
     };
@@ -124,6 +127,7 @@ describe('MatchesService', () => {
         { provide: WsGateway, useValue: wsGateway },
         { provide: UsersService, useValue: usersService },
         { provide: NotificationsService, useValue: notificationsService },
+        { provide: ConfigService, useValue: { configData: DEFAULT_CONFIG } },
       ],
     }).compile();
     service = module.get(MatchesService);
@@ -150,6 +154,10 @@ describe('MatchesService', () => {
   // ─── createMatch ──────────────────────────────────────────────────────────
 
   describe('createMatch', () => {
+    beforeEach(() => {
+      matchesRepo.count.mockResolvedValue(0);
+    });
+
     it('stores pending match in Redis and returns inviteCode, deepLink, expiresAt', async () => {
       gamesService.findBySlug.mockResolvedValue(makeGame());
 
@@ -213,6 +221,19 @@ describe('MatchesService', () => {
       gamesService.findBySlug.mockResolvedValue(makeGame());
       gamesRegistry.getPlugin.mockImplementation(() => { throw new Error('No plugin'); });
       await expect(service.createMatch('tictactoe', 1, CALLER_ID)).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws ForbiddenException when concurrent match limit is reached', async () => {
+      gamesService.findBySlug.mockResolvedValue(makeGame());
+      matchesRepo.count.mockResolvedValue(DEFAULT_CONFIG.featureLimits.social.maxConcurrentMatches);
+      await expect(service.createMatch('tictactoe', 1, CALLER_ID)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('counts pending and active matches together against the limit', async () => {
+      gamesService.findBySlug.mockResolvedValue(makeGame());
+      redis.zcard.mockResolvedValue(DEFAULT_CONFIG.featureLimits.social.maxConcurrentMatches - 1);
+      matchesRepo.count.mockResolvedValue(1);
+      await expect(service.createMatch('tictactoe', 1, CALLER_ID)).rejects.toThrow(ForbiddenException);
     });
   });
 

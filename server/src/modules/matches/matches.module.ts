@@ -8,9 +8,10 @@ import { AuthModule } from '../auth/auth.module';
 import { WsModule } from '../ws/ws.module';
 import { UsersModule } from '../users/users.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { ConfigModule } from '../config/config.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Match]), GamesModule, AuthModule, WsModule, UsersModule, NotificationsModule],
+  imports: [TypeOrmModule.forFeature([Match]), GamesModule, AuthModule, WsModule, UsersModule, NotificationsModule, ConfigModule],
   controllers: [MatchesController],
   providers: [MatchesService],
   exports: [MatchesService],
