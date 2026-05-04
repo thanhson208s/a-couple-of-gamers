@@ -7,6 +7,7 @@ export class UserRival {
   @PrimaryColumn({ type: 'char', length: 10, name: 'user_id1' })
   userId1: string;
 
+  // No FK: when the opponent deletes their account, this row is kept so userId1's stats are preserved.
   @PrimaryColumn({ type: 'char', length: 10, name: 'user_id2' })
   userId2: string;
 
@@ -17,17 +18,12 @@ export class UserRival {
   @JoinColumn({ name: 'user_id1' })
   user1: User;
 
-  @ManyToOne(() => User, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'user_id2' })
-  user2: User;
-
   @ManyToOne(() => Game)
   @JoinColumn({ name: 'game_id' })
   game: Game;
 
-  // winCount/lossCount/drawCount are from userId1's perspective.
-  // For coop: winCount = both won, lossCount = both lost, no draws.
-  // For versus: winCount = userId1 beat userId2, lossCount = userId1 lost to userId2.
+  // Each pair (A, B) has two rows: (A,B) and (B,A).
+  // winCount/lossCount/drawCount are always from userId1's perspective.
   @Column({
     type: 'int',
     name: 'match_count',

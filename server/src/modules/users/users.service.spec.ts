@@ -1,6 +1,7 @@
 import { ForbiddenException, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
+import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
 import { UsersService } from './users.service';
 import { User } from './user.entity';
 import { UserFavorite } from './user-favorite.entity';
@@ -9,7 +10,6 @@ import { UserDevice } from './user-device.entity';
 import { Game, GameType } from '../games/game.entity';
 import { mockRepository } from '../../common/helpers/test.helper';
 import { FIREBASE_AUTH } from '../../common/firebase/firebase.module';
-import { GamesRegistry } from '../games/games.registry';
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -18,8 +18,8 @@ describe('UsersService', () => {
   let userRivalsRepo: ReturnType<typeof mockRepository<UserRival>>;
   let userDevicesRepo: ReturnType<typeof mockRepository<UserDevice>>;
   let gamesRepo: ReturnType<typeof mockRepository<Game>>;
+  let dataSource: { transaction: jest.Mock };
   let firebaseAuth: { deleteUser: jest.Mock; verifyIdToken: jest.Mock };
-  let gamesRegistry: { getType: jest.Mock };
 
   beforeEach(async () => {
     usersRepo = { ...mockRepository<User>(), findOneOrFail: jest.fn() };
@@ -28,18 +28,21 @@ describe('UsersService', () => {
     userDevicesRepo = mockRepository<UserDevice>();
     gamesRepo = mockRepository<Game>();
     firebaseAuth = { deleteUser: jest.fn(), verifyIdToken: jest.fn() };
-    gamesRegistry = { getType: jest.fn() };
+    // transaction() runs the callback with an EntityManager whose getRepository() returns userRivalsRepo
+    dataSource = {
+      transaction: jest.fn().mockImplementation((cb) => cb({ getRepository: () => userRivalsRepo })),
+    };
 
     const module = await Test.createTestingModule({
       providers: [
         UsersService,
+        { provide: getDataSourceToken(), useValue: dataSource },
         { provide: getRepositoryToken(User), useValue: usersRepo },
         { provide: getRepositoryToken(UserFavorite), useValue: userFavoritesRepo },
         { provide: getRepositoryToken(UserRival), useValue: userRivalsRepo },
         { provide: getRepositoryToken(UserDevice), useValue: userDevicesRepo },
         { provide: getRepositoryToken(Game), useValue: gamesRepo },
         { provide: FIREBASE_AUTH, useValue: firebaseAuth },
-        { provide: GamesRegistry, useValue: gamesRegistry },
       ],
     }).compile();
     service = module.get(UsersService);
@@ -392,7 +395,6 @@ describe('UsersService', () => {
   });
 
   describe('updateRival', () => {
-    // P1 < P2 lexicographically so P1 is always userId1 in canonical order
     const P1 = 'AAAAAAAAAA';
     const P2 = 'ZZZZZZZZZZ';
     const gameId = 'tictactoe';
@@ -403,58 +405,51 @@ describe('UsersService', () => {
     });
 
     describe('versus', () => {
-      it('increments winCount when player1 (userId1) wins', async () => {
+      it('increments winCount for player1 row and lossCount for player2 row when player1 wins', async () => {
         await service.updateRival(P1, P2, gameId, 1, GameType.Versus);
         expect(userRivalsRepo.increment).toHaveBeenCalledWith({ userId1: P1, userId2: P2, gameId }, 'winCount', 1);
+        expect(userRivalsRepo.increment).toHaveBeenCalledWith({ userId1: P2, userId2: P1, gameId }, 'lossCount', 1);
       });
 
-      it('increments lossCount when player2 (userId2) wins', async () => {
+      it('increments lossCount for player1 row and winCount for player2 row when player2 wins', async () => {
         await service.updateRival(P1, P2, gameId, 2, GameType.Versus);
         expect(userRivalsRepo.increment).toHaveBeenCalledWith({ userId1: P1, userId2: P2, gameId }, 'lossCount', 1);
+        expect(userRivalsRepo.increment).toHaveBeenCalledWith({ userId1: P2, userId2: P1, gameId }, 'winCount', 1);
       });
 
-      it('increments lossCount when player1 is userId2 and wins', async () => {
-        // match player1=P2, player2=P1 — canonical userId1=P1, winner=1 means P2 (userId2) won
-        await service.updateRival(P2, P1, gameId, 1, GameType.Versus);
-        expect(userRivalsRepo.increment).toHaveBeenCalledWith({ userId1: P1, userId2: P2, gameId }, 'lossCount', 1);
-      });
-
-      it('increments winCount when player1 is userId2 and loses', async () => {
-        // match player1=P2, player2=P1 — canonical userId1=P1, winner=2 means P1 (userId1) won
-        await service.updateRival(P2, P1, gameId, 2, GameType.Versus);
-        expect(userRivalsRepo.increment).toHaveBeenCalledWith({ userId1: P1, userId2: P2, gameId }, 'winCount', 1);
-      });
-
-      it('increments drawCount on draw', async () => {
+      it('increments drawCount in both rows on draw', async () => {
         await service.updateRival(P1, P2, gameId, 0, GameType.Versus);
         expect(userRivalsRepo.increment).toHaveBeenCalledWith({ userId1: P1, userId2: P2, gameId }, 'drawCount', 1);
+        expect(userRivalsRepo.increment).toHaveBeenCalledWith({ userId1: P2, userId2: P1, gameId }, 'drawCount', 1);
       });
     });
 
     describe('coop', () => {
-      it('increments winCount when both win', async () => {
+      it('increments winCount in both rows when both win', async () => {
         await service.updateRival(P1, P2, gameId, 1, GameType.Coop);
         expect(userRivalsRepo.increment).toHaveBeenCalledWith({ userId1: P1, userId2: P2, gameId }, 'winCount', 1);
+        expect(userRivalsRepo.increment).toHaveBeenCalledWith({ userId1: P2, userId2: P1, gameId }, 'winCount', 1);
       });
 
-      it('increments lossCount when both lose', async () => {
+      it('increments lossCount in both rows when both lose', async () => {
         await service.updateRival(P1, P2, gameId, 0, GameType.Coop);
         expect(userRivalsRepo.increment).toHaveBeenCalledWith({ userId1: P1, userId2: P2, gameId }, 'lossCount', 1);
+        expect(userRivalsRepo.increment).toHaveBeenCalledWith({ userId1: P2, userId2: P1, gameId }, 'lossCount', 1);
       });
     });
 
-    it('creates the row before incrementing when it does not exist', async () => {
+    it('creates both rows before incrementing when they do not exist', async () => {
       userRivalsRepo.existsBy.mockResolvedValue(false);
       userRivalsRepo.create.mockImplementation((data) => ({ ...data } as UserRival));
       userRivalsRepo.save.mockResolvedValue(undefined as any);
 
       await service.updateRival(P1, P2, gameId, 1, GameType.Versus);
 
-      expect(userRivalsRepo.save).toHaveBeenCalledTimes(1);
-      expect(userRivalsRepo.increment).toHaveBeenCalledTimes(1);
+      expect(userRivalsRepo.save).toHaveBeenCalledTimes(2);
+      expect(userRivalsRepo.increment).toHaveBeenCalledTimes(2);
     });
 
-    it('does not create a row when it already exists', async () => {
+    it('does not create rows when they already exist', async () => {
       await service.updateRival(P1, P2, gameId, 1, GameType.Versus);
       expect(userRivalsRepo.save).not.toHaveBeenCalled();
     });
@@ -465,7 +460,7 @@ describe('UsersService', () => {
     const P2 = 'ZZZZZZZZZZ';
     const records = [{ userId1: 'AAAAAAAAAA', userId2: 'ZZZZZZZZZZ', gameId: 'tictactoe' }] as UserRival[];
 
-    it('queries with canonical order when userId is the smaller ID', async () => {
+    it('queries with userId as userId1 and opponentId as userId2', async () => {
       userRivalsRepo.find.mockResolvedValue(records);
 
       const result = await service.getRival(P1, P2);
@@ -474,22 +469,21 @@ describe('UsersService', () => {
       expect(result).toBe(records);
     });
 
-    it('queries with canonical order when userId is the larger ID', async () => {
+    it('queries from opponent perspective without reordering', async () => {
       userRivalsRepo.find.mockResolvedValue(records);
 
       await service.getRival(P2, P1);
 
-      expect(userRivalsRepo.find).toHaveBeenCalledWith({ where: { userId1: P1, userId2: P2 } });
+      expect(userRivalsRepo.find).toHaveBeenCalledWith({ where: { userId1: P2, userId2: P1 } });
     });
   });
 
   describe('getStats', () => {
     const userId = 'MMMMMMMMMM';
-    const smallerId = 'AAAAAAAAAA';  // < userId
-    const largerId  = 'ZZZZZZZZZZ';  // > userId
+    const smallerId = 'AAAAAAAAAA';
+    const largerId  = 'ZZZZZZZZZZ';
 
-    it('returns aggregated versus stats from the requesting user perspective when user is userId1', async () => {
-      gamesRegistry.getType.mockReturnValue(GameType.Versus);
+    it('returns stats directly from userId1 rows', async () => {
       userRivalsRepo.find.mockResolvedValue([
         { userId1: userId, userId2: largerId, gameId: 'tictactoe', matchCount: 5, winCount: 3, lossCount: 1, drawCount: 1 },
       ] as UserRival[]);
@@ -497,40 +491,17 @@ describe('UsersService', () => {
       const result = await service.getStats(userId);
 
       expect(result).toEqual([{ gameId: 'tictactoe', matchCount: 5, winCount: 3, lossCount: 1, drawCount: 1 }]);
-    });
-
-    it('swaps win/loss for versus when user is userId2', async () => {
-      gamesRegistry.getType.mockReturnValue(GameType.Versus);
-      userRivalsRepo.find.mockResolvedValue([
-        { userId1: smallerId, userId2: userId, gameId: 'tictactoe', matchCount: 5, winCount: 3, lossCount: 1, drawCount: 1 },
-      ] as UserRival[]);
-
-      const result = await service.getStats(userId);
-
-      expect(result).toEqual([{ gameId: 'tictactoe', matchCount: 5, winCount: 1, lossCount: 3, drawCount: 1 }]);
-    });
-
-    it('does not swap win/loss for coop when user is userId2', async () => {
-      gamesRegistry.getType.mockReturnValue(GameType.Coop);
-      userRivalsRepo.find.mockResolvedValue([
-        { userId1: smallerId, userId2: userId, gameId: 'coop-game', matchCount: 4, winCount: 3, lossCount: 1, drawCount: 0 },
-      ] as UserRival[]);
-
-      const result = await service.getStats(userId);
-
-      expect(result).toEqual([{ gameId: 'coop-game', matchCount: 4, winCount: 3, lossCount: 1, drawCount: 0 }]);
+      expect(userRivalsRepo.find).toHaveBeenCalledWith({ where: { userId1: userId } });
     });
 
     it('aggregates stats across multiple rivals for the same game', async () => {
-      gamesRegistry.getType.mockReturnValue(GameType.Versus);
       userRivalsRepo.find.mockResolvedValue([
         { userId1: userId, userId2: largerId,  gameId: 'tictactoe', matchCount: 3, winCount: 2, lossCount: 1, drawCount: 0 },
-        { userId1: smallerId, userId2: userId, gameId: 'tictactoe', matchCount: 2, winCount: 1, lossCount: 1, drawCount: 0 },
+        { userId1: userId, userId2: smallerId, gameId: 'tictactoe', matchCount: 2, winCount: 1, lossCount: 1, drawCount: 0 },
       ] as UserRival[]);
 
       const result = await service.getStats(userId);
 
-      // Row 1 (user is userId1): wins=2, losses=1; Row 2 (user is userId2): wins=1, losses=1
       expect(result).toEqual([{ gameId: 'tictactoe', matchCount: 5, winCount: 3, lossCount: 2, drawCount: 0 }]);
     });
 

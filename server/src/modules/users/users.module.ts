@@ -7,10 +7,10 @@ import { UserFavorite } from './user-favorite.entity';
 import { Game } from '../games/game.entity';
 import { UserRival } from './user-rival.entity';
 import { UserDevice } from './user-device.entity';
-import { GamesModule } from '../games/games.module';
+import { UserFriend } from './user-friend.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, UserFavorite, UserRival, UserDevice, Game]), GamesModule],
+  imports: [TypeOrmModule.forFeature([User, UserFavorite, UserRival, UserDevice, UserFriend, Game])],
   controllers: [UsersController],
   providers: [UsersService],
   exports: [UsersService],

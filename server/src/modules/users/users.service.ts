@@ -1,8 +1,8 @@
 import { randomInt } from 'crypto';
 import { ForbiddenException, Inject, Injectable, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { User } from './user.entity';
 import { UserFavorite } from './user-favorite.entity';
 import { UserDevice } from './user-device.entity';
@@ -10,18 +10,23 @@ import { Game, GameType } from '../games/game.entity';
 import { FIREBASE_AUTH } from '../../common/firebase/firebase.module';
 import { auth } from 'firebase-admin';
 import { UserRival } from './user-rival.entity';
-import { GamesRegistry } from '../games/games.registry';
 
 @Injectable()
 export class UsersService {
+  private readonly cleanupCallbacks: ((userId: string) => Promise<void>)[] = [];
+
+  registerCleanupCallback(fn: (userId: string) => Promise<void>): void {
+    this.cleanupCallbacks.push(fn);
+  }
+
   constructor(
+    @InjectDataSource() private readonly dataSource: DataSource,
     @InjectRepository(User) private readonly users: Repository<User>,
     @InjectRepository(UserFavorite) private readonly userFavorites: Repository<UserFavorite>,
     @InjectRepository(UserRival) private readonly userRivals: Repository<UserRival>,
     @InjectRepository(UserDevice) private readonly userDevices: Repository<UserDevice>,
     @InjectRepository(Game) private readonly games: Repository<Game>,
     @Inject(FIREBASE_AUTH) private readonly firebaseAuth: auth.Auth,
-    private readonly gamesRegistry: GamesRegistry,
   ) {}
 
   async findById(id: string): Promise<User | null> {
@@ -87,6 +92,7 @@ export class UsersService {
       if (user && user.id !== userId)
         throw new UnauthorizedException();
 
+      for (const cleanup of this.cleanupCallbacks) await cleanup(userId);
       if (user) await this.users.delete(user.id);
       await this.firebaseAuth.deleteUser(decodedIdToken.uid);
     } catch(e) {
@@ -129,49 +135,41 @@ export class UsersService {
     await this.userFavorites.delete({ userId, gameId });
   }
 
-  async updateRival(player1Id: string, player2Id: string, gameId: string, winner: number, gameType: GameType): Promise<void> {
-    const [userId1, userId2] = player1Id < player2Id
-      ? [player1Id, player2Id]
-      : [player2Id, player1Id];
-    const p1IsUser1 = player1Id === userId1;
-
-    const exists = await this.userRivals.existsBy({ userId1, userId2, gameId });
-    if (!exists) {
-      await this.userRivals.save(this.userRivals.create({ userId1, userId2, gameId }));
-    }
-
-    let col: string;
+  async updateRival(player1Id: string, player2Id: string, gameId: string, winner: 0 | 1 | 2, gameType: GameType): Promise<void> {
+    let p1Col: string;
+    let p2Col: string;
     if (gameType === GameType.Coop) {
-      col = winner === 1 ? 'winCount' : 'lossCount';
-    } else {
-      if (winner === 0) {
-        col = 'drawCount';
-      } else if ((winner === 1 && p1IsUser1) || (winner === 2 && !p1IsUser1)) {
-        col = 'winCount';
-      } else {
-        col = 'lossCount';
-      }
+      p1Col = p2Col = winner === 1 ? 'winCount' : 'lossCount';
+    } else if (winner === 0) {
+      p1Col = p2Col = 'drawCount';
+    } else if (winner === 1) {
+      p1Col = 'winCount'; p2Col = 'lossCount';
+    } else if (winner === 2) {
+      p1Col = 'lossCount'; p2Col = 'winCount';
     }
-    await this.userRivals.increment({ userId1, userId2, gameId }, col, 1);
+
+    await this.dataSource.transaction(async (em: EntityManager) => {
+      const rivals = em.getRepository(UserRival);
+      for (const [uid1, uid2] of [[player1Id, player2Id], [player2Id, player1Id]] as [string, string][]) {
+        if (!(await rivals.existsBy({ userId1: uid1, userId2: uid2, gameId }))) {
+          await rivals.save(rivals.create({ userId1: uid1, userId2: uid2, gameId }));
+        }
+      }
+      await rivals.increment({ userId1: player1Id, userId2: player2Id, gameId }, p1Col, 1);
+      await rivals.increment({ userId1: player2Id, userId2: player1Id, gameId }, p2Col, 1);
+    });
   }
 
   async getStats(userId: string): Promise<{ gameId: string; matchCount: number; winCount: number; lossCount: number; drawCount: number }[]> {
-    const rivals = await this.userRivals.find({ where: [{ userId1: userId }, { userId2: userId }] });
+    const rivals = await this.userRivals.find({ where: { userId1: userId } });
 
     const statsMap = new Map<string, { matchCount: number; winCount: number; lossCount: number; drawCount: number }>();
     for (const rival of rivals) {
-      const isUser1 = rival.userId1 === userId;
-      const isCoop = this.gamesRegistry.getType(rival.gameId) === GameType.Coop;
-
-      // For coop both perspectives are identical; for versus swap when user is userId2
-      const userWins   = (isCoop || isUser1) ? rival.winCount  : rival.lossCount;
-      const userLosses = (isCoop || isUser1) ? rival.lossCount : rival.winCount;
-
       const s = statsMap.get(rival.gameId) ?? { matchCount: 0, winCount: 0, lossCount: 0, drawCount: 0 };
       statsMap.set(rival.gameId, {
         matchCount: s.matchCount + rival.matchCount,
-        winCount:   s.winCount   + userWins,
-        lossCount:  s.lossCount  + userLosses,
+        winCount:   s.winCount   + rival.winCount,
+        lossCount:  s.lossCount  + rival.lossCount,
         drawCount:  s.drawCount  + rival.drawCount,
       });
     }
@@ -180,10 +178,7 @@ export class UsersService {
   }
 
   async getRival(userId: string, opponentId: string): Promise<UserRival[]> {
-    const [userId1, userId2] = userId < opponentId
-      ? [userId, opponentId]
-      : [opponentId, userId];
-    return this.userRivals.find({ where: { userId1, userId2 } });
+    return this.userRivals.find({ where: { userId1: userId, userId2: opponentId } });
   }
 
   static getFavoriteLimit(provider: string): number {
