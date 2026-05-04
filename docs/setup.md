@@ -512,20 +512,7 @@ npm install        # installs all workspace deps: server + packages/game-logic +
 
 ---
 
-### 3. Build shared packages
-
-The server imports `@acog/game-logic` from `packages/`. Build it before starting the server:
-
-```bash
-npm run build --workspace=packages/game-logic
-npm run build --workspace=packages/game-logic/*
-```
-
-**Verify:** `packages/game-logic/dist/` and `packages/game-logic/*/dist/` exist.
-
----
-
-### 4. Configure environment
+### 3. Configure environment
 
 ```bash
 cp .env.example .env.local
@@ -551,7 +538,7 @@ The Postgres credentials match `docker-compose.local.yml` (`postgres:postgres`).
 
 ---
 
-### 5. Start infrastructure
+### 4. Start infrastructure
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
@@ -567,7 +554,7 @@ docker compose exec db psql -U postgres -c '\l'   # lists databases including "a
 
 ---
 
-### 5a. Stop infrastructure
+### 4a. Stop infrastructure
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.local.yml down
@@ -577,7 +564,7 @@ Stops and removes containers but **preserves the DB volume** — data survives a
 
 ---
 
-### 5b. Inspect Postgres and Redis (optional)
+### 4b. Inspect Postgres and Redis (optional)
 
 Two web UIs are included in the local stack — no extra installs needed.
 
@@ -598,12 +585,12 @@ Two web UIs are included in the local stack — no extra installs needed.
 
 ---
 
-### 6. Run migrations
+### 5. Run migrations
 
 Generate the initial migration from entities (if there isn't already), then apply it:
 
 ```bash
-npm run typeorm -w server -- migration:generate server/src/migrations/InitialSchema -d server/src/app.data.ts
+npm run typeorm -w server -- migration:generate server/src/migrations/InitialSchema -d src/app.data.ts
 npm run typeorm -w server -- migration:run -d server/src/app.data.ts
 ```
 
@@ -611,7 +598,7 @@ The generated file (e.g. `src/migrations/1234567890-InitialSchema.ts`) must be c
 
 ---
 
-### 7. Start the API server
+### 6. Start the API server
 
 ```bash
 npm run start:dev -w server
@@ -625,7 +612,7 @@ Endpoints are prefixed with `/v1/` (e.g. `GET http://localhost:3000/v1/games`). 
 
 ---
 
-### 8. Start the worker (optional)
+### 7. Start the worker (optional)
 
 The BullMQ worker processes background jobs. It is not required to run most features.
 
@@ -639,14 +626,11 @@ This runs `ts-node` with the `worker.ts` entry point. No HTTP port — it only c
 
 ---
 
-### 9. Open the client (Cocos Creator)
+### 8. Open the client (Godot)
 
-> **Note:** the Cocos Creator project is not yet scaffolded. Skip this step until `client/` contains a Cocos project.
-
-Once scaffolded:
-1. Open Cocos Creator → **Open Project** → select `client/`
+1. Open Godot → **Open Project** → select `client/`
 2. Set the API base URL to `http://localhost:3000` in the project's network config
-3. Use the Cocos **Preview** button to run in-browser or on a simulator
+3. Use the Godot **Preview** button to run in-browser or on a simulator
 
 ---
 
