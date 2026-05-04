@@ -11,6 +11,8 @@ import { Game, GameType } from '../games/game.entity';
 import { mockRepository } from '../../common/helpers/test.helper';
 import { FIREBASE_AUTH } from '../../common/firebase/firebase.module';
 import { WsGateway } from '../ws/ws.gateway';
+import { ConfigService } from '../config/config.service';
+import { DEFAULT_CONFIG } from '../config/config.entity';
 
 describe('UsersService', () => {
   let service: UsersService;
@@ -48,6 +50,7 @@ describe('UsersService', () => {
         { provide: getRepositoryToken(Game), useValue: gamesRepo },
         { provide: FIREBASE_AUTH, useValue: firebaseAuth },
         { provide: WsGateway, useValue: { sendToUser: jest.fn() } },
+        { provide: ConfigService, useValue: { configData: DEFAULT_CONFIG } },
       ],
     }).compile();
     service = module.get(UsersService);
@@ -219,7 +222,7 @@ describe('UsersService', () => {
 
       const result = await service.getProfile(user.id);
 
-      expect(result).toEqual({ id: 'ABCD123456', provider: 'google.com', displayName: 'Test User', avatarUrl: 'https://photo.example.com/u.jpg', favorites: ['tictactoe', 'chess'], favoritesLimit: UsersService.getFavoriteLimit('social') });
+      expect(result).toEqual({ id: 'ABCD123456', provider: 'google.com', displayName: 'Test User', avatarUrl: 'https://photo.example.com/u.jpg', favorites: ['tictactoe', 'chess'], favoritesLimit: DEFAULT_CONFIG.featureLimits.social.maxFavorites });
       expect(usersRepo.findOne).toHaveBeenCalledWith({ where: { id: user.id } });
       expect(userFavoritesRepo.find).toHaveBeenCalledWith({ where: { userId: user.id }, relations: ['game'] });
     });
@@ -240,7 +243,7 @@ describe('UsersService', () => {
 
       const result = await service.getProfile(user.id);
 
-      expect(result.favoritesLimit).toBe(UsersService.getFavoriteLimit('anonymous'));
+      expect(result.favoritesLimit).toBe(DEFAULT_CONFIG.featureLimits.anonymous.maxFavorites);
     });
 
     it('throws NotFoundException when user does not exist', async () => {
@@ -328,7 +331,7 @@ describe('UsersService', () => {
       usersRepo.findOne.mockResolvedValue({ id: userId, provider: 'anonymous' } as User);
       gamesRepo.existsBy.mockResolvedValue(true);
       userFavoritesRepo.findOne.mockResolvedValue(null);
-      userFavoritesRepo.count.mockResolvedValue(2);
+      userFavoritesRepo.count.mockResolvedValue(DEFAULT_CONFIG.featureLimits.anonymous.maxFavorites - 1);
       userFavoritesRepo.create.mockImplementation((data) => ({ ...data } as UserFavorite));
       userFavoritesRepo.save.mockImplementation(async (f) => f as UserFavorite);
 
@@ -341,7 +344,7 @@ describe('UsersService', () => {
       usersRepo.findOne.mockResolvedValue({ id: userId, provider: 'anonymous' } as User);
       gamesRepo.existsBy.mockResolvedValue(true);
       userFavoritesRepo.findOne.mockResolvedValue(null);
-      userFavoritesRepo.count.mockResolvedValue(UsersService.getFavoriteLimit('anonymous'));
+      userFavoritesRepo.count.mockResolvedValue(DEFAULT_CONFIG.featureLimits.anonymous.maxFavorites);
 
       await expect(service.addFavorite(userId, 'tictactoe')).rejects.toThrow(ForbiddenException);
       expect(userFavoritesRepo.save).not.toHaveBeenCalled();
@@ -351,7 +354,7 @@ describe('UsersService', () => {
       usersRepo.findOne.mockResolvedValue({ id: userId, provider: 'google.com' } as User);
       gamesRepo.existsBy.mockResolvedValue(true);
       userFavoritesRepo.findOne.mockResolvedValue(null);
-      userFavoritesRepo.count.mockResolvedValue(UsersService.getFavoriteLimit('social'));
+      userFavoritesRepo.count.mockResolvedValue(DEFAULT_CONFIG.featureLimits.social.maxFavorites);
 
       await expect(service.addFavorite(userId, 'tictactoe')).rejects.toThrow(ForbiddenException);
       expect(userFavoritesRepo.save).not.toHaveBeenCalled();
@@ -526,34 +529,45 @@ describe('UsersService', () => {
 
     beforeEach(() => {
       usersRepo.findOne.mockResolvedValue(socialUser);
+      userFriendsRepo.count.mockResolvedValue(0);
     });
 
     it('throws ForbiddenException for anonymous accounts', async () => {
       usersRepo.findOne.mockResolvedValue({ id: userId, provider: 'anonymous' } as User);
       await expect(service.sendFriendRequest(userId, targetId)).rejects.toThrow(ForbiddenException);
-      expect(usersRepo.existsBy).not.toHaveBeenCalled();
     });
 
     it('throws BadRequestException when sending to self', async () => {
       await expect(service.sendFriendRequest(userId, userId)).rejects.toThrow(BadRequestException);
-      expect(usersRepo.existsBy).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException when target user does not exist', async () => {
-      usersRepo.existsBy.mockResolvedValue(false);
+      usersRepo.findOne.mockResolvedValueOnce(socialUser).mockResolvedValueOnce(null);
       await expect(service.sendFriendRequest(userId, targetId)).rejects.toThrow(NotFoundException);
       expect(userFriendsRepo.findOne).not.toHaveBeenCalled();
     });
 
+    it('throws ForbiddenException when sender has reached their friend limit', async () => {
+      usersRepo.findOne.mockResolvedValue(socialUser);
+      userFriendsRepo.count.mockResolvedValueOnce(DEFAULT_CONFIG.featureLimits.social.maxFriends).mockResolvedValueOnce(0);
+      await expect(service.sendFriendRequest(userId, targetId)).rejects.toThrow(ForbiddenException);
+      expect(userFriendsRepo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('throws ForbiddenException when addressee has reached their friend limit', async () => {
+      usersRepo.findOne.mockResolvedValue(socialUser);
+      userFriendsRepo.count.mockResolvedValueOnce(0).mockResolvedValueOnce(DEFAULT_CONFIG.featureLimits.social.maxFriends);
+      await expect(service.sendFriendRequest(userId, targetId)).rejects.toThrow(ForbiddenException);
+      expect(userFriendsRepo.findOne).not.toHaveBeenCalled();
+    });
+
     it('throws ConflictException when a relationship already exists', async () => {
-      usersRepo.existsBy.mockResolvedValue(true);
       userFriendsRepo.findOne.mockResolvedValue({ requesterId: userId, addresseeId: targetId, status: FriendStatus.Pending } as UserFriend);
       await expect(service.sendFriendRequest(userId, targetId)).rejects.toThrow(ConflictException);
       expect(userFriendsRepo.save).not.toHaveBeenCalled();
     });
 
     it('creates a pending request when no prior relationship exists', async () => {
-      usersRepo.existsBy.mockResolvedValue(true);
       userFriendsRepo.findOne.mockResolvedValue(null);
       userFriendsRepo.create.mockImplementation((data) => ({ ...data } as UserFriend));
       userFriendsRepo.save.mockResolvedValue(undefined as any);

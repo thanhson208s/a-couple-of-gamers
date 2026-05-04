@@ -11,6 +11,7 @@ import { auth } from 'firebase-admin';
 import { UserRival } from './user-rival.entity';
 import { FriendStatus, UserFriend } from './user-friend.entity';
 import { WsGateway } from '../ws/ws.gateway';
+import { ConfigService } from '../config/config.service';
 
 @Injectable()
 export class UsersService {
@@ -30,6 +31,7 @@ export class UsersService {
     @InjectRepository(UserFriend) private readonly userFriends: Repository<UserFriend>,
     @Inject(FIREBASE_AUTH) private readonly firebaseAuth: auth.Auth,
     private readonly wsGateway: WsGateway,
+    private readonly configService: ConfigService,
   ) {}
 
   async findById(id: string): Promise<User | null> {
@@ -80,7 +82,7 @@ export class UsersService {
     const user = await this.users.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException();
     const favs = await this.userFavorites.find({ where: { userId }, relations: ['game'] });
-    const favoritesLimit = UsersService.getFavoriteLimit(user.provider);
+    const favoritesLimit = this.getFavoriteLimit(user.provider);
     return { id: user.id, provider: user.provider, displayName: user.displayName, avatarUrl: user.avatarUrl, favorites: favs.map(f => f.game.id), favoritesLimit };
   }
 
@@ -128,7 +130,7 @@ export class UsersService {
     const existing = await this.userFavorites.findOne({ where: { userId, gameId } });
     if (existing) return;
 
-    const limit = UsersService.getFavoriteLimit(user.provider);
+    const limit = this.getFavoriteLimit(user.provider);
     const count = await this.userFavorites.count({ where: { userId } });
     if (limit >= 0 && count >= limit) throw new ForbiddenException();
     await this.userFavorites.save(this.userFavorites.create({ userId, gameId }));
@@ -184,10 +186,24 @@ export class UsersService {
     return this.userRivals.find({ where: { userId1: userId, userId2: opponentId } });
   }
 
-  static getFavoriteLimit(provider: string): number {
-    if (provider === 'anonymous') 4;
-    if (provider === 'dev') -1;
-    return 100;
+  private getFavoriteLimit(provider: string): number {
+    const { featureLimits } = this.configService.configData;
+    if (provider === 'anonymous') return featureLimits.anonymous.maxFavorites;
+    if (provider === 'dev') return featureLimits.dev.maxFavorites;
+    return featureLimits.social.maxFavorites;
+  }
+
+  private getFriendLimit(provider: string): number {
+    const { featureLimits } = this.configService.configData;
+    if (provider === 'anonymous') return featureLimits.anonymous.maxFriends;
+    if (provider === 'dev') return featureLimits.dev.maxFriends;
+    return featureLimits.social.maxFriends;
+  }
+
+  private countFriends(userId: string): Promise<number> {
+    return this.userFriends.count({
+      where: [{ requesterId: userId }, { addresseeId: userId }],
+    });
   }
 
   async sendFriendRequest(userId: string, addresseeId: string): Promise<void> {
@@ -198,8 +214,21 @@ export class UsersService {
     if (userId === addresseeId)
       throw new BadRequestException('Can not befriend yourself');
 
-    if (!(await this.users.existsBy({ id: addresseeId })))
-      throw new NotFoundException('Friend does not exists');
+    const addressee = await this.users.findOne({ where: { id: addresseeId } });
+    if (!addressee) throw new NotFoundException('Friend does not exist');
+
+    const [senderCount, addresseeCount] = await Promise.all([
+      this.countFriends(userId),
+      this.countFriends(addresseeId),
+    ]);
+
+    const senderLimit = this.getFriendLimit(user.provider);
+    const addresseeLimit = this.getFriendLimit(addressee.provider);
+
+    if (senderLimit >= 0 && senderCount >= senderLimit)
+      throw new ForbiddenException('Friend limit reached');
+    if (addresseeLimit >= 0 && addresseeCount >= addresseeLimit)
+      throw new ForbiddenException('This person has reached their friend limit');
 
     const row = await this.userFriends.findOne({
       where: [
