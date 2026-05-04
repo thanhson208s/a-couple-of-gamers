@@ -7,6 +7,7 @@ import {
   Injectable,
   NotImplementedException,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LessThanOrEqual, MoreThan, Repository } from 'typeorm';
@@ -16,6 +17,7 @@ import type { GameMove, GameAction, GameState, GameView, GamePlugin, GameStep } 
 import { GamesService } from '../games/games.service';
 import { GamesRegistry } from '../games/games.registry';
 import { UsersService } from '../users/users.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { WsGateway } from '../ws/ws.gateway';
 import { Match, MatchStatus } from './match.entity';
 import { OnWsDisconnected, OnWsMessage } from '../ws/ws.decorators';
@@ -85,7 +87,7 @@ function errorCodeOf(err: unknown): number {
 }
 
 @Injectable()
-export class MatchesService {
+export class MatchesService implements OnModuleInit {
   constructor(
     @InjectRepository(Match) private readonly matches: Repository<Match>,
     private readonly gamesService: GamesService,
@@ -93,7 +95,12 @@ export class MatchesService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly wsGateway: WsGateway,
     private readonly usersService: UsersService,
+    private readonly notificationsService: NotificationsService,
   ) {}
+
+  onModuleInit() {
+    this.usersService.registerCleanupCallback((userId) => this.cleanupForUser(userId));
+  }
 
   async createMatch(gameSlug: string, playerSlot: 1 | 2, callerId: string, options?: Record<string, unknown>): Promise<object> {
     const game = await this.gamesService.findBySlug(gameSlug);
@@ -151,7 +158,7 @@ export class MatchesService {
     const initialView2 = plugin.getPlayerView(match.state as GameState, 2);
     const nextTurns = plugin.getNextTurns(match.state as GameState);
 
-    const meta: MatchMeta = { player1Id: match.player1Id, player2Id: match.player2Id, gameId: data.gameId, status: MatchStatus.Active };
+    const meta: MatchMeta = { player1Id: match.player1Id!, player2Id: match.player2Id!, gameId: data.gameId, status: MatchStatus.Active };
     await this.redis.set(`match:meta:${match.id}`, JSON.stringify(meta), 'PX', INACTIVITY_TTL_MS);
 
     const matchPayload = {
@@ -161,8 +168,8 @@ export class MatchesService {
       player1Id: match.player1Id,
       player2Id: match.player2Id,
     };
-    this.wsGateway.sendToUser(match.player1Id, 'match:start', { inviteCode, initialView: initialView1, nextTurns, match: matchPayload });
-    this.wsGateway.sendToUser(match.player2Id, 'match:start', { inviteCode, initialView: initialView2, nextTurns, match: matchPayload });
+    this.wsGateway.sendToUser(match.player1Id!, 'match:start', { inviteCode, initialView: initialView1, nextTurns, match: matchPayload });
+    this.wsGateway.sendToUser(match.player2Id!, 'match:start', { inviteCode, initialView: initialView2, nextTurns, match: matchPayload });
   }
 
   async cancelMatch(inviteCode: string, callerId: string): Promise<void> {
@@ -195,7 +202,7 @@ export class MatchesService {
     await this.matches.save(match);
     await this.flushStateToDB(id);
     await this.clearStateFromCache(id);
-    await this.clearReplay(id, match.player1Id, match.player2Id);
+    await this.clearReplay(id, match.player1Id!, match.player2Id!);
 
     const matchPayload = {
       id: match.id,
@@ -205,8 +212,8 @@ export class MatchesService {
       player2Id: match.player2Id,
     };
 
-    this.wsGateway.sendToUser(match.player1Id, 'match:over', { match: matchPayload });
-    this.wsGateway.sendToUser(match.player2Id, 'match:over', { match: matchPayload });
+    if (match.player1Id) this.wsGateway.sendToUser(match.player1Id, 'match:over', { match: matchPayload });
+    if (match.player2Id) this.wsGateway.sendToUser(match.player2Id, 'match:over', { match: matchPayload });
   }
 
   async listPendingMatches(userId: string): Promise<object[]> {
@@ -470,7 +477,7 @@ export class MatchesService {
     if (cached) return JSON.parse(cached) as MatchMeta;
     const match = await this.matches.findOne({ where: { id: matchId }, relations: ['game'] });
     if (!match) return null;
-    const meta: MatchMeta = { player1Id: match.player1Id, player2Id: match.player2Id, gameId: match.game.id, status: match.status };
+    const meta: MatchMeta = { player1Id: match.player1Id!, player2Id: match.player2Id!, gameId: match.game.id, status: match.status };
     await this.redis.set(`match:meta:${matchId}`, JSON.stringify(meta), 'PX', meta.status === MatchStatus.Active ? META_TTL_MS : INACTIVITY_TTL_MS);
     return meta;
   }
@@ -531,6 +538,56 @@ export class MatchesService {
 
   async completeMatch(_matchId: string, _winner: 0 | 1 | 2): Promise<void> {
     throw new NotImplementedException();
+  }
+
+  // Called by UsersService.deleteAccount before the user row is deleted.
+  // Cancels all pending invites and abandons all active matches, notifying opponents.
+  async cleanupForUser(userId: string): Promise<void> {
+    // Cancel all pending invites created by this user
+    const inviteCodes = await this.redis.zrange(`invite:user:${userId}`, 0, -1);
+    if (inviteCodes.length > 0) {
+      await this.redis.del(...inviteCodes.map(c => `invite:code:${c}`));
+    }
+    await this.redis.del(`invite:user:${userId}`, `match:user:${userId}`);
+
+    // Abandon all active matches
+    const activeMatches = await this.matches.find({
+      where: [
+        { player1Id: userId, status: MatchStatus.Active },
+        { player2Id: userId, status: MatchStatus.Active },
+      ],
+    });
+
+    for (const match of activeMatches) {
+      const opponentId = getOpponentId(match.player1Id!, match.player2Id!, userId)
+
+      // Cancel any pending turn-reminder jobs for both players
+      await Promise.all([
+        this.notificationsService.cancelReminders(match.id, userId),
+        this.notificationsService.cancelReminders(match.id, opponentId),
+      ]);
+
+      match.status = MatchStatus.Abandoned;
+      await this.matches.save(match);
+      await this.flushStateToDB(match.id);
+      await this.clearStateFromCache(match.id);
+      await this.clearReplay(match.id, match.player1Id!, match.player2Id!);
+
+      if (opponentId) {
+        const matchPayload = {
+          id: match.id,
+          status: match.status,
+          winner: null,
+          player1Id: match.player1Id,
+          player2Id: match.player2Id,
+        };
+        this.wsGateway.sendToUser(opponentId, 'match:over', { match: matchPayload });
+      }
+    }
+
+    // TODO: call UsersService.deleteAccount should call this method before deleting the user row.
+    //       Requires injecting MatchesService into UsersService — use forwardRef() on one side
+    //       to break the circular dependency (MatchesService → UsersService already exists).
   }
 
   @OnWsMessage('match:open')

@@ -25,14 +25,15 @@ export class Match {
   @Column({ type: 'jsonb', nullable: true })
   options: object | null;
 
-  @Column({ type: 'char', length: 10, name: 'player1_id' })
-  player1Id: string;
+  // nullable: player is set to NULL by DB when their account is deleted (ON DELETE SET NULL)
+  @Column({ type: 'char', length: 10, name: 'player1_id', nullable: true })
+  player1Id: string | null;
 
-  @Column({ type: 'char', length: 10, name: 'player2_id' })
-  player2Id: string;
+  @Column({ type: 'char', length: 10, name: 'player2_id', nullable: true })
+  player2Id: string | null;
 
   @Column({ type: 'int', name: 'winner', nullable: true })
-  winner: number | null; // 1v1: 1=p1 wins, 2=p2 wins, 0=draw; coop: 1=both win, 0=both lose; null if not finished
+  winner: 0 | 1 | 2 | null; // 1v1: 1=p1 wins, 2=p2 wins, 0=draw; coop: 1=both win, 0=both lose; null if not finished
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
