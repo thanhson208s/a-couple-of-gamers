@@ -2,9 +2,9 @@ import { Controller, Post, Body, UseGuards, Req } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import { AppThrottle } from '../../app.guard';
 import { AuthService } from './auth.service';
-import { DevAuthGuard } from './guards/dev-auth.guard';
+import { DevAuthGuard } from '../../common/guards/dev-auth.guard';
 import { FirebaseLoginDto } from './firebase-login.dto';
-import { CurrentUser, JwtAuthGuard, JwtUser } from './guards/jwt-auth.guard';
+import { CurrentUser, JwtAuthGuard, JwtUser } from '../../common/guards/jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {

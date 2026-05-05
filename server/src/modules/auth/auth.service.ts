@@ -4,7 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { UsersService } from '../users/users.service';
-import { JwtUser } from './guards/jwt-auth.guard';
+import { JwtUser } from '../../common/guards/jwt-auth.guard';
 import { RefreshToken } from './refresh-token.entity';
 import { REDIS_CLIENT } from '../../common/redis/redis.module';
 import { Redis } from 'ioredis'

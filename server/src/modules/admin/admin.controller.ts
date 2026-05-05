@@ -1,5 +1,5 @@
 import { Controller, Get, Put, Body, Param, UseGuards } from '@nestjs/common';
-import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
+import { AdminAuthGuard } from '../../common/guards/admin-auth.guard';
 import { ConfigService } from '../config/config.service';
 import { GamesService } from '../games/games.service';
 import { UpdateConfigDto } from './update-config.dto';

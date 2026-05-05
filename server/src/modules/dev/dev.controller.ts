@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
-import { DevAuthGuard } from '../auth/guards/dev-auth.guard';
+import { DevAuthGuard } from '../../common/guards/dev-auth.guard';
 import { MatchesService } from '../matches/matches.service';
 import { CompleteMatchDto } from './complete-match.dto';
 import { AuthService } from '../auth/auth.service';

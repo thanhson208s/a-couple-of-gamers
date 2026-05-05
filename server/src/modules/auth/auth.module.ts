@@ -1,12 +1,9 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { JwtModule } from '@nestjs/jwt';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { RefreshToken } from './refresh-token.entity';
-import { AdminAuthGuard } from './guards/admin-auth.guard';
-import { DevAuthGuard } from './guards/dev-auth.guard';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { GuardsModule } from '../../common/guards/guards.module';
 import { UsersModule } from '../users/users.module';
 import { RedisModule } from '../../common/redis/redis.module';
 import { FirebaseModule } from '../../common/firebase/firebase.module';
@@ -14,18 +11,13 @@ import { FirebaseModule } from '../../common/firebase/firebase.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([RefreshToken]),
-    JwtModule.registerAsync({
-      useFactory: () => ({
-        secret: process.env.JWT_ACCESS_SECRET,
-        signOptions: { expiresIn: '15m' },
-      }),
-    }),
+    GuardsModule,
     UsersModule,
     RedisModule,
-    FirebaseModule
+    FirebaseModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, AdminAuthGuard, DevAuthGuard, JwtAuthGuard],
-  exports: [AuthService, JwtModule, AdminAuthGuard, DevAuthGuard, JwtAuthGuard],
+  providers: [AuthService],
+  exports: [AuthService, GuardsModule],
 })
 export class AuthModule {}

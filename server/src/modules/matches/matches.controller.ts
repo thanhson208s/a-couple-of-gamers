@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Delete, Param, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { AppThrottle } from '../../app.guard';
-import { CurrentUser, JwtAuthGuard, JwtUser } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser, JwtAuthGuard, JwtUser } from '../../common/guards/jwt-auth.guard';
 import { MatchesService } from './matches.service';
 import { CreateMatchDto } from './create-match.dto';
 import { JoinMatchDto } from './join-match.dto';
