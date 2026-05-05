@@ -19,7 +19,7 @@ export class WsThrottler {
     const ttlMs = options?.ttl ?? WS_TTL_SECONDS * 1000;
     const ttlSeconds = Math.ceil(ttlMs / 1000);
 
-    const key = `throttle:ws-throttle:${event}:${userId}`;
+    const key = `ws:throttle:${event}:${userId}`;
     const count = await this.redis.incr(key);
     if (count === 1) await this.redis.expire(key, ttlSeconds);
     return count <= limit;

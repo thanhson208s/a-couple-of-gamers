@@ -5,7 +5,6 @@ import { UsersService } from './users.service';
 import { User } from './user.entity';
 import { UserFavorite } from './user-favorite.entity';
 import { UserRival } from './user-rival.entity';
-import { UserDevice } from './user-device.entity';
 import { UserFriend, FriendStatus } from './user-friend.entity';
 import { Game, GameType } from '../games/game.entity';
 import { mockRepository } from '../../common/helpers/test.helper';
@@ -19,7 +18,6 @@ describe('UsersService', () => {
   let usersRepo: ReturnType<typeof mockRepository<User>> & { findOneOrFail: jest.Mock };
   let userFavoritesRepo: ReturnType<typeof mockRepository<UserFavorite>>;
   let userRivalsRepo: ReturnType<typeof mockRepository<UserRival>>;
-  let userDevicesRepo: ReturnType<typeof mockRepository<UserDevice>>;
   let userFriendsRepo: ReturnType<typeof mockRepository<UserFriend>> & { createQueryBuilder: jest.Mock };
   let gamesRepo: ReturnType<typeof mockRepository<Game>>;
   let dataSource: { transaction: jest.Mock };
@@ -29,7 +27,6 @@ describe('UsersService', () => {
     usersRepo = { ...mockRepository<User>(), findOneOrFail: jest.fn() };
     userFavoritesRepo = mockRepository<UserFavorite>();
     userRivalsRepo = mockRepository<UserRival>();
-    userDevicesRepo = mockRepository<UserDevice>();
     userFriendsRepo = { ...mockRepository<UserFriend>(), createQueryBuilder: jest.fn() };
     gamesRepo = mockRepository<Game>();
     firebaseAuth = { deleteUser: jest.fn(), verifyIdToken: jest.fn() };
@@ -45,7 +42,6 @@ describe('UsersService', () => {
         { provide: getRepositoryToken(User), useValue: usersRepo },
         { provide: getRepositoryToken(UserFavorite), useValue: userFavoritesRepo },
         { provide: getRepositoryToken(UserRival), useValue: userRivalsRepo },
-        { provide: getRepositoryToken(UserDevice), useValue: userDevicesRepo },
         { provide: getRepositoryToken(UserFriend), useValue: userFriendsRepo },
         { provide: getRepositoryToken(Game), useValue: gamesRepo },
         { provide: FIREBASE_AUTH, useValue: firebaseAuth },

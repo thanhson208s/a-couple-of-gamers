@@ -4,7 +4,6 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { User } from './user.entity';
 import { UserFavorite } from './user-favorite.entity';
-import { UserDevice } from './user-device.entity';
 import { Game, GameType } from '../games/game.entity';
 import { FIREBASE_AUTH } from '../../common/firebase/firebase.module';
 import { auth } from 'firebase-admin';
@@ -26,7 +25,6 @@ export class UsersService {
     @InjectRepository(User) private readonly users: Repository<User>,
     @InjectRepository(UserFavorite) private readonly userFavorites: Repository<UserFavorite>,
     @InjectRepository(UserRival) private readonly userRivals: Repository<UserRival>,
-    @InjectRepository(UserDevice) private readonly userDevices: Repository<UserDevice>,
     @InjectRepository(Game) private readonly games: Repository<Game>,
     @InjectRepository(UserFriend) private readonly userFriends: Repository<UserFriend>,
     @Inject(FIREBASE_AUTH) private readonly firebaseAuth: auth.Auth,

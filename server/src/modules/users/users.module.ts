@@ -6,7 +6,6 @@ import { User } from './user.entity';
 import { UserFavorite } from './user-favorite.entity';
 import { Game } from '../games/game.entity';
 import { UserRival } from './user-rival.entity';
-import { UserDevice } from './user-device.entity';
 import { UserFriend } from './user-friend.entity';
 import { WsModule } from '../ws/ws.module';
 import { ConfigModule } from '../config/config.module';
@@ -14,7 +13,7 @@ import { GuardsModule } from '../../common/guards/guards.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UserFavorite, UserRival, UserDevice, UserFriend, Game]),
+    TypeOrmModule.forFeature([User, UserFavorite, UserRival, UserFriend, Game]),
     WsModule,
     ConfigModule,
     GuardsModule,
