@@ -38,16 +38,9 @@ Refresh token expires or is revoked → client must log in again
 
 Refresh token rotation: each use issues a new refresh token and invalidates the old one. Detected reuse of an invalidated refresh token revokes the entire session.
 
-Access tokens carry a `type` claim to distinguish identity kind:
+Refresh tokens are opaque random values (`randomBytes(32)` hex), stored server-side as SHA-256 hashes in the `refresh_tokens` table — not JWTs.
 
-| `type` value | Issued by | Meaning |
-|--------------|-----------|---------|
-| `'anonymous'` | `POST /v1/auth/login` | Anonymous (guest-tier) user; feature limits apply |
-| `'social'` | `POST /v1/auth/login` | Fully linked social account (Google/Apple/Facebook) |
-
-Derived from `user.provider` via `AuthService.tokenType()` — also applied when `POST /v1/auth/refresh` re-issues an access token. `JwtAuthGuard` can inspect the `type` claim to restrict endpoints that require a social account.
-
-After `JwtAuthGuard` runs, the verified payload is available as `JwtUser { id: string; type: string }` on the request. Use the `@CurrentUser()` decorator (exported from `guards/jwt-auth.guard.ts`) in controllers to access it:
+After `JwtAuthGuard` runs, the verified payload is available as `JwtUser { id: string }` on the request. Use the `@CurrentUser()` decorator (exported from `guards/jwt-auth.guard.ts`) in controllers to access it:
 
 ```typescript
 @Get('me')
@@ -60,8 +53,8 @@ getProfile(@CurrentUser() user: JwtUser) { ... }
 
 **Solution — short-lived WS ticket:**
 ```
-1. Client calls POST /v1/auth/ws-ticket (with valid JWT in header)
-2. Server generates a one-time random ticket, stores it in Redis with a 30s TTL
+1. Client calls POST /v1/ws/ticket (with valid JWT in header)
+2. Server generates a one-time random ticket, stores it in Redis with a 60s TTL
 3. Server returns ticket to client
 4. Client opens WS connection: wss://<host>/v1/ws?ticket=<ticket>
 5. Server validates ticket on connect, immediately deletes it from Redis
@@ -70,7 +63,19 @@ getProfile(@CurrentUser() user: JwtUser) { ... }
 
 The WS connection is **user-scoped and persistent** — opened once after login, used for all match events and lobby notifications. The ticket authenticates the user (not a specific match).
 
-Tickets are single-use and expire in 30 seconds regardless of use.
+Tickets are single-use and expire in 60 seconds regardless of use.
+
+---
+
+### Admin Authentication
+
+Admin endpoints use `AdminAuthGuard`. On staging/production (when both `CF_TEAM_DOMAIN` and `CF_ACCESS_AUD` are set), the guard validates the `CF-Access-JWT-Assertion` header using Cloudflare Access JWKS (fetched from `https://<CF_TEAM_DOMAIN>/cdn-cgi/access/certs`, cached for 1 hour). For local dev (either env var absent), it falls back to comparing the `X-Admin-Token` request header against `ADMIN_TOKEN`.
+
+### RevenueCat Webhook Authentication
+
+`POST /v1/purchases/rc-webhook` receives subscription lifecycle events from RevenueCat. It is protected by `RcAuthGuard`, which validates `Authorization: Bearer <token>` against the `RC_SECRET` environment variable.
+
+**Setup:** In the RevenueCat dashboard, set the webhook authorization header value to the same secret stored in `RC_SECRET`.
 
 ---
 
@@ -82,14 +87,16 @@ Applied at the API server level via `AppGuard` (extends `@nestjs/throttler`) wit
 |-------------------|-------|--------|-----|
 | `POST /v1/auth/login` | 20 requests | per minute | IP |
 | `POST /v1/auth/refresh` | 20 requests | per minute | IP (unauthenticated) |
-| WS event | 30 events | per minute | userId |
+| WS event (default) | 30 events | per minute | userId |
+| WS `match:action` | 10 events | per minute | userId |
+| WS `ping` | exempt | — | — |
 | All other endpoints | 120 requests | per minute | userId (IP fallback) |
 | `GET /dev`, `/v1/dev/*` | exempt | — | — |
 
 **Implementation:**
 - Throttler `app-throttle` (120 req/user/min) is the global default for all HTTP endpoints; specific endpoints override via `@Throttle({ 'app-throttle': { ttl, limit } })`.
 - `AppGuard` tracks by `userId` for authenticated requests, falls back to IP for unauthenticated endpoints.
-- WS events are rate-limited by `WsInterceptor` (Redis INCR pattern) using the `ws-throttle` config (30 events/user/min by default); individual handlers can override via `@WsThrottle({ limit, ttl })`.
+- WS events are rate-limited by `WsThrottler` (Redis INCR pattern), called from `WsGateway.dispatchMessage()`. Default is 30 events/user/min; per-event overrides are defined in `WS_THROTTLE_CONFIG` in `ws.throttler.ts`.
 - Dev endpoints are exempt via `@SkipThrottle()`.
 
 Rate limit state stored in Redis. Limits are conservative starting points — adjust based on observed usage.
@@ -120,7 +127,7 @@ Configured at the reverse proxy level (not in NestJS):
 
 ## Secrets Management
 
-- All secrets (DB password, Redis password, JWT signing key, FCM service account, Sentry DSN, social auth credentials) stored as environment variables
+- All secrets (DB password, Redis password, JWT signing key, FCM service account, Sentry DSN, social auth credentials, `ADMIN_TOKEN`, `RC_SECRET`) stored as environment variables
 - Never committed to the repository
 - In production: managed via GitHub Actions secrets (CI/CD) and `.env` files on VPS (not committed)
-- JWT signing key: minimum 256-bit random secret; separate keys for access and refresh tokens
+- `JWT_ACCESS_SECRET`: minimum 256-bit random secret (used only for access tokens; refresh tokens are opaque random values, not JWTs)
