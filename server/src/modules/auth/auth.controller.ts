@@ -33,10 +33,4 @@ export class AuthController {
   logout(@Body() body: { refreshToken: string }) {
     return this.authService.logout(body.refreshToken);
   }
-
-  @Post('ws-ticket')
-  @UseGuards(JwtAuthGuard)
-  issueWsTicket(@CurrentUser() user: JwtUser) {
-    return this.authService.issueWsTicket(user.id);
-  }
 }

@@ -9,13 +9,13 @@ import {
 import { ArgumentMetadata, OnApplicationShutdown, OnModuleInit, ValidationPipe } from '@nestjs/common';
 import { DiscoveryService, MetadataScanner, Reflector } from '@nestjs/core';
 import { Server, WebSocket, RawData } from 'ws';
-import { AuthService } from '../auth/auth.service';
 import {
   WS_CONNECTED_METADATA,
   WS_DISCONNECTED_METADATA,
   WS_MESSAGE_METADATA,
   WS_DTO_METADATA,
 } from './ws.decorators';
+import { WsService } from './ws.service';
 
 interface AuthedSocket extends WebSocket {
   userId?: string;
@@ -55,7 +55,7 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect, OnAp
   private readonly messageDtos = new Map<string, new (...args: any[]) => any>();
 
   constructor(
-    private readonly authService: AuthService,
+    private readonly wsService: WsService,
     private readonly discoveryService: DiscoveryService,
     private readonly metadataScanner: MetadataScanner,
     private readonly reflector: Reflector,
@@ -136,7 +136,7 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect, OnAp
       return;
     }
 
-    const userId = await this.authService.validateWsTicket(ticket);
+    const userId = await this.wsService.validateWsTicket(ticket);
     if (!userId) {
       client.close(4401, 'Invalid or expired ticket');
       return;

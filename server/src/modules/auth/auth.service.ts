@@ -69,18 +69,6 @@ export class AuthService {
     return { accessToken, refreshToken: newRefreshToken };
   }
 
-  async issueWsTicket(userId: string) {
-    const ticket = randomBytes(20).toString('hex');
-    await this.redis.set(`ws:ticket:${ticket}`, userId, 'EX', 60);
-    return ticket;
-  }
-
-  async validateWsTicket(ticket: string) {
-    const userId = await this.redis.get(`ws:ticket:${ticket}`);
-    if (userId) await this.redis.del(`ws:ticket:${ticket}`);
-    return userId;
-  }
-
   private issueAccessToken(id: string, provider: string): string {
     return this.jwtService.sign({ id } satisfies JwtUser); 
   }
