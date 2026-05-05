@@ -3,7 +3,9 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import type { messaging } from 'firebase-admin';
 import { FIREBASE_MSG } from '../../common/firebase/firebase.module';
-import { UsersService } from '../users/users.service';
+import { FcmToken } from './fcm-token.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 
 const INSTANT_REMINDER_MS = 5 * 60 * 1000;
 const DELAYED_REMINDER_MS = 24 * 60 * 60 * 1000;
@@ -19,11 +21,11 @@ export class NotificationsService {
   constructor(
     @InjectQueue('reminders') private readonly remindersQueue: Queue,
     @Inject(FIREBASE_MSG) private readonly messaging: messaging.Messaging,
-    private readonly usersService: UsersService,
+    @InjectRepository(FcmToken) private readonly fcmTokens: Repository<FcmToken>,
   ) {}
 
   async sendPush(userId: string, type: string, payload: Record<string, string>, notification?: { title: string, body: string } ): Promise<void> {
-    const devices = await this.usersService.getDeviceTokens(userId);
+    const devices = await this.fcmTokens.find({ where: { userId } });
     if (devices.length === 0) return;
 
     const tokens = devices.map(d => d.token);
@@ -35,7 +37,7 @@ export class NotificationsService {
 
     for (let i = 0; i < result.responses.length; i++) {
       if (!result.responses[i].success && result.responses[i].error?.code === 'messaging/registration-token-not-registered') {
-        await this.usersService.deleteDeviceToken(userId, tokens[i]);
+        await this.fcmTokens.delete({ token: tokens[i], userId });
       }
     }
   }
@@ -55,5 +57,18 @@ export class NotificationsService {
       this.remindersQueue.remove(`instant-reminder:${matchId}:${opponentId}`),
       this.remindersQueue.remove(`delayed-reminder:${matchId}:${opponentId}`),
     ]);
+  }
+
+  async upsertFcmToken(userId: string, token: string, platform: string): Promise<void> {
+    await this.fcmTokens
+      .createQueryBuilder()
+      .insert()
+      .values({ token, userId, platform })
+      .orUpdate(['user_id', 'platform', 'updated_at'], ['token'])
+      .execute();
+  }
+
+  async deleteFcmToken(userId: string, token: string): Promise<void> {
+    await this.fcmTokens.delete({ token, userId });
   }
 }

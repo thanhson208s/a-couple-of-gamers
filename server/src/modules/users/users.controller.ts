@@ -18,18 +18,6 @@ export class UsersController {
     return this.usersService.deleteAccount(user.id, body.idToken);
   }
 
-  @Put('device')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  upsertDeviceToken(@CurrentUser() user: JwtUser, @Body() body: { token: string; platform: string }) {
-    return this.usersService.upsertDeviceToken(user.id, body.token, body.platform);
-  }
-
-  @Delete('device')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  deleteDeviceToken(@CurrentUser() user: JwtUser, @Body() body: { token: string }) {
-    return this.usersService.deleteDeviceToken(user.id, body.token);
-  }
-
   @Put('favorites/:gameId')
   addFavorite(@CurrentUser() user: JwtUser, @Param('gameId') gameId: string) {
     return this.usersService.addFavorite(user.id, gameId);

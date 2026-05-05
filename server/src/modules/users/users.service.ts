@@ -105,23 +105,6 @@ export class UsersService {
     }
   }
 
-  async getDeviceTokens(userId: string) {
-    return this.userDevices.find({ where: { userId } });
-  }
-
-  async upsertDeviceToken(userId: string, token: string, platform: string): Promise<void> {
-    await this.userDevices
-      .createQueryBuilder()
-      .insert()
-      .values({ token, userId, platform })
-      .orUpdate(['user_id', 'platform', 'updated_at'], ['token'])
-      .execute();
-  }
-
-  async deleteDeviceToken(userId: string, token: string): Promise<void> {
-    await this.userDevices.delete({ token, userId });
-  }
-
   async addFavorite(userId: string, gameId: string): Promise<void> {
     const user = await this.users.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException();
