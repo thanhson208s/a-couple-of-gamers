@@ -590,8 +590,8 @@ Two web UIs are included in the local stack — no extra installs needed.
 Generate the initial migration from entities (if there isn't already), then apply it:
 
 ```bash
-npm run typeorm -w server -- migration:generate server/src/migrations/InitialSchema -d src/app.data.ts
-npm run typeorm -w server -- migration:run -d server/src/app.data.ts
+npm run typeorm -w server -- migration:generate src/migrations/InitialSchema -d src/app.data.ts
+npm run typeorm -w server -- migration:run -d src/app.data.ts
 ```
 
 The generated file (e.g. `src/migrations/1234567890-InitialSchema.ts`) must be committed.
