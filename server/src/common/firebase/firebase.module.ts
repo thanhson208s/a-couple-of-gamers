@@ -1,6 +1,12 @@
 import { Global, Module } from '@nestjs/common';
 import * as admin from 'firebase-admin';
 
+function parseServiceAccount(raw: string): admin.ServiceAccount {
+  const cert = JSON.parse(raw) as admin.ServiceAccount & { private_key?: string };
+  if (cert.private_key) cert.private_key = cert.private_key.replace(/\\n/g, '\n');
+  return cert;
+}
+
 export const FIREBASE_AUTH = 'FIREBASE_AUTH';
 export const FIREBASE_MSG = 'FIREBASE_MSG';
 
@@ -24,8 +30,8 @@ export class FirebaseModule {
     if (admin.apps.length === 0)
       admin.initializeApp({
         projectId: process.env.FIREBASE_PROJECT_ID,
-        credential: process.env.FIREBASE_SERVICE_ACCOUNT 
-          ? admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT))
+        credential: process.env.FIREBASE_SERVICE_ACCOUNT
+          ? admin.credential.cert(parseServiceAccount(process.env.FIREBASE_SERVICE_ACCOUNT))
           : admin.credential.applicationDefault()
       });
     return admin.app();
