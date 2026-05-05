@@ -11,7 +11,7 @@ Two-token JWT auth (access + refresh with rotation), one-time WS ticket pattern,
 Dev mode provides a password-less login path and cheat endpoints for local development. It is controlled by two conditions — **both must be true** for dev endpoints to respond:
 
 1. `CF_TEAM_DOMAIN` is **not** set (the Cloudflare Access env var; present on staging and production)
-2. `DEV_MODE=true` is explicitly set in the environment
+2. `NODE_ENV=development` is explicitly set in the environment
 
 If either condition fails, all dev endpoints return `404 Not Found`. The 404 (not 403) ensures the endpoints do not reveal their existence on non-dev environments.
 

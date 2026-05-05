@@ -105,7 +105,7 @@ All admin endpoints require `X-Admin-Token: <token>` header.
 
 ### Dev (local only)
 
-All dev endpoints require `DEV_MODE=true` and `CF_TEAM_DOMAIN` unset. Return `404` otherwise — see [security.md#dev-mode-local-only](security.md#dev-mode-local-only).
+All dev endpoints require `NODE_ENV=development` and `CF_TEAM_DOMAIN` unset. Return `404` otherwise — see [security.md#dev-mode-local-only](security.md#dev-mode-local-only).
 
 | Method | Path | Description |
 |--------|------|-------------|

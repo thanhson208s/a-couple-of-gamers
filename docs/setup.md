@@ -531,7 +531,6 @@ SENTRY_DSN=                    # leave empty locally
 ADMIN_TOKEN=local-admin-token
 PORT=3000
 NODE_ENV=development
-DEV_MODE=true
 ```
 
 The Postgres credentials match `docker-compose.local.yml` (`postgres:postgres`). Redis runs without a password locally.

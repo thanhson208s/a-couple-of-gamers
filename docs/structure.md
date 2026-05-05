@@ -94,7 +94,7 @@ Direct children:
 | `auth.service.ts` | Auth business logic |
 | `guards/jwt-auth.guard.ts` | Verifies `Authorization: Bearer <token>`; attaches decoded payload to `req.user` |
 | `guards/admin-auth.guard.ts` | Prod: validates Cloudflare Access JWT. Dev fallback: checks `X-Admin-Token` header |
-| `guards/dev-auth.guard.ts` | Returns 404 if `CF_TEAM_DOMAIN` is set or `DEV_MODE !== 'true'` |
+| `guards/dev-auth.guard.ts` | Returns 404 if `CF_TEAM_DOMAIN` is set or `NODE_ENV !== 'development'` |
 | `refresh-token.entity.ts` | `refresh_tokens` table |
 
 ### `users/`

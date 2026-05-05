@@ -4,7 +4,7 @@ import { CanActivate, ExecutionContext, Injectable, NotFoundException } from '@n
 export class DevAuthGuard implements CanActivate {
   canActivate(_context: ExecutionContext): boolean {
     if (process.env.CF_TEAM_DOMAIN) throw new NotFoundException();
-    if (process.env.DEV_MODE !== 'true') throw new NotFoundException();
+    if (process.env.NODE_ENV !== 'development') throw new NotFoundException();
     return true;
   }
 }

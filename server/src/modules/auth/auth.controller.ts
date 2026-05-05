@@ -1,21 +1,11 @@
 import { Controller, Post, Body, UseGuards, Req } from '@nestjs/common';
-import { SkipThrottle } from '@nestjs/throttler';
 import { AppThrottle } from '../../app.guard';
 import { AuthService } from './auth.service';
-import { DevAuthGuard } from '../../common/guards/dev-auth.guard';
 import { FirebaseLoginDto } from './firebase-login.dto';
-import { CurrentUser, JwtAuthGuard, JwtUser } from '../../common/guards/jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
-
-  @Post('dev')
-  @SkipThrottle()
-  @UseGuards(DevAuthGuard)
-  devLogin(@Body() body: { accountId: string }) {
-    return this.authService.devLogin(body.accountId);
-  }
 
   @Post('login')
   @AppThrottle({ ttl: 60_000, limit: 20 })
