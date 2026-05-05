@@ -34,7 +34,6 @@ import { AppHealth as AppHealth } from './app.health';
       useFactory: (redis: Redis) => ({
         throttlers: [
           { name: 'app-throttle', ttl: 60_000, limit: 120 },
-          { name: 'ws-throttle',   ttl: 60_000, limit: 30  },
         ],
         storage: new ThrottlerStorageRedisService(redis),
       }),

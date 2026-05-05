@@ -2,9 +2,13 @@ import { Inject, Injectable } from '@nestjs/common';
 import Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../common/redis/redis.module';
 
-// Default ws-throttle limits (matches ThrottlerModule config in app.module.ts)
 const WS_RATE_LIMIT = 30;
 const WS_TTL_SECONDS = 60;
+
+export const WS_THROTTLE_CONFIG: Record<string, { limit: number; ttl: number } | undefined> = {
+  // event-specific overrides — events not listed use defaults above
+  'match:action': { limit: 10, ttl: 60 },
+};
 
 @Injectable()
 export class WsThrottler {
@@ -13,11 +17,10 @@ export class WsThrottler {
   async check(
     event: string,
     userId: string,
-    options?: { limit?: number; ttl?: number },
   ): Promise<boolean> {
+    const options = WS_THROTTLE_CONFIG[event];
     const limit = options?.limit ?? WS_RATE_LIMIT;
-    const ttlMs = options?.ttl ?? WS_TTL_SECONDS * 1000;
-    const ttlSeconds = Math.ceil(ttlMs / 1000);
+    const ttlSeconds = options?.ttl ?? WS_TTL_SECONDS;
 
     const key = `ws:throttle:${event}:${userId}`;
     const count = await this.redis.incr(key);

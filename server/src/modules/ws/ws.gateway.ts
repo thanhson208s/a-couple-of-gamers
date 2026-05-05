@@ -16,6 +16,7 @@ import {
   WS_DTO_METADATA,
 } from './ws.decorators';
 import { WsService } from './ws.service';
+import { WsThrottler } from './ws.throttler';
 
 interface AuthedSocket extends WebSocket {
   userId?: string;
@@ -56,6 +57,7 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect, OnAp
 
   constructor(
     private readonly wsService: WsService,
+    private readonly wsThrottler: WsThrottler,
     private readonly discoveryService: DiscoveryService,
     private readonly metadataScanner: MetadataScanner,
     private readonly reflector: Reflector,
@@ -174,6 +176,12 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect, OnAp
 
     const handlers = this.messageHandlers.get(parsed.event);
     if (!handlers?.length) return;
+
+    const allowed = await this.wsThrottler.check(parsed.event, userId);
+    if (!allowed) {
+      this.errorToUser(userId, parsed.event, 429);
+      return;
+    }
 
     let data = (parsed.data && typeof parsed.data === 'object') ? parsed.data as Record<string, unknown> : {};
     
