@@ -7,7 +7,19 @@ export class PurchasesService {
 
   }
 
-  async handleRcSubscriptionEvent(event: RcEventData) {
+  async handleRcPurchaseEvent(event: RcEventData) {
+
+  }
+
+  async handleRcChangeEvent(event: RcEventData) {
+
+  }
+
+  async handleRcCancellationEvent(event: RcEventData) {
+
+  }
+
+  async handleRcExpirationEvent(event: RcEventData) {
 
   }
 

@@ -18,13 +18,18 @@ export class PurchasesController {
         return this.purchasesService.handleRcTestEvent(event);
       case RcEventType.INITIAL_PURCHASE:
       case RcEventType.NON_RENEWING_PURCHASE:
+      case RcEventType.TEMPORARY_ENTITLEMENT_GRANT:
+        return this.purchasesService.handleRcPurchaseEvent(event);
       case RcEventType.PRODUCT_CHANGE:
+        return this.purchasesService.handleRcChangeEvent(event);
       case RcEventType.CANCELLATION:
+        return this.purchasesService.handleRcCancellationEvent(event);
       case RcEventType.EXPIRATION:
-        return this.purchasesService.handleRcSubscriptionEvent(event);
+        return this.purchasesService.handleRcExpirationEvent(event);
       case RcEventType.TRANSFER:
         return this.purchasesService.handleRcTransferEvent(event);
       default:
+        // TODO: Log unexpected RC events
         break;
     }
   }

@@ -25,9 +25,6 @@ export class UserFriend {
   @Column({ type: 'text', default: FriendStatus.Pending })
   status: FriendStatus;
 
-  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
-  createdAt: Date;
-
-  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
-  updatedAt: Date;
+  @Column({ type: 'timestamptz', name: 'accepted_at' })
+  acceptedAt: Date;
 }
