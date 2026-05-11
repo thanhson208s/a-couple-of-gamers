@@ -1,6 +1,73 @@
 # Conventions
 
-Code patterns used throughout the server. Read this before writing any feature code.
+Code patterns, developer workflow, and repeatable processes. Read this before writing any feature code.
+
+→ Local dev setup: [README.md](../README.md)
+
+---
+
+## Contents
+
+**Git**
+- [Branching Strategy](#branching-strategy)
+- [Commit Conventions](#commit-conventions)
+
+**Code**
+- [Guards & Authentication](#guards--authentication)
+- [Error Handling](#error-handling)
+- [DTOs & Validation](#dtos--validation)
+- [Module Communication](#module-communication)
+- [BullMQ Jobs](#bullmq-jobs)
+- [Testing](#testing)
+- [Entity & Migration Conventions](#entity--migration-conventions)
+
+**Workflows**
+- [Database Migrations](#database-migrations)
+- [Adding a Module](#adding-a-module)
+- [Adding an Entity](#adding-an-entity)
+- [Adding a New Game](#adding-a-new-game)
+
+**Checklists**
+- [Feature Implementation Checklist](#feature-implementation-checklist)
+- [PR Checklist](#pr-checklist)
+
+---
+
+## Branching Strategy
+
+| Branch | Purpose |
+|--------|---------|
+| `main` | Production-ready code. Only receives merges from tagged releases. |
+| `dev` | Integration branch. All feature branches merge here. Auto-deploys to staging. |
+| `feature/<name>` | Individual feature or fix branches. Branch from `dev`, PR back to `dev`. |
+
+Tag format for releases: `v<major>.<minor>.<patch>` (e.g. `v1.0.0`). Pushing a tag triggers the production deploy pipeline.
+
+---
+
+## Commit Conventions
+
+Use [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+<type>(<scope>): <description>
+
+Types:
+  feat     — new feature
+  fix      — bug or error patch
+  refactor — code change that is neither a fix nor a feat
+  docs     — documentation only
+  test     — adding or correcting tests
+  chore    — routine tasks, maintenance, tooling changes
+
+Scope: server | client | infra | db  (optional)
+
+Examples:
+  feat(server): add WS presence tracking per match
+  fix(client): correct lobby badge count on resume
+  docs: add match-lifecycle feature doc
+  chore(db): add migration for rival_stats index
+```
 
 ---
 
@@ -102,7 +169,7 @@ createMatch(@Body() body: { gameSlug: string }) { ... }
 createMatch(@Body() dto: CreateMatchDto) { ... }
 ```
 
-### DTO conventions
+**DTO conventions:**
 
 - File naming: `<action>-<resource>.dto.ts` — e.g. `create-match.dto.ts`, `submit-move.dto.ts`
 - Location: same directory as the controller that uses it
@@ -191,6 +258,13 @@ The module that injects a queue must also register it:
 
 ## Testing
 
+```bash
+cd server
+npm test              # run all unit tests once
+npm run test:cov      # with coverage report
+npm run test:watch    # watch mode during development
+```
+
 Import test utilities from `src/common/test/helpers.ts`.
 
 ### Service tests
@@ -238,3 +312,136 @@ guard.canActivate(ctx); // assert return value or thrown exception
 - File naming: `<resource>.entity.ts` in the module directory that owns the table
 - Class naming: `PascalCase` matching the table concept — e.g. `MatchPlayer`, `RivalStat`
 - Migration naming: describe what changed — e.g. `AddRivalStatsIndex`, `CreateInitialSchema`, `AddRemoteVersionToGames`.
+
+---
+
+## Database Migrations
+
+All commands must be run from the `server/` directory. Use the form `npm run typeorm <subcommand> -- <args>` — placing the subcommand before `--` is required for arguments to pass correctly.
+
+### Normal run (incremental migration)
+
+```bash
+# Generate a new migration — diffs entities against the current running DB schema
+npm run typeorm migration:generate -- src/migrations/<MigrationName> -d src/app.data.ts
+
+# Review the generated SQL before committing
+
+# Run pending migrations
+npm run typeorm migration:run -- -d src/app.data.ts
+
+# Revert the last migration
+npm run typeorm migration:revert -- -d src/app.data.ts
+```
+
+Migrations run automatically on deploy (step 4 of CI/CD). See [infrastructure.md#cicd](infrastructure.md#cicd).
+
+### Wipe and reinitialise (local dev only)
+
+Use when you want a single clean migration instead of accumulated incremental ones:
+
+```bash
+# 1. Wipe the local DB (run from repo root)
+docker exec a-couple-of-gamers-db-1 psql -U postgres -d acog -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+
+# 2. Delete all existing migration files (run from repo root)
+rm server/src/migrations/*.ts
+
+# 3. Generate a fresh migration from current entities (run from server/)
+npm run typeorm migration:generate -- src/migrations/CreateInitialSchema -d src/app.data.ts
+
+# 4. Run it
+npm run typeorm migration:run -- -d src/app.data.ts
+```
+
+> **Never do this on staging or production.** Use incremental migrations for any schema change after the first deploy.
+
+---
+
+## Adding a Module
+
+```bash
+# From server/
+nest g module  modules/<name>
+nest g controller modules/<name> --no-spec   # omit if no REST endpoints
+nest g service    modules/<name> --no-spec   # omit if no service layer
+```
+
+After generation:
+
+1. **Register in `app.module.ts`** — add to the `imports` array.
+2. **Add entities** if the module owns DB tables — see [Adding an Entity](#adding-an-entity).
+3. **Add guards** if endpoints require auth — import `AuthModule` and apply `JwtAuthGuard`, `AdminAuthGuard`, or `DevAuthGuard` from `modules/auth/guards/`.
+4. **Export services** that other modules will inject — add to the `exports` array in the module decorator.
+5. **Update `docs/structure.md`** — add the new module to the server modules table.
+6. **Add a feature doc** if the module implements a user-facing feature — create `docs/features/<name>.md` following the template in `docs/features/README.md` and link it from `docs/requirements.md`.
+
+---
+
+## Adding an Entity
+
+Entities live co-located with the module that owns their table. `app.data.ts` scans `**/*.entity{.ts,.js}` automatically — no registration needed.
+
+```
+modules/users/
+├── user.entity.ts
+modules/games/
+├── game.entity.ts
+modules/matches/
+├── match.entity.ts
+modules/config/
+├── config.entity.ts
+```
+
+If module A needs to query module B's entity, import module B and call its service — no direct cross-module entity references.
+
+After adding, removing, or updating an entity, generate a migration:
+
+```bash
+cd server
+npx typeorm migration:generate src/migrations/<MigrationName> -d src/app.data.ts
+```
+
+Review the generated SQL before committing — TypeORM's diff is usually correct but always worth a check.
+
+---
+
+## Adding a New Game
+
+1. Create the shared game plugin in `packages/game-logic/<slug>/` implementing the `GamePlugin` interface — see [game-system.md](game-system.md)
+2. Register the slug in `GamesRegistry` (`server/src/modules/games/games.registry.ts`) — a row is auto-created in the `games` table (`status = 1` / coming_soon) on next server start
+3. Add the slug + metadata (display name, icons, banners, intro/rule images) to the client catalog so the tile renders (ships via the next main-app hot update — see [hot-update.md](hot-update.md))
+4. Import the plugin in the Godot client's game loader
+5. Create the Godot scene and assets under `client/res/games/<slug>/` (this is the Asset Bundle)
+6. Create the AI component under `client/games/<slug>/` (imports game logic from `packages/game-logic/<slug>/`)
+7. CI will build and upload the bundle to R2 on the next `dev` merge or `client/res/games/**` change, and publish a new `game-bundles/<env>/manifest.json` carrying the new slug's bundle version + URL
+8. Activate the game via admin — set `status = 2` (enabled) via `PUT /v1/admin/games/<slug>/status` once the bundle is live
+
+---
+
+## Feature Implementation Checklist
+
+Steps for implementing any feature end-to-end, in order:
+
+1. **Read** `docs/features/<name>.md` — understand the design before touching code
+2. **Entities** — add `*.entity.ts` files in the owning module, then generate a migration
+3. **Service** — implement the business logic; throw NestJS HTTP exceptions for all error cases
+4. **DTO** — add a `<action>-<resource>.dto.ts` for every request body
+5. **Controller** — wire the endpoint with the correct `@UseGuards()` decorator
+6. **Tests** — write `*.spec.ts` for the service; cover the main path and key error cases
+7. **Docs** — update `docs/api-reference.md` for new/changed endpoints; tick off completed tasks in the feature doc's `## Tasks` section; update `docs/structure.md` if new files were added
+
+---
+
+## PR Checklist
+
+Before requesting review:
+
+- [ ] All new endpoints have a guard (or are intentionally public — leave a comment)
+- [ ] All request bodies use a DTO with `class-validator` decorators
+- [ ] New or changed service methods have unit tests
+- [ ] `docs/api-reference.md` updated for any endpoint additions or changes
+- [ ] Feature doc `## Tasks` section updated
+- [ ] `docs/structure.md` updated if new files or directories were added
+- [ ] Migration generated and SQL reviewed if schema changed
+- [ ] No `throw new Error(...)` — only NestJS HTTP exceptions in service/controller code

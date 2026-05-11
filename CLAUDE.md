@@ -27,12 +27,11 @@
 | [docs/architecture.md](docs/architecture.md) | System diagram, all services (internal + external), module responsibilities, key decisions |
 | [docs/security.md](docs/security.md) | Auth mechanism (JWT lifecycle, WS ticket), rate limiting, input validation, secrets |
 | [docs/infrastructure.md](docs/infrastructure.md) | Deployment topology, Docker Compose, external services, one-time VPS provisioning (first deploy, backup cron, runner install), CI/CD pipeline, monitoring |
-| [docs/setup.md](docs/setup.md) | Scaffolding steps and local dev setup (install → run) |
-| [docs/conventions.md](docs/conventions.md) | Code conventions — guards, error handling, DTOs, module communication, BullMQ jobs, entities |
-| [docs/workflow.md](docs/workflow.md) | Repeated developer workflow: branching, commit conventions, DB migrations, adding modules/games, publishing bundles/hot-updates, VPS access, testing, PR checklist |
+| [README.md](README.md) | Local dev setup (install → run) |
+| [docs/conventions.md](docs/conventions.md) | Code conventions and developer workflow — guards, errors, DTOs, modules, BullMQ jobs, entities, branching, commits, migrations, adding modules/games, publishing, PR checklist |
 | [docs/api-reference.md](docs/api-reference.md) | [DRAFT] REST endpoints and WebSocket events |
 | [docs/database-schema.md](docs/database-schema.md) | [DRAFT] Postgres tables, indexes, data ownership |
 | [docs/game-system.md](docs/game-system.md) | Game plugin interface, state visibility, game catalog |
 | [docs/hot-update.md](docs/hot-update.md) | OTA delivery for main-app (per-platform/per-minor tracks, two-gate version check) and per-game bundles (R2 manifest, download/play flow); CI publish and prune for both |
-| [docs/features/](docs/features/) | One doc per feature — implementation flows, sequences, and task list |
+| [docs/features/](docs/features/) | One doc per feature — implementation flows, sequences, and task list. Covers: account-management, config-management, games-management, match-management, monetization, notifications, offline-mode, users-management |
 | [docs/structure.md](docs/structure.md) | Living codebase map — every file and directory with its purpose |
