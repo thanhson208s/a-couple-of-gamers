@@ -170,5 +170,3 @@ npm run start:worker:dev -w server
 ```
 
 All three can be left running. The API server hot-reloads on save; the worker requires a manual restart on change.
-
-For full environment provisioning (VPS, DNS, external services, CI/CD), see [docs/infrastructure.md](docs/infrastructure.md).

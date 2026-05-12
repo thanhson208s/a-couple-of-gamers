@@ -334,7 +334,6 @@ npm run typeorm migration:run -- -d src/app.data.ts
 npm run typeorm migration:revert -- -d src/app.data.ts
 ```
 
-Migrations run automatically on deploy (step 4 of CI/CD). See [infrastructure.md#cicd](infrastructure.md#cicd).
 
 ### Wipe and reinitialise (local dev only)
 
@@ -410,7 +409,7 @@ Review the generated SQL before committing — TypeORM's diff is usually correct
 
 1. Create the shared game plugin in `packages/game-logic/<slug>/` implementing the `GamePlugin` interface — see [game-system.md](game-system.md)
 2. Register the slug in `GamesRegistry` (`server/src/modules/games/games.registry.ts`) — a row is auto-created in the `games` table (`status = 1` / coming_soon) on next server start
-3. Add the slug + metadata (display name, icons, banners, intro/rule images) to the client catalog so the tile renders (ships via the next main-app hot update — see [hot-update.md](hot-update.md))
+3. Add the slug + metadata (display name, icons, banners, intro/rule images) to the client catalog so the tile renders
 4. Import the plugin in the Godot client's game loader
 5. Create the Godot scene and assets under `client/res/games/<slug>/` (this is the Asset Bundle)
 6. Create the AI component under `client/games/<slug>/` (imports game logic from `packages/game-logic/<slug>/`)

@@ -64,10 +64,10 @@ Server-side config fetched on launch; admin dashboard for game visibility and ve
 
 ## Non-Functional Requirements
 
-- **Availability** — staging validates all changes before production; see [infrastructure.md](infrastructure.md)
-- **Backup** — daily automated Postgres dump to Cloudflare R2; see [infrastructure.md#backup](infrastructure.md#backup)
-- **Hot update** — OTA delivery of the main-app bundle via Cocos AssetsManager, without an app store release. Per-platform / per-minor-version tracks keep old native builds on compatible bundles; server-side `minSupportedVersion` and `latestVersion` thresholds drive a hard-block update screen and a soft "update available" banner. See [hot-update.md](hot-update.md)
-- **Bundle delivery & offline caching** — per-game bundles fetched on demand from R2 (direct CDN, no server proxy), version-checked against the R2 manifest on each launch, and cached locally so previously installed games remain playable offline. See [hot-update.md#game-bundle-hot-update](hot-update.md#game-bundle-hot-update)
+- **Availability** — staging validates all changes before production
+- **Backup** — daily automated Postgres dump to Cloudflare R2
+- **Hot update** — OTA delivery of the main-app bundle via Cocos AssetsManager, without an app store release. Per-platform / per-minor-version tracks keep old native builds on compatible bundles; server-side `minSupportedVersion` and `latestVersion` thresholds drive a hard-block update screen and a soft "update available" banner
+- **Bundle delivery & offline caching** — per-game bundles fetched on demand from R2 (direct CDN, no server proxy), version-checked against the R2 manifest on each launch, and cached locally so previously installed games remain playable offline
 - **Error monitoring** — Sentry for server exceptions and client crashes
 - **Analytics** — Firebase Analytics for key client events
 - **API versioning** — all routes prefixed `/v1/`; see [api-reference.md#versioning](api-reference.md#versioning)
