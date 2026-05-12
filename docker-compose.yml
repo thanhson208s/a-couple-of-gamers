@@ -1,6 +1,6 @@
 services:
   app:
-    image: ghcr.io/acog/server:latest
+    image: ${SERVER_IMAGE:-ghcr.io/acog/server}:${IMAGE_TAG:-latest}
     environment:
       - NODE_ENV=production
     env_file: .env.production
@@ -9,7 +9,7 @@ services:
     restart: unless-stopped
 
   worker:
-    image: ghcr.io/acog/server:latest
+    image: ${SERVER_IMAGE:-ghcr.io/acog/server}:${IMAGE_TAG:-latest}
     command: node dist/worker.js
     environment:
       - NODE_ENV=production

@@ -1,0 +1,58 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches:
+      - dev
+    tags:
+      - "v*"
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/server
+
+jobs:
+  build:
+    name: Build and push Docker image
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    outputs:
+      image_tag: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build image
+        run: docker build -f server/Dockerfile -t ${{ env.IMAGE }}:${{ github.sha }} .
+
+      - name: Push SHA tag
+        run: docker push ${{ env.IMAGE }}:${{ github.sha }}
+
+      - name: Push version tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          docker tag ${{ env.IMAGE }}:${{ github.sha }} ${{ env.IMAGE }}:${{ github.ref_name }}
+          docker push ${{ env.IMAGE }}:${{ github.ref_name }}
+
+  deploy-staging:
+    name: Deploy to staging
+    needs: build
+    if: github.ref == 'refs/heads/dev'
+    runs-on: [self-hosted, staging]
+    steps:
+      - name: Log in to GHCR
+        run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Pull image
+        run: docker pull ${{ env.IMAGE }}:${{ needs.build.outputs.image_tag }}
+
+      - name: Deploy
+        run: |
+          cd /opt/acog
+          git pull
+          SERVER_IMAGE=${{ env.IMAGE }} IMAGE_TAG=${{ needs.build.outputs.image_tag }} \
+            docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+          docker compose exec app node dist/app --run-migrations
+          curl -f http://localhost:3000/health
