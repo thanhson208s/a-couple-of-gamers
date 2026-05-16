@@ -1,7 +1,7 @@
 # Staging reverse proxy — Caddy
 # TLS via Cloudflare Origin Certificate (not Let's Encrypt).
 
-api.staging.gootube.online {
+api.staging.acoupleofgamers.com {
     tls /etc/caddy/certs/origin-cert.pem /etc/caddy/certs/origin-key.pem
     reverse_proxy app:3000
 }

@@ -159,7 +159,7 @@ All dev endpoints require `NODE_ENV=development`. Return `404` otherwise — see
 ## WebSocket Events
 
 Connection: `wss://<host>/v1/ws?ticket=<ws-ticket>`  
-Hosts: `acog.gootube.online` (production), `acoq.gootube.online` (staging)  
+Hosts: `api.acoupleofgamers.com` (production), `api.staging.acoupleofgamers.com` (staging)  
 Authentication: use a short-lived WS ticket obtained from `POST /v1/ws/ticket`. See [security.md#websocket-authentication](security.md#websocket-authentication).
 
 The connection is **user-scoped and persistent** — opened once after login. All match events for all of the user's active matches arrive over this single connection. Each event includes `matchId` so the client can route it to the correct scene. Player identifiers in all events are `tag` values, not internal UUIDs.
