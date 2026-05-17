@@ -72,3 +72,8 @@ jobs:
             -f docker-compose.prod-app.yml \
             logs --tail=120 app
           exit 1
+      
+      - name: Cleanup local Docker images
+        if: success()
+        run: |
+          docker image prune -f
