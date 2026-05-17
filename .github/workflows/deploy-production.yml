@@ -36,6 +36,6 @@ jobs:
       - name: Deploy
         run: |
           cd /opt/acog
-          SERVER_IMAGE=${{ env.IMAGE }} IMAGE_TAG=${{ inputs.image_tag }} \
+          ENV_FILE=.env.production SERVER_IMAGE=${{ env.IMAGE }} IMAGE_TAG=${{ inputs.image_tag }} \
             docker compose -f docker-compose.yml -f docker-compose.prod-app.yml up -d
           curl -f http://localhost:3000/health

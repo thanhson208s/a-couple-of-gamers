@@ -3,7 +3,8 @@ services:
     image: ${SERVER_IMAGE:-ghcr.io/acog/server}:${IMAGE_TAG:-latest}
     environment:
       - NODE_ENV=production
-    env_file: .env.production
+    env_file: 
+      - ${ENV_FILE:-.env.local}
     networks:
       - acog_net
     restart: unless-stopped
@@ -13,7 +14,8 @@ services:
     command: node dist/worker.js
     environment:
       - NODE_ENV=production
-    env_file: .env.production
+    env_file:
+      - ${ENV_FILE:-.env.local}
     networks:
       - acog_net
     restart: unless-stopped

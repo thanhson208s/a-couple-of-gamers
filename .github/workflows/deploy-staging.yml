@@ -53,7 +53,7 @@ jobs:
         run: |
           cd /opt/acog
           git pull
-          SERVER_IMAGE=${{ env.IMAGE }} IMAGE_TAG=${{ needs.build.outputs.image_tag }} \
+          ENV_FILE=.env.staging SERVER_IMAGE=${{ env.IMAGE }} IMAGE_TAG=${{ needs.build.outputs.image_tag }} \
             docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
           docker compose exec app node dist/app.js --run-migrations
           curl -f http://localhost:3000/health
