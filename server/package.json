@@ -11,7 +11,7 @@
     "start": "node dist/app",
     "start:dev": "node --env-file=../.env.local ../node_modules/@nestjs/cli/bin/nest.js start --watch",
     "start:worker": "node dist/worker",
-    "start:worker:dev": "node --env-file=../.env.local ../node_modules/.bin/ts-node -r tsconfig-paths/register src/worker.ts",
+    "start:worker:dev": "node --env-file=../.env.local -r ts-node/register -r tsconfig-paths/register src/worker.ts",
     "typeorm": "node ../node_modules/typeorm/cli-ts-node-commonjs.js",
     "typeorm:dev": "node --env-file=../.env.local ../node_modules/typeorm/cli-ts-node-commonjs.js",
     "migration:generate": "node ../node_modules/typeorm/cli-ts-node-commonjs.js migration:generate -d src/app.data.ts",

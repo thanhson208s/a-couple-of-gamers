@@ -1,19 +1,19 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
-import { MatchesService } from '../../modules/matches/matches.service';
+// import { MatchesService } from '../../modules/matches/matches.service';
 
 // Repeatable job: deletes stale matches on a fixed schedule.
 // Covers both expired-invite pending matches and inactivity-threshold matches.
 // Registered by CleanupScheduler on worker startup.
 @Processor('cleanup')
 export class CleanupProcessor extends WorkerHost {
-  constructor(private readonly matchesService: MatchesService) {
+  constructor(/* private readonly matchesService: MatchesService */) {
     super();
   }
 
   async process(job: Job): Promise<void> {
-    if (job.name === 'stale-matches') {
-      await this.matchesService.cleanupStaleMatches();
-    }
+    // if (job.name === 'stale-matches') {
+    //   await this.matchesService.cleanupStaleMatches();
+    // }
   }
 }

@@ -1,8 +1,8 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { BullModule, InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { MatchesModule } from '../modules/matches/matches.module';
-import { NotificationsModule } from '../modules/notifications/notifications.module';
+// import { MatchesModule } from '../modules/matches/matches.module';
+// import { NotificationsModule } from '../modules/notifications/notifications.module';
 import { ReminderProcessor } from './processors/reminder.processor';
 import { CleanupProcessor } from './processors/cleanup.processor';
 
@@ -17,8 +17,8 @@ const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // every 24 hours
       { name: 'reminders' },
       { name: 'cleanup' },
     ),
-    MatchesModule,
-    NotificationsModule,
+    // MatchesModule,
+    // NotificationsModule,
   ],
   providers: [ReminderProcessor, CleanupProcessor],
 })

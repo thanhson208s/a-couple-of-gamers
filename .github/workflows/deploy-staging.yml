@@ -59,10 +59,14 @@ jobs:
           export IMAGE_TAG=${{ needs.build.outputs.image_tag }}
           
           docker compose --env-file .env.staging -f docker-compose.yml -f docker-compose.staging.yml up -d db cache
-          docker compose --env-file .env.staging -f docker-compose.yml -f docker-compose.staging.yml run --rm --no-deps app node dist/app.js --run-migrations
+          
+          docker compose --env-file .env.staging -f docker-compose.yml -f docker-compose.staging.yml run --rm --no-deps app \
+            node ../node_modules/typeorm/cli.js migration:run -d dist/app.data.js
+          
           docker compose --env-file .env.staging -f docker-compose.yml -f docker-compose.staging.yml up -d
           
-          curl -f http://localhost:3000/health
+          docker compose --env-file .env.staging -f docker-compose.yml -f docker-compose.staging.yml exec -T app \
+            wget -qO- http://localhost:3000/health
 
       - name: Cleanup local Docker cache
         if: always()
