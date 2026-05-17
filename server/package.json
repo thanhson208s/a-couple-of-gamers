@@ -3,18 +3,21 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
+    "lint": "eslint \"{src,test}/**/*.ts\" --fix",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
     "build": "nest build",
     "start": "node dist/app",
     "start:dev": "node --env-file=../.env.local ../node_modules/@nestjs/cli/bin/nest.js start --watch",
     "start:worker": "node dist/worker",
     "start:worker:dev": "node --env-file=../.env.local ../node_modules/.bin/ts-node -r tsconfig-paths/register src/worker.ts",
-    "lint": "eslint \"{src,test}/**/*.ts\" --fix",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:cov": "jest --coverage",
-    "typeorm": "node --env-file=../.env.local ../node_modules/typeorm/cli-ts-node-commonjs.js",
-    "migration:generate": "node --env-file=../.env.local ../node_modules/typeorm/cli-ts-node-commonjs.js migration:generate -d src/app.data.ts",
-    "migration:run": "node --env-file=../.env.local ../node_modules/typeorm/cli-ts-node-commonjs.js migration:run -d src/app.data.ts"
+    "typeorm": "node ../node_modules/typeorm/cli-ts-node-commonjs.js",
+    "typeorm:dev": "node --env-file=../.env.local ../node_modules/typeorm/cli-ts-node-commonjs.js",
+    "migration:generate": "node ../node_modules/typeorm/cli-ts-node-commonjs.js migration:generate -d src/app.data.ts",
+    "migration:generate:dev": "node --env-file=../.env.local ../node_modules/typeorm/cli-ts-node-commonjs.js migration:generate -d src/app.data.ts",
+    "migration:run": "node ../node_modules/typeorm/cli-ts-node-commonjs.js migration:run -d src/app.data.ts",
+    "migration:run:dev": "node --env-file=../.env.local ../node_modules/typeorm/cli-ts-node-commonjs.js migration:run -d src/app.data.ts"
   },
   "dependencies": {
     "@nest-lab/throttler-storage-redis": "^1.2.0",
