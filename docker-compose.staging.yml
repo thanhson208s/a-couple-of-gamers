@@ -22,6 +22,7 @@ services:
       - acog_net
 
   cache:
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
     networks:
       - acog_net
 
