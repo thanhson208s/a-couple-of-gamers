@@ -9,15 +9,21 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - acog_prod_db:/var/lib/postgresql/data
+    ports:
+      - "10.0.1.14:5432:5432"
     networks:
       - acog_net
+    restart: unless-stopped
 
   cache:
-    command: redis-server --requirepass ${REDIS_PASSWORD}
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
     volumes:
       - acog_prod_cache:/data
+    ports:
+      - "10.0.1.14:6379:6379"
     networks:
       - acog_net
+    restart: unless-stopped
 
   # Disable app-side services
   app:
