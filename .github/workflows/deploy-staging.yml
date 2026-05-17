@@ -15,6 +15,7 @@ jobs:
     name: Build and push Docker image
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       packages: write
     outputs:
       image_tag: ${{ github.sha }}
