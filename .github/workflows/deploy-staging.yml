@@ -65,8 +65,20 @@ jobs:
           
           docker compose --env-file .env.staging -f docker-compose.yml -f docker-compose.staging.yml up -d
           
-          docker compose --env-file .env.staging -f docker-compose.yml -f docker-compose.staging.yml exec -T app \
-            wget -qO- http://localhost:3000/health
+          for i in $(seq 1 30); do
+            if docker compose --env-file .env.staging -f docker-compose.yml -f docker-compose.staging.yml exec -T app \
+              wget -qO- http://localhost:3000/health; then
+              echo "Health check passed"
+              exit 0
+            fi
+
+            echo "Waiting for app health... attempt $i/30"
+            sleep 2
+          done
+
+          echo "Health check failed. App logs:"
+          docker compose --env-file .env.staging -f docker-compose.yml -f docker-compose.staging.yml logs --tail=120 app
+          exit 1
 
       - name: Cleanup local Docker cache
         if: always()
