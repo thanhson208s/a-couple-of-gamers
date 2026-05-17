@@ -31,7 +31,7 @@ jobs:
           docker run --rm \
             --env-file /opt/acog/.env.production \
             ${{ env.IMAGE }}:${{ inputs.image_tag }} \
-            node dist/app --run-migrations
+            node dist/app.js --run-migrations
 
       - name: Deploy
         run: |
