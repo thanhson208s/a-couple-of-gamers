@@ -28,10 +28,17 @@ jobs:
 
       - name: Run migrations
         run: |
-          docker run --rm \
-            --env-file /opt/acog/.env.production \
-            ${{ env.IMAGE }}:${{ inputs.image_tag }} \
-            node dist/app.js --run-migrations
+          cd /opt/acog
+
+          export ENV_FILE=.env.production
+          export SERVER_IMAGE=${{ env.IMAGE }}
+          export IMAGE_TAG=${{ inputs.image_tag }}
+
+          docker compose --env-file .env.production \
+            -f docker-compose.yml \
+            -f docker-compose.prod-app.yml \
+            run --rm --no-deps app \
+            node ../node_modules/typeorm/cli.js migration:run -d dist/app.data.js
 
       - name: Deploy
         run: |
@@ -41,5 +48,27 @@ jobs:
           export SERVER_IMAGE=${{ env.IMAGE }}
           export IMAGE_TAG=${{ inputs.image_tag }}
 
-          docker compose -f docker-compose.yml -f docker-compose.prod-app.yml up -d
-          curl -f http://localhost:3000/health
+          docker compose --env-file .env.production \
+            -f docker-compose.yml \
+            -f docker-compose.prod-app.yml \
+            up -d
+
+          for i in $(seq 1 30); do
+            if docker compose --env-file .env.production \
+              -f docker-compose.yml \
+              -f docker-compose.prod-app.yml \
+              exec -T app wget -qO- http://localhost:3000/health; then
+              echo "Health check passed"
+              exit 0
+            fi
+
+            echo "Waiting for app health... attempt $i/30"
+            sleep 2
+          done
+
+          echo "Health check failed. App logs:"
+          docker compose --env-file .env.production \
+            -f docker-compose.yml \
+            -f docker-compose.prod-app.yml \
+            logs --tail=120 app
+          exit 1
