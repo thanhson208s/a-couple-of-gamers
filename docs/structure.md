@@ -11,17 +11,51 @@ Living map of the codebase. Update when files are added, removed, or renamed.
 ```
 a-couple-of-gamers/
 ├── server/                  # NestJS API server + BullMQ worker
+├── admin/                   # React + Vite admin SPA (served at admin.acoupleofgamers.com)
+├── dev/                     # Dev console UI — plain HTML/JS, Vite proxy to localhost:3000
 ├── client/                  # Cocos Creator project
 ├── docs/                    # All design and reference docs, containing this file
 ├── .github/workflows/       # CI (lint/test) and deploy (VPS + R2) pipelines
 ├── docker-compose.yml               # Base service definitions
 ├── docker-compose.local.yml         # Local dev overrides
 ├── docker-compose.staging.yml       # Staging (all services, single host)
-├── docker-compose.prod-app.yml      # Production app VPS (NestJS + Caddy)
+├── docker-compose.prod-app.yml      # Production app VPS (NestJS + Caddy + admin)
 ├── docker-compose.prod-data.yml     # Production data VPS (Postgres + Redis)
-├── Caddyfile                # Reverse proxy: auto TLS, WS upgrade, HTTP→HTTPS
+├── Caddyfile                # Placeholder — actual config is environment-specific (see below)
+├── Caddyfile.production     # Production Caddy config
+├── Caddyfile.staging        # Staging Caddy config
 └── .env.example             # Environment variable template
 ```
+
+---
+
+## `admin/`
+
+| Path | Purpose |
+|------|---------|
+| `src/` | React source (TypeScript) |
+| `index.html` | Vite HTML entry point |
+| `vite.config.ts` | Vite config — `@vitejs/plugin-react`, `base: '/'` |
+| `tsconfig.json` | TypeScript config for the SPA |
+| `nginx.conf` | nginx SPA routing config (used in Docker runtime stage) |
+| `Dockerfile` | Two-stage build: node builds Vite bundle → nginx:alpine serves it |
+| `package.json` | Standalone npm project (not a workspace member) |
+
+→ Caddy routing, nginx behavior, Docker layering: [infra.md](infra.md)
+
+---
+
+## `dev/`
+
+| Path | Purpose |
+|------|---------|
+| `index.html` | Dev console UI — login, match, move, and dev endpoint controls |
+| `script.js` | `DEV_STATE` and `DEV_CONFIG` — all endpoint definitions live here |
+| `style.css` | Dark monospace theme |
+| `vite.config.js` | Vite dev server config — proxies `/v1/*` to `http://localhost:3000` |
+| `package.json` | Standalone npm project; single dep: `vite` |
+
+Start with `npm run dev` in `dev/` when needed. NestJS must be running on port 3000.
 
 ---
 
@@ -33,8 +67,6 @@ Direct children:
 |------|---------|
 | `src/` | TypeScript source — see breakdown below |
 | `dist/` | Compiled JS output (gitignored; produced by `nest build`) |
-| `public/admin/` | Static HTML for the admin dashboard, served at `/admin` |
-| `public/dev/` | Dev console HTML/JS/CSS, served at `/dev` (index.html, script.js, style.css) |
 | `Dockerfile` | Multi-stage build: `builder` compiles TS, `runtime` runs `dist/` |
 | `package.json` | Dependencies and npm scripts (`start`, `start:dev`, `build`, `test`, `typeorm`) |
 | `tsconfig.json` | Base TypeScript config (strict mode, ES2021 target) |
@@ -207,7 +239,7 @@ Direct children:
 
 | File | Purpose |
 |------|---------|
-| `admin.module.ts` | Admin module — serves `public/admin/` as static files at `/admin`; imports `ConfigModule`, `GamesModule` |
+| `admin.module.ts` | Admin module — imports `ConfigModule`, `GamesModule` |
 | `admin.controller.ts` | `/v1/admin/*` HTTP controller — guarded by `AdminAuthGuard` |
 
 ---

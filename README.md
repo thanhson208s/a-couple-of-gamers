@@ -148,7 +148,21 @@ This runs `ts-node` with the `worker.ts` entry point. No HTTP port — it only c
 
 ---
 
-### 8. Open the client (Godot)
+### 8. Start the dev console (optional)
+
+A browser-based dev console for testing API endpoints without the Godot client.
+
+```bash
+cd dev
+npm install   # first time only
+npm run dev
+```
+
+Opens at `http://localhost:5173`. Requires the API server (step 6) to be running. All `/v1/*` requests are proxied to `localhost:3000`.
+
+---
+
+### 9. Open the client (Godot)
 
 1. Open Godot → **Open Project** → select `client/`
 2. Set the API base URL to `http://localhost:3000` in the project's network config
@@ -167,6 +181,9 @@ npm run start:dev -w server
 
 # Terminal 3 — worker (optional)
 npm run start:worker:dev -w server
+
+# Terminal 4 — dev console (optional, first time: cd dev && npm install)
+cd dev && npm run dev
 ```
 
-All three can be left running. The API server hot-reloads on save; the worker requires a manual restart on change.
+All can be left running. The API server hot-reloads on save; the worker requires a manual restart on change.
