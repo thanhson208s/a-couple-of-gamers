@@ -8,7 +8,7 @@ export class ReminderProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job<{ matchId: string; opponentId: string }>): Promise<void> {
+  async process(_job: Job<{ matchId: string; opponentId: string }>): Promise<void> {
     // const { matchId, opponentId } = job.data;
     
     // await this.notificationsService.sendPush(opponentId, job.name, { matchId });

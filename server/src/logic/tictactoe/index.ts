@@ -1,4 +1,4 @@
-import type { GamePlugin, GameStep, GameState, GameAction, GameMove, GameView,  } from '../';
+import type { GamePlugin, GameState, GameAction, GameMove, GameView } from '../';
 
 interface TicTacToeState extends GameState {
   board: (1 | 2 | null)[][];

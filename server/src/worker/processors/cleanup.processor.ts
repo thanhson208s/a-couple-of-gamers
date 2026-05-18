@@ -11,7 +11,7 @@ export class CleanupProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job): Promise<void> {
+  async process(_job: Job): Promise<void> {
     // if (job.name === 'stale-matches') {
     //   await this.matchesService.cleanupStaleMatches();
     // }
