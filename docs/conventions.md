@@ -35,13 +35,25 @@ Code patterns, developer workflow, and repeatable processes. Read this before wr
 
 ## Branching Strategy
 
-| Branch | Purpose |
-|--------|---------|
-| `main` | Production-ready code. Only receives merges from tagged releases. |
-| `dev` | Integration branch. All feature branches merge here. Auto-deploys to staging. |
-| `feature/<name>` | Individual feature or fix branches. Branch from `dev`, PR back to `dev`. |
+| Branch / ref | Purpose |
+|---|---|
+| `main` | Integration branch. All feature PRs merge here. Auto-deploys to staging on every push. |
+| `{feature, fix}/<name>` | Short-lived branches for a single feature or fix. Branch from `main`, PR back to `main`. |
+| `v<major>.<minor>.<patch>` | Release tag cut from `main` (e.g. `v1.2.3`). Builds a versioned image; use it to trigger the manual production deploy. |
 
-Tag format for releases: `v<major>.<minor>.<patch>` (e.g. `v1.0.0`). Pushing a tag triggers the production deploy pipeline.
+### Typical flow
+
+```
+git checkout -b feature/my-thing   # branch from main
+# ... work ...
+git push && gh pr create           # CI (lint + tests) runs on the PR
+# merge → staging auto-deploys
+
+git tag v1.2.3 && git push --tags  # when ready for production
+# run "Deploy to Production" workflow with tag v1.2.3
+```
+
+**Never push directly to `main`.** Every change goes through a PR so CI runs first.
 
 ---
 
@@ -413,7 +425,7 @@ Review the generated SQL before committing — TypeORM's diff is usually correct
 4. Import the plugin in the Godot client's game loader
 5. Create the Godot scene and assets under `client/res/games/<slug>/` (this is the Asset Bundle)
 6. Create the AI component under `client/games/<slug>/` (imports game logic from `packages/game-logic/<slug>/`)
-7. CI will build and upload the bundle to R2 on the next `dev` merge or `client/res/games/**` change, and publish a new `game-bundles/<env>/manifest.json` carrying the new slug's bundle version + URL
+7. CI will build and upload the bundle to R2 on the next `main` merge or `client/res/games/**` change, and publish a new `game-bundles/<env>/manifest.json` carrying the new slug's bundle version + URL
 8. Activate the game via admin — set `status = 2` (enabled) via `PUT /v1/admin/games/<slug>/status` once the bundle is live
 
 ---
