@@ -419,14 +419,13 @@ Review the generated SQL before committing — TypeORM's diff is usually correct
 
 ## Adding a New Game
 
-1. Create the shared game plugin in `packages/game-logic/<slug>/` implementing the `GamePlugin` interface — see [game-system.md](game-system.md)
+1. Create the game plugin in `server/src/logic/<slug>/` implementing the `GamePlugin` interface — see [game-system.md](game-system.md)
 2. Register the slug in `GamesRegistry` (`server/src/modules/games/games.registry.ts`) — a row is auto-created in the `games` table (`status = 1` / coming_soon) on next server start
 3. Add the slug + metadata (display name, icons, banners, intro/rule images) to the client catalog so the tile renders
 4. Import the plugin in the Godot client's game loader
-5. Create the Godot scene and assets under `client/res/games/<slug>/` (this is the Asset Bundle)
-6. Create the AI component under `client/games/<slug>/` (imports game logic from `packages/game-logic/<slug>/`)
-7. CI will build and upload the bundle to R2 on the next `main` merge or `client/res/games/**` change, and publish a new `game-bundles/<env>/manifest.json` carrying the new slug's bundle version + URL
-8. Activate the game via admin — set `status = 2` (enabled) via `PUT /v1/admin/games/<slug>/status` once the bundle is live
+5. Create the Godot scene, assets and logic under `client/games/<slug>/` (this is the Asset Bundle)
+6. CI will build and upload the bundle to R2 on the next `main` merge or `client/res/games/**` change, and publish a new `game-bundles/<env>/manifest.json` carrying the new slug's bundle version + URL
+7. Activate the game via admin — set `status = 2` (enabled) via `PUT /v1/admin/games/<slug>/status` once the bundle is live
 
 ---
 

@@ -19,11 +19,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build shared packages
-        run: |
-          npm run build --workspace=packages/game-logic
-          npm run build --workspace=packages/game-logic/tictactoe
-
       - name: Lint
         run: npm run lint --workspace=server
 
