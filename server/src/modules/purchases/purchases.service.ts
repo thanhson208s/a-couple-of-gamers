@@ -3,27 +3,27 @@ import { RcEventData } from './rc-webhook.dto';
 
 @Injectable()
 export class PurchasesService {
-  async handleRcTestEvent(event: RcEventData) {
+  async handleRcTestEvent(_event: RcEventData) {
 
   }
 
-  async handleRcPurchaseEvent(event: RcEventData) {
+  async handleRcPurchaseEvent(_event: RcEventData) {
 
   }
 
-  async handleRcChangeEvent(event: RcEventData) {
+  async handleRcChangeEvent(_event: RcEventData) {
 
   }
 
-  async handleRcCancellationEvent(event: RcEventData) {
+  async handleRcCancellationEvent(_event: RcEventData) {
 
   }
 
-  async handleRcExpirationEvent(event: RcEventData) {
+  async handleRcExpirationEvent(_event: RcEventData) {
 
   }
 
-  async handleRcTransferEvent(event: RcEventData) {
+  async handleRcTransferEvent(_event: RcEventData) {
 
   }
 }

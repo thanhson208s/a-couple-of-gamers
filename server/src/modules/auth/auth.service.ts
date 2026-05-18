@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'crypto';
-import { Inject, Injectable, NotImplementedException, UnauthorizedException } from '@nestjs/common';
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
@@ -69,7 +69,7 @@ export class AuthService {
     return { accessToken, refreshToken: newRefreshToken };
   }
 
-  private issueAccessToken(id: string, provider: string): string {
+  private issueAccessToken(id: string, _provider: string): string {
     return this.jwtService.sign({ id } satisfies JwtUser); 
   }
 

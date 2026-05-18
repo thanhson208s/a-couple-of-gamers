@@ -26,7 +26,7 @@ docker compose version  # v2.x.x (plugin, not standalone)
 ```bash
 git clone <repo-url>
 cd a-couple-of-gamers
-npm install        # installs all workspace deps: server + packages/game-logic + packages/game-logic/tictactoe
+npm install        # installs all workspace deps
 ```
 
 `npm install` at the repo root covers all workspaces. No need to `cd server && npm install` separately.
