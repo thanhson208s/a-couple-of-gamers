@@ -2,7 +2,7 @@
 # See docker-compose.prod-app.yml and docker-compose.staging.yml.
 #
 # Production:  api.acoupleofgamers.com → app:3000
-# Staging:     api.staging.acoupleofgamers.com → app:3000
+# Staging:     api-staging.acoupleofgamers.com → app:3000
 #
 # Caddy handles TLS (automatic Let's Encrypt), WebSocket Upgrade headers,
 # and HTTP→HTTPS redirect automatically — no manual cert management.

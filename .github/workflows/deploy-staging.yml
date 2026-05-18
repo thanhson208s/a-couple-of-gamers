@@ -64,6 +64,7 @@ jobs:
             node ../node_modules/typeorm/cli.js migration:run -d dist/app.data.js
           
           docker compose --env-file .env.staging -f docker-compose.yml -f docker-compose.staging.yml up -d
+          docker compose --env-file .env.staging -f docker-compose.yml -f docker-compose.staging.yml restart proxy
           
           for i in $(seq 1 30); do
             if docker compose --env-file .env.staging -f docker-compose.yml -f docker-compose.staging.yml exec -T app \
