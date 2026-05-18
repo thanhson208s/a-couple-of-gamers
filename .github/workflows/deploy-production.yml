@@ -9,7 +9,8 @@ on:
         type: string
 
 env:
-  IMAGE: ghcr.io/${{ github.repository_owner }}/server
+  SERVER_IMAGE: ghcr.io/${{ github.repository_owner }}/server
+  ADMIN_IMAGE: ghcr.io/${{ github.repository_owner }}/admin
 
 jobs:
   deploy:
@@ -21,7 +22,10 @@ jobs:
         run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Pull image
-        run: docker pull ${{ env.IMAGE }}:${{ inputs.image_tag }}
+        run: docker pull ${{ env.SERVER_IMAGE }}:${{ inputs.image_tag }}
+
+      - name: Pull admin image
+        run: docker pull ${{ env.ADMIN_IMAGE }}:${{ inputs.image_tag }}
 
       - name: Pull latest repo changes
         run: git -C /opt/acog pull
@@ -31,7 +35,8 @@ jobs:
           cd /opt/acog
 
           export ENV_FILE=.env.production
-          export SERVER_IMAGE=${{ env.IMAGE }}
+          export SERVER_IMAGE=${{ env.SERVER_IMAGE }}
+          export ADMIN_IMAGE=${{ env.ADMIN_IMAGE }}
           export IMAGE_TAG=${{ inputs.image_tag }}
 
           docker compose --env-file .env.production \
@@ -45,7 +50,8 @@ jobs:
           cd /opt/acog
 
           export ENV_FILE=.env.production
-          export SERVER_IMAGE=${{ env.IMAGE }}
+          export SERVER_IMAGE=${{ env.SERVER_IMAGE }}
+          export ADMIN_IMAGE=${{ env.ADMIN_IMAGE }}
           export IMAGE_TAG=${{ inputs.image_tag }}
 
           docker compose --env-file .env.production \

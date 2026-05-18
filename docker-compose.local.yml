@@ -40,6 +40,8 @@ services:
     profiles: ["disabled"]
   proxy:
     profiles: ["disabled"]
+  admin:
+    profiles: ["disabled"]
 
 volumes:
   acog_local_db:

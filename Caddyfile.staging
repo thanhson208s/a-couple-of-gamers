@@ -5,3 +5,15 @@ api-staging.acoupleofgamers.com {
     tls /etc/caddy/certs/origin-cert.pem /etc/caddy/certs/origin-key.pem
     reverse_proxy app:3000
 }
+
+admin-staging.acoupleofgamers.com {
+    tls /etc/caddy/certs/origin-cert.pem /etc/caddy/certs/origin-key.pem
+
+    handle /v1/admin/* {
+        reverse_proxy app:3000
+    }
+
+    handle {
+        reverse_proxy admin:80
+    }
+}

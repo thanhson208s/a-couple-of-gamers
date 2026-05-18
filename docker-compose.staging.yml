@@ -38,6 +38,11 @@ services:
     networks:
       - acog_net
 
+  admin:
+    env_file: .env.staging
+    networks:
+      - acog_net
+
 volumes:
   acog_staging_db:
   caddy_staging_data:

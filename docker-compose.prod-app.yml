@@ -24,6 +24,11 @@ services:
     networks:
       - acog_net
 
+  admin:
+    env_file: .env.production
+    networks:
+      - acog_net
+
   # Disable data services — they run on prod-data VPS
   db:
     profiles: ["disabled"]
