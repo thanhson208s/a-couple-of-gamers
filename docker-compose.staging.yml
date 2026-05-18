@@ -40,6 +40,8 @@ services:
 
   admin:
     env_file: .env.staging
+    environment:
+      - API_URL=http://app:3000
     networks:
       - acog_net
 

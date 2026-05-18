@@ -162,7 +162,21 @@ Opens at `http://localhost:5173`. Requires the API server (step 6) to be running
 
 ---
 
-### 9. Open the client (Godot)
+### 9. Start the admin console (optional)
+
+Browser-based admin console for changing server config.
+
+```bash
+cd admin
+npm install   # first time only
+npm run dev
+```
+
+Opens at `http://localhost:5173` (or next available port if the dev console is already running). Requires the API server (step 6) to be running. All `/v1/*` requests are proxied to `localhost:3000`.
+
+---
+
+### 10. Open the client (Godot)
 
 1. Open Godot → **Open Project** → select `client/`
 2. Set the API base URL to `http://localhost:3000` in the project's network config
