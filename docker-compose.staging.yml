@@ -1,4 +1,4 @@
-# Staging VPS: all services on a single host.
+# acog-staging VPS: all services on a single host.
 
 services:
   app:

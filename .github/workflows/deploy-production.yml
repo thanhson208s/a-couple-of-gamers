@@ -30,6 +30,14 @@ jobs:
       - name: Pull latest repo changes
         run: git -C /opt/acog pull
 
+      - name: Pre-deploy backup
+        run: |
+          cd /opt/acog
+          CURRENT_TAG=$(docker inspect acog-app-1 \
+            --format '{{.Config.Image}}' 2>/dev/null \
+            | awk -F: '{print $NF}' || echo "initial")
+          ./scripts/backup.sh --env=production --mode=predeploy --tag="${CURRENT_TAG:-initial}"
+
       - name: Run migrations
         run: |
           cd /opt/acog
