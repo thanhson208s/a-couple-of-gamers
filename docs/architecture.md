@@ -59,7 +59,7 @@ Request flow diagram, all internal services (NestJS app, worker, Postgres, Redis
 └──────────────┘
 
 External (not in request path):
-  Cloudflare R2    ←── daily Postgres dump (OS cron on prod-data VPS)
+  Cloudflare R2    ←── daily Postgres dump (cron) + predeploy Postgres dump (deploy workflow)
   Bugsink          ←── NestJS unhandled exceptions + Godot client crashes
   Grafana Alloy    ←── scrapes metrics/logs/traces from all VPS nodes
     → Grafana Cloud (Prometheus · Loki · Tempo)
@@ -74,11 +74,11 @@ External (not in request path):
 
 | Service | Runs on | Purpose |
 |---------|---------|---------|
-| **NestJS API Server** | prod-app VPS | Handles all HTTP and WebSocket traffic. Validates and applies game actions via the game plugin interface. Enqueues BullMQ jobs for background work. Also consumes the `websocket` queue for maintenance announcements (broadcast directly to WS clients). On SIGTERM: broadcasts `system:shutdown`, terminates all WS connections, clears `ws:user:{userId}` Redis presence keys, then exits within 30 s. |
-| **NestJS Worker Service** | prod-app VPS | Consumes BullMQ jobs from Redis. No HTTP listener. Runs inactive match cleanup (repeatable) and turn reminder dispatch (delayed). |
-| **Caddy** | prod-app VPS | TLS termination (Cloudflare Origin Certificate), WebSocket upgrade headers. Reverse proxy to the API server. |
-| **PostgreSQL** | prod-data VPS | Primary relational database. Single source of truth for all match state, user data, and history. Game state stored as JSONB. |
-| **Redis** | prod-data VPS | Four roles: (1) Pending match storage — `invite:code:{inviteCode}` (JSON, 24 h TTL) + `invite:user:{userId}` (sorted set index); Postgres row is created only when opponent joins. (2) WebSocket presence — single key `ws:user:{userId}`: absent = offline, `"lobby"` = connected in lobby, `<matchId>` = connected and viewing that match. (3) BullMQ job queue shared between API server and worker. (4) Rate limit counters. |
+| **NestJS API Server** | acog-app VPS | Handles all HTTP and WebSocket traffic. Validates and applies game actions via the game plugin interface. Enqueues BullMQ jobs for background work. Also consumes the `websocket` queue for maintenance announcements (broadcast directly to WS clients). On SIGTERM: broadcasts `system:shutdown`, terminates all WS connections, clears `ws:user:{userId}` Redis presence keys, then exits within 30 s. |
+| **NestJS Worker Service** | acog-app VPS | Consumes BullMQ jobs from Redis. No HTTP listener. Runs inactive match cleanup (repeatable) and turn reminder dispatch (delayed). |
+| **Caddy** | acog-app VPS | TLS termination (Cloudflare Origin Certificate), WebSocket upgrade headers. Reverse proxy to the API server. |
+| **PostgreSQL** | acog-data VPS | Primary relational database. Single source of truth for all match state, user data, and history. Game state stored as JSONB. |
+| **Redis** | acog-data VPS | Four roles: (1) Pending match storage — `invite:code:{inviteCode}` (JSON, 24 h TTL) + `invite:user:{userId}` (sorted set index); Postgres row is created only when opponent joins. (2) WebSocket presence — single key `ws:user:{userId}`: absent = offline, `"lobby"` = connected in lobby, `<matchId>` = connected and viewing that match. (3) BullMQ job queue shared between API server and worker. (4) Rate limit counters. |
 
 ### External Services
 
@@ -86,7 +86,7 @@ External (not in request path):
 |---------|---------|--------------|
 | **FCM** | Push notifications to iOS (via APNs bridge) and Android | NestJS API Server (inline, on move submission) and Worker (turn reminders) |
 | **Cloudflare DNS Proxy** | DNS proxy for all client traffic; DDoS protection; hides origin VPS IP; client-facing TLS termination at edge | All HTTP/WS traffic from clients; Caddy authenticates to Cloudflare via Origin Certificate (Full strict SSL mode) |
-| **Cloudflare R2** | Daily Postgres backups; hot update assets (main app); game bundles (CDN for client downloads) | Backups: OS cron on prod-data VPS. Hot update + bundles: CI/CD asset publish job. Client fetches directly from R2 CDN URL. |
+| **Cloudflare R2** | Postgres backups (daily + predeploy); hot update assets (main app); game bundles (CDN for client downloads) | Backups: Daily cron on acog-data VPS (prod) / acog-staging VPS (staging); predeploy backup triggered from `deploy-production.yml` on acog-app and `deploy-staging.yml` on the acog-staging VPS. Hot update + bundles: CI/CD asset publish job. Client fetches directly from R2 CDN URL. |
 | **Bugsink** | Self-hosted error tracking and crash reporting (Sentry-compatible SDK) | NestJS API Server (unhandled exceptions); Godot client (crashes via Sentry-compatible SDK) |
 | **Grafana Alloy** | Observability agent — scrapes metrics (Prometheus), ships logs (Loki), and traces (Tempo) from all VPS nodes to Grafana Cloud | Runs as a systemd service on each VPS; no application-level integration required |
 | **Grafana Cloud** | Hosted observability backend: Prometheus (metrics), Loki (logs), Tempo (traces); dashboards and alerting | Receives data from Grafana Alloy |

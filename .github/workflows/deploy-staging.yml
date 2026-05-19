@@ -76,7 +76,12 @@ jobs:
           export IMAGE_TAG=${{ needs.build.outputs.image_tag }}
           
           docker compose --env-file .env.staging -f docker-compose.yml -f docker-compose.staging.yml up -d db cache
-          
+
+          CURRENT_TAG=$(docker inspect acog-app-1 \
+            --format '{{.Config.Image}}' 2>/dev/null \
+            | awk -F: '{print $NF}' || echo "initial")
+          ./scripts/backup.sh --env=staging --mode=predeploy --tag="${CURRENT_TAG:-initial}"
+
           docker compose --env-file .env.staging -f docker-compose.yml -f docker-compose.staging.yml run --rm --no-deps app \
             node ../node_modules/typeorm/cli.js migration:run -d dist/app.data.js
           

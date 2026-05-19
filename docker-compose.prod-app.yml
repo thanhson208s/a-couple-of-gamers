@@ -1,5 +1,5 @@
-# prod-app VPS: NestJS app, worker, and Caddy reverse proxy.
-# Connects to prod-data VPS over Oracle private network.
+# acog-app VPS: NestJS app, worker, and Caddy reverse proxy.
+# Connects to acog-data VPS over Oracle private network.
 
 services:
   app:
@@ -31,7 +31,7 @@ services:
     networks:
       - acog_net
 
-  # Disable data services — they run on prod-data VPS
+  # Disable data services — they run on acog-data VPS
   db:
     profiles: ["disabled"]
   cache:

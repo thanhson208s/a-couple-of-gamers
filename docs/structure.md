@@ -15,6 +15,7 @@ a-couple-of-gamers/
 ├── dev/                     # Dev console UI — plain HTML/JS, Vite proxy to localhost:3000
 ├── client/                  # Cocos Creator project
 ├── docs/                    # All design and reference docs, containing this file
+├── scripts/                 # Ops scripts for backup and prune
 ├── .github/workflows/       # CI (lint/test) and deploy (VPS + R2) pipelines
 ├── docker-compose.yml               # Base service definitions
 ├── docker-compose.local.yml         # Local dev overrides

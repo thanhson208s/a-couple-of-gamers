@@ -1,5 +1,5 @@
-# prod-data VPS: PostgreSQL and Redis.
-# No public port exposure — accessed by prod-app over Oracle private network.
+# acog-data VPS: PostgreSQL and Redis.
+# No public port exposure — accessed by acog-app over Oracle private network.
 
 services:
   db:
