@@ -66,6 +66,7 @@ export RCLONE_CONFIG_R2_PROVIDER=Cloudflare
 export RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_BACKUP_ACCESS_KEY_ID"
 export RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_BACKUP_SECRET_ACCESS_KEY"
 export RCLONE_CONFIG_R2_ENDPOINT="$R2_BACKUP_ENDPOINT"
+export RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true
 
 # Tables to back up. matches, refresh_tokens, fcm_tokens are intentionally excluded.
 TABLES=(
@@ -130,6 +131,7 @@ docker run --rm \
   -e RCLONE_CONFIG_R2_ACCESS_KEY_ID \
   -e RCLONE_CONFIG_R2_SECRET_ACCESS_KEY \
   -e RCLONE_CONFIG_R2_ENDPOINT \
+  -e RCLONE_CONFIG_R2_NO_CHECK_BUCKET \
   rclone/rclone \
   copyto /dump.sql.gz "r2:${R2_BACKUP_BUCKET}/${OBJECT}"
 
