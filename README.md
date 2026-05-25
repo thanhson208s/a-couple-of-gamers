@@ -87,7 +87,7 @@ The Postgres credentials match `docker-compose.local.yml` (`postgres:postgres`).
 ### 4. Start infrastructure
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+docker compose --env-file .env.local -f docker-compose.yml -f docker-compose.local.yml up -d
 ```
 
 This starts Postgres (`:5432`), Redis (`:6379`), pgAdmin (`:5050`), and RedisInsight (`:5540`). The NestJS app and Caddy are disabled in the local override.
@@ -103,7 +103,7 @@ docker compose exec db psql -U postgres -c '\l'   # lists databases including "a
 ### 4a. Stop infrastructure
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.local.yml down
+docker compose --env-file .env.local -f docker-compose.yml -f docker-compose.local.yml down
 ```
 
 Stops and removes containers but **preserves the DB volume** — data survives a restart.
@@ -126,7 +126,7 @@ Two web UIs are included in the local stack — no extra installs needed.
 **RedisInsight** — Redis web UI at `http://localhost:5540`
 
 1. Open `http://localhost:5540`
-2. Add a new connection: Host `host.docker.internal`, Port `6379` (no password)
+2. Add a new connection: Host `host.docker.internal`, Port `6379`, Password: `redis`
 3. Browse keys, inspect values, run CLI commands
 
 ---
@@ -220,7 +220,10 @@ npm run start:dev -w server
 # Terminal 3 — worker (optional)
 npm run start:worker:dev -w server
 
-# Terminal 4 — dev console (optional, first time: cd dev && npm install)
+# Terminal 4 - admin console (optional, first time: cd admin && npm install)
+cd admin && npm run dev
+
+# Terminal 5 — dev console (optional, first time: cd dev && npm install)
 cd dev && npm run dev
 ```
 
