@@ -16,7 +16,6 @@ services:
     restart: unless-stopped
 
   cache:
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
     volumes:
       - acog_prod_cache:/data
     ports:
