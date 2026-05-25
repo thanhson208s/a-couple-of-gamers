@@ -1,0 +1,14 @@
+# Maintenance Caddy config — returns 503 for all public hosts.
+# Loaded by scripts/maintain.sh start; reverted by scripts/maintain.sh stop.
+# Same TLS cert as production/staging (Cloudflare Origin Certificate covers *.acoupleofgamers.com).
+
+api.acoupleofgamers.com,
+api-staging.acoupleofgamers.com,
+admin.acoupleofgamers.com,
+admin-staging.acoupleofgamers.com {
+    tls /etc/caddy/certs/origin-cert.pem /etc/caddy/certs/origin-key.pem
+
+    respond "Service temporarily unavailable — maintenance in progress." 503 {
+        close
+    }
+}
