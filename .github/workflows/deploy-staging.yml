@@ -84,10 +84,9 @@ jobs:
 
           docker compose --env-file .env.staging -f docker-compose.yml -f docker-compose.staging.yml run --rm --no-deps app \
             node ../node_modules/typeorm/cli.js migration:run -d dist/app.data.js
-          
-          docker compose --env-file .env.staging -f docker-compose.yml -f docker-compose.staging.yml up -d
-          docker compose --env-file .env.staging -f docker-compose.yml -f docker-compose.staging.yml restart proxy
-          
+
+          docker compose --env-file .env.staging -f docker-compose.yml -f docker-compose.staging.yml up -d app worker admin
+
           for i in $(seq 1 30); do
             if docker compose --env-file .env.staging -f docker-compose.yml -f docker-compose.staging.yml exec -T app \
               wget -qO- http://localhost:3000/health; then

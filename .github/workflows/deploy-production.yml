@@ -65,7 +65,7 @@ jobs:
           docker compose --env-file .env.production \
             -f docker-compose.yml \
             -f docker-compose.prod-app.yml \
-            up -d
+            up -d app worker admin
 
           for i in $(seq 1 30); do
             if docker compose --env-file .env.production \

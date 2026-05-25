@@ -3,11 +3,12 @@ services:
     image: ${SERVER_IMAGE:-ghcr.io/acog/server}:${IMAGE_TAG:-latest}
     environment:
       - NODE_ENV=production
-    env_file: 
+    env_file:
       - ${ENV_FILE:-.env.local}
     networks:
       - acog_net
     restart: unless-stopped
+    stop_grace_period: 15s
 
   worker:
     image: ${SERVER_IMAGE:-ghcr.io/acog/server}:${IMAGE_TAG:-latest}
@@ -19,6 +20,7 @@ services:
     networks:
       - acog_net
     restart: unless-stopped
+    stop_grace_period: 15s
 
   db:
     image: postgres:16-alpine

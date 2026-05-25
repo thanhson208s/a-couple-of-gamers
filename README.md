@@ -1,5 +1,29 @@
 # A Couple of Gamers
 
+## Tech Stack
+
+| Layer | Choice | Note |
+|-------|--------|------|
+| Client | Godot + GDScript | Cross-platform engine optimized for 2D |
+| Server + Worker | NestJS + TypeScript | Structured module, built-in WS |
+| Reverse proxy | Caddy | WebSocket upgrade + HTTPS redirect |
+| Cache | Redis | Fast in-memory store for multiple uses |
+| Job queue | BullMQ (via Redis) | Persistent delayed and repeatable jobs |
+| Database | PostgreSQL | Relational, supports JSONB for game state |
+| ORM | TypeORM | NestJS-native, built-in migration system |
+| Object storage | Cloudflare R2 | DB backups, dynamic assets |
+| DNS | Cloudflare DNS Proxy | Protection, hide origin IP, cache responses |
+| Auth | Firebase Authentication | Supports Google, Facebook, Apple and anon |
+| Push notifications | Firebase Cloud Messaging | Covers both IOS and Android /w same API |
+| Analytics | Firebase Analytics | Client event tracking with Godot plugins |
+| Container | Docker Compose | Easy isolated deployment |
+| CI/CD | Github Actions + self hosted runners | Lint → test → build → deploy pipeline |
+| Error tracking | Bugsink | Sentry-compatible, free self-hosted plan |
+| Uptime | Uptime Kuma | Monitor uptime and critical endpoints |
+| Metrics, Logs, Traces | Grafana Cloud/Alloy + exporters | Full monitoring /w Prometheus, Loki, Tempo |
+| IAP | Revenue Cat | Unified interface for Android/IOS IAP |
+| Ads | Google Admob | Integrate ads with mediation |
+
 ## Local Dev Setup
 
 ### 1. Prerequisites

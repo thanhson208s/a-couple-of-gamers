@@ -15,20 +15,17 @@
 ## 2. Working with docs
 
 ### Core Principles
-- **No duplications**: Use markdown link to reference related sections in the same or a different document.
-- **Keep it concise**: Only document what necessary, don't put all codebase in docs.
+- **No duplications**: Use markdown links to reference related sections from the docs folder.
+- **Keep it concise**: Only document the abstract essentials, don't put all codebase in docs.
 
 ### Document Index
 
 | File | Purpose |
 |------|---------|
 | [README.md](README.md) | Local dev setup (install → run) |
-| [docs/requirements.md](docs/requirements.md) | All functional and non-functional requirements with links to feature docs |
 | [docs/architecture.md](docs/architecture.md) | System diagram, all services (internal + external), module responsibilities, key decisions |
 | [docs/security.md](docs/security.md) | Auth mechanism (JWT lifecycle, WS ticket), rate limiting, input validation, secrets |
 | [docs/conventions.md](docs/conventions.md) | Code conventions and developer workflow — guards, errors, DTOs, modules, BullMQ jobs, entities, branching, commits, migrations, adding modules/games, publishing, PR checklist |
 | [docs/api-reference.md](docs/api-reference.md) | [DRAFT] REST endpoints and WebSocket events |
-| [docs/database-schema.md](docs/database-schema.md) | [DRAFT] Postgres tables, indexes, data ownership |
-| [docs/game-system.md](docs/game-system.md) | Game plugin interface, state visibility, game catalog |
-| [docs/features/](docs/features/) | One doc per feature — implementation flows, sequences, and task list. Covers: account-management, config-management, games-management, match-management, monetization, notifications, offline-mode, users-management |
+| [docs/database-schema.md](docs/database-schema.md) | Postgres tables, indexes, data ownership |
 | [docs/structure.md](docs/structure.md) | Living codebase map — every file and directory with its purpose |

@@ -29,8 +29,7 @@ type LifecycleHandler = (payload: { userId: string }) => unknown | Promise<unkno
 // User-scoped persistent connection — opened once after login.
 // Authentication: one-time WS ticket from POST /v1/auth/ws-ticket
 // See: docs/security.md#websocket-authentication
-// See: docs/features/match-session.md
-//
+
 // Inbound dispatch: handlers register via @OnWsMessage(event), @OnWsConnected,
 // @OnWsDisconnected on any provider class. The gateway scans all providers at
 // module init and routes incoming messages / lifecycle transitions directly to
@@ -54,6 +53,8 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect, OnAp
     forbidNonWhitelisted: true
   });
   private readonly messageDtos = new Map<string, new (...args: any[]) => any>();
+
+  private shuttingDown = false;
 
   constructor(
     private readonly wsService: WsService,
@@ -124,13 +125,44 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect, OnAp
   }
 
   async onApplicationShutdown(): Promise<void> {
+    // Reject any new upgrades while we drain. Read by handleConnection.
+    this.shuttingDown = true;
+
     this.broadcastToAll({ event: 'system:shutdown' });
-    for (const client of this.server.clients) {
-      client.terminate();
-    }
+
+    // Initiate a graceful close on every client, then wait for the close handshake
+    // (bounded per-socket — fall back to terminate() if a client doesn't ack in time).
+    const CLOSE_TIMEOUT_MS = 5_000;
+    await Promise.allSettled(
+      [...this.server.clients].map(
+        (client) =>
+          new Promise<void>((resolve) => {
+            if (client.readyState === WebSocket.CLOSED) return resolve();
+
+            const force = setTimeout(() => {
+              client.terminate();
+              resolve();
+            }, CLOSE_TIMEOUT_MS);
+
+            client.once('close', () => {
+              clearTimeout(force);
+              resolve();
+            });
+
+            if (client.readyState === WebSocket.OPEN) {
+              client.close(1001, 'shutdown'); // 1001 = going away
+            }
+          }),
+      ),
+    );
   }
 
   async handleConnection(client: AuthedSocket, request: IncomingMessage): Promise<void> {
+    if (this.shuttingDown) {
+      client.close(1001, 'shutdown');
+      return;
+    }
+
     const qs = request.url?.split('?')[1] ?? '';
     const ticket = new URLSearchParams(qs).get('ticket');
     if (!ticket) {

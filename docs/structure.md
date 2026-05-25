@@ -42,8 +42,6 @@ a-couple-of-gamers/
 | `Dockerfile` | Two-stage build: node builds Vite bundle → nginx:alpine serves it |
 | `package.json` | Standalone npm project (not a workspace member) |
 
-→ Caddy routing, nginx behavior, Docker layering: [infra.md](infra.md)
-
 ---
 
 ## `dev/`
@@ -103,8 +101,6 @@ Direct children:
 | `interface.ts` | `GamePlugin` TypeScript interface and shared types |
 | `index.ts` | Re-exports all types from `interface.ts` |
 | `*/index.ts` | Per-game plugin implementation |
-
-→ Plugin contract and server authority model: [game-system.md](game-system.md)
 
 ---
 
