@@ -53,6 +53,7 @@ export RCLONE_CONFIG_R2_PROVIDER=Cloudflare
 export RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_BACKUP_ACCESS_KEY_ID"
 export RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_BACKUP_SECRET_ACCESS_KEY"
 export RCLONE_CONFIG_R2_ENDPOINT="$R2_BACKUP_ENDPOINT"
+export RCLONE_CONFIG_R2_NO_CHECK_BUCKET=true
 
 REMOTE="r2:${R2_BACKUP_BUCKET}/${MODE}"
 
@@ -62,6 +63,7 @@ LISTING="$(docker run --rm \
   -e RCLONE_CONFIG_R2_ACCESS_KEY_ID \
   -e RCLONE_CONFIG_R2_SECRET_ACCESS_KEY \
   -e RCLONE_CONFIG_R2_ENDPOINT \
+  -e RCLONE_CONFIG_R2_NO_CHECK_BUCKET \
   rclone/rclone \
   lsjson --recursive --files-only "$REMOTE" 2>/dev/null || echo "[]")"
 
@@ -72,7 +74,7 @@ fi
 
 # Decide which paths to delete in Python — easier date handling than bash.
 DELETE_PATHS="$(LISTING="$LISTING" ENV="$ENV" MODE="$MODE" python3 <<'PYEOF'
-import json, os, sys, datetime
+import json, os, sys, datetime, re
 
 data = json.loads(os.environ["LISTING"])
 env = os.environ["ENV"]
@@ -84,7 +86,7 @@ files = []
 for e in data:
     if e.get("IsDir"):
         continue
-    mt = datetime.datetime.fromisoformat(e["ModTime"].replace("Z", "+00:00"))
+    mt = datetime.datetime.fromisoformat(re.sub(r'(\.\d{6})\d+', r'\1', e["ModTime"].replace("Z", "+00:00")))
     files.append((e["Path"], mt))
 
 keep = set()
@@ -138,6 +140,7 @@ docker run --rm \
   -e RCLONE_CONFIG_R2_ACCESS_KEY_ID \
   -e RCLONE_CONFIG_R2_SECRET_ACCESS_KEY \
   -e RCLONE_CONFIG_R2_ENDPOINT \
+  -e RCLONE_CONFIG_R2_NO_CHECK_BUCKET \
   rclone/rclone \
   delete --files-from /files.txt "$REMOTE"
 
