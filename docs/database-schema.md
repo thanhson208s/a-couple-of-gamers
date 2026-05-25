@@ -24,7 +24,6 @@ id      TEXT PRIMARY KEY       -- slug, e.g. 'tictactoe', 'battleship'
 name    TEXT NOT NULL          -- display name; initially set to id, update via admin API
 status  INTEGER NOT NULL DEFAULT 1  -- 0=under_maintenance, 1=coming_soon, 2=enabled, 3=disabled
 ```
-_Bundle version and URL per slug live in `game-bundles/<env>/manifest.json` on R2 (see [hot-update.md#source-of-truth](hot-update.md#source-of-truth)); game metadata (display name, icons, banners, intro/rule images) and the canonical slug list live in the client catalog (hot-updated — see [features/games-management.md](features/games-management.md)). Neither lives in this table._
 
 ### `matches`
 ```sql

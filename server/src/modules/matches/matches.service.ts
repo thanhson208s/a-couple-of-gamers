@@ -500,7 +500,6 @@ export class MatchesService implements OnModuleInit {
   // ---
   // Match state cache (Redis key: match:state:{matchId}, TTL: sliding 1 h)
   // Redis is the fast path; Postgres is flushed at session boundaries (match:over, match:close, disconnect).
-  // See: docs/game-system.md#match-state-cache
 
   async getStateFromCache(matchId: string): Promise<GameState> {
     const raw = await this.redis.get(`match:state:${matchId}`);

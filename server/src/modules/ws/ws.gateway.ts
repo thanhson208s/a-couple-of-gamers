@@ -29,8 +29,7 @@ type LifecycleHandler = (payload: { userId: string }) => unknown | Promise<unkno
 // User-scoped persistent connection — opened once after login.
 // Authentication: one-time WS ticket from POST /v1/auth/ws-ticket
 // See: docs/security.md#websocket-authentication
-// See: docs/features/match-session.md
-//
+
 // Inbound dispatch: handlers register via @OnWsMessage(event), @OnWsConnected,
 // @OnWsDisconnected on any provider class. The gateway scans all providers at
 // module init and routes incoming messages / lifecycle transitions directly to

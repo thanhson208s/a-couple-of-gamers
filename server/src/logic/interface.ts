@@ -1,6 +1,5 @@
 // GamePlugin interface — shared between the NestJS server (vs Human validation)
 // and the Cocos Creator client (vs AI offline play).
-// See: docs/game-system.md#game-plugin-interface
 
 export interface GameState {
   [key: string]: unknown;

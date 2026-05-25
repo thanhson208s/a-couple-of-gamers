@@ -384,8 +384,6 @@ After generation:
 2. **Add entities** if the module owns DB tables — see [Adding an Entity](#adding-an-entity).
 3. **Add guards** if endpoints require auth — import `AuthModule` and apply `JwtAuthGuard`, `AdminAuthGuard`, or `DevAuthGuard` from `modules/auth/guards/`.
 4. **Export services** that other modules will inject — add to the `exports` array in the module decorator.
-5. **Update `docs/structure.md`** — add the new module to the server modules table.
-6. **Add a feature doc** if the module implements a user-facing feature — create `docs/features/<name>.md` following the template in `docs/features/README.md` and link it from `docs/requirements.md`.
 
 ---
 
@@ -419,7 +417,7 @@ Review the generated SQL before committing — TypeORM's diff is usually correct
 
 ## Adding a New Game
 
-1. Create the game plugin in `server/src/logic/<slug>/` implementing the `GamePlugin` interface — see [game-system.md](game-system.md)
+1. Create the game plugin in `server/src/logic/<slug>/` implementing the `GamePlugin` interface
 2. Register the slug in `GamesRegistry` (`server/src/modules/games/games.registry.ts`) — a row is auto-created in the `games` table (`status = 1` / coming_soon) on next server start
 3. Add the slug + metadata (display name, icons, banners, intro/rule images) to the client catalog so the tile renders
 4. Import the plugin in the Godot client's game loader
@@ -433,13 +431,13 @@ Review the generated SQL before committing — TypeORM's diff is usually correct
 
 Steps for implementing any feature end-to-end, in order:
 
-1. **Read** `docs/features/<name>.md` — understand the design before touching code
+1. **Read ** understand the design before touching code
 2. **Entities** — add `*.entity.ts` files in the owning module, then generate a migration
 3. **Service** — implement the business logic; throw NestJS HTTP exceptions for all error cases
 4. **DTO** — add a `<action>-<resource>.dto.ts` for every request body
 5. **Controller** — wire the endpoint with the correct `@UseGuards()` decorator
 6. **Tests** — write `*.spec.ts` for the service; cover the main path and key error cases
-7. **Docs** — update `docs/api-reference.md` for new/changed endpoints; tick off completed tasks in the feature doc's `## Tasks` section; update `docs/structure.md` if new files were added
+7. **Docs** — update `docs/api-reference.md` for new/changed endpoints; update `docs/database-schema.md` for new/changed tables; update `docs/structure.md` if new files were added
 
 ---
 
