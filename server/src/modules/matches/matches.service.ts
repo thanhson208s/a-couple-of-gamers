@@ -333,8 +333,11 @@ export class MatchesService implements OnModuleInit {
     const curMatchId = await this.redis.get(`match:user:${callerId}`);
     if (curMatchId && curMatchId !== matchId) {
       await this.flushStateToDB(curMatchId);
-      const prevOpponentId = getOpponentId(meta.player1Id, meta.player2Id, callerId);
-      this.wsGateway.sendToUser(prevOpponentId, 'opponent:disconnected', { matchId: curMatchId, opponentId: callerId });
+      const prevMeta = await this.getMatchMeta(curMatchId);
+      if (prevMeta && (prevMeta.player1Id === callerId || prevMeta.player2Id === callerId)) {
+        const prevOpponentId = getOpponentId(prevMeta.player1Id, prevMeta.player2Id, callerId);
+        this.wsGateway.sendToUser(prevOpponentId, 'opponent:disconnected', { matchId: curMatchId, opponentId: callerId });
+      }
     }
 
     const plugin = this.gamesRegistry.getPlugin(meta.gameId);
@@ -363,7 +366,10 @@ export class MatchesService implements OnModuleInit {
     });
 
     const opponentId = getOpponentId(meta.player1Id, meta.player2Id, callerId);
-    this.wsGateway.sendToUser(callerId, 'opponent:connected', { matchId, opponentId });
+    const opponentMatchId = await this.redis.get(`match:user:${opponentId}`);
+    if (opponentMatchId === matchId) {
+      this.wsGateway.sendToUser(callerId, 'opponent:connected', { matchId, opponentId });
+    }
     this.wsGateway.sendToUser(opponentId, 'opponent:connected', { matchId, opponentId: callerId });
   }
 

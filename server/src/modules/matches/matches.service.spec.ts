@@ -393,6 +393,80 @@ describe('MatchesService', () => {
     });
   });
 
+  // ─── openMatch ───────────────────────────────────────────────────────────
+
+  describe('openMatch', () => {
+    it('notifies the previous opponent when switching directly between matches', async () => {
+      const previousMatchId = 'match-uuid-previous';
+      const previousOpponentId = 'PREVOPP001';
+
+      redis.get.mockImplementation((key: string) => {
+        if (key === `match:meta:${MATCH_ID}`) return Promise.resolve(makeMetaJson());
+        if (key === `match:meta:${previousMatchId}`) {
+          return Promise.resolve(makeMetaJson({ player1Id: previousOpponentId, player2Id: CALLER_ID }));
+        }
+        if (key === `match:user:${CALLER_ID}`) return Promise.resolve(previousMatchId);
+        if (key === `match:state:${MATCH_ID}`) return Promise.resolve(JSON.stringify({ board: [] }));
+        return Promise.resolve(null);
+      });
+
+      await service.openMatch(MATCH_ID, CALLER_ID);
+
+      expect(wsGateway.sendToUser).toHaveBeenCalledWith(
+        previousOpponentId,
+        'opponent:disconnected',
+        { matchId: previousMatchId, opponentId: CALLER_ID },
+      );
+      expect(wsGateway.sendToUser).not.toHaveBeenCalledWith(
+        OTHER_ID,
+        'opponent:disconnected',
+        { matchId: previousMatchId, opponentId: CALLER_ID },
+      );
+    });
+
+    it('does not report the opponent as connected to the opener when the opponent is not viewing the match', async () => {
+      mockRedisGet({
+        meta: makeMetaJson(),
+        state: JSON.stringify({ board: [] }),
+        opponentMatch: null,
+      });
+
+      await service.openMatch(MATCH_ID, CALLER_ID);
+
+      expect(wsGateway.sendToUser).not.toHaveBeenCalledWith(
+        CALLER_ID,
+        'opponent:connected',
+        { matchId: MATCH_ID, opponentId: OTHER_ID },
+      );
+      expect(wsGateway.sendToUser).toHaveBeenCalledWith(
+        OTHER_ID,
+        'opponent:connected',
+        { matchId: MATCH_ID, opponentId: CALLER_ID },
+      );
+    });
+
+    it('reports the opponent as connected to the opener when the opponent is viewing the same match', async () => {
+      mockRedisGet({
+        meta: makeMetaJson(),
+        state: JSON.stringify({ board: [] }),
+        opponentMatch: MATCH_ID,
+      });
+
+      await service.openMatch(MATCH_ID, CALLER_ID);
+
+      expect(wsGateway.sendToUser).toHaveBeenCalledWith(
+        CALLER_ID,
+        'opponent:connected',
+        { matchId: MATCH_ID, opponentId: OTHER_ID },
+      );
+      expect(wsGateway.sendToUser).toHaveBeenCalledWith(
+        OTHER_ID,
+        'opponent:connected',
+        { matchId: MATCH_ID, opponentId: CALLER_ID },
+      );
+    });
+  });
+
   // ─── submitAction ─────────────────────────────────────────────────────────
 
   describe('submitAction', () => {
