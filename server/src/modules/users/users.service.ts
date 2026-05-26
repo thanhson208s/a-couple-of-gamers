@@ -92,11 +92,15 @@ export class UsersService {
         throw new UnauthorizedException();
 
       const user = await this.users.findOne({ where: { providerId: decodedIdToken.uid }});
-      if (user && user.id !== userId)
+      if (!user) {
+        await this.firebaseAuth.deleteUser(decodedIdToken.uid);
+        throw new UnauthorizedException();
+      }
+      if (user.id !== userId)
         throw new UnauthorizedException();
 
       for (const cleanup of this.cleanupCallbacks) await cleanup(userId);
-      if (user) await this.users.delete(user.id);
+      await this.users.delete(user.id);
       await this.firebaseAuth.deleteUser(decodedIdToken.uid);
     } catch(e) {
       throw new UnauthorizedException();
@@ -302,9 +306,9 @@ export class UsersService {
         });
       } else {
         acc.received.push({
-          friendId: req.addressee.id,
-          displayName: req.addressee.displayName,
-          avatarUrl: req.addressee.avatarUrl,
+          friendId: req.requester.id,
+          displayName: req.requester.displayName,
+          avatarUrl: req.requester.avatarUrl,
         });
       }
 
