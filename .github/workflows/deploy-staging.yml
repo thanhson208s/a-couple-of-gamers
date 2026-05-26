@@ -6,6 +6,18 @@ on:
       - main
     tags:
       - "v*"
+    # Note: paths filters are ignored for tag pushes, so v* release builds always run.
+    # Only main pushes are filtered (e.g. docs-only commits no longer auto-deploy).
+    paths:
+      - 'server/**'
+      - 'admin/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'docker-compose.yml'
+      - 'docker-compose.staging.yml'
+      - 'Caddyfile.staging'
+      - 'scripts/**'
+      - '.github/workflows/deploy-staging.yml'
 
 env:
   SERVER_IMAGE: ghcr.io/${{ github.repository_owner }}/server

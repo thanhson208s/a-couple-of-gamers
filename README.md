@@ -69,7 +69,7 @@ Edit `.env.local` with local values:
 
 ```env
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/acog
-REDIS_URL=redis://localhost:6379
+REDIS_URL=redis://:redis:localhost:6379
 JWT_ACCESS_SECRET=local-dev-access-secret-change-in-prod
 JWT_REFRESH_SECRET=local-dev-refresh-secret-change-in-prod
 FIREBASE_PROJECT_ID=           # leave empty unless testing Firebase services locally
@@ -136,8 +136,8 @@ Two web UIs are included in the local stack — no extra installs needed.
 Generate the initial migration from entities (if there isn't already), then apply it:
 
 ```bash
-npm run migration:generate -w server -- src/migrations/InitialSchema
-npm run migration:run -w server
+npm run migration:generate:dev -w server -- src/migrations/InitialSchema
+npm run migration:run:dev -w server
 ```
 
 The generated file (e.g. `src/migrations/1234567890-InitialSchema.ts`) must be committed.

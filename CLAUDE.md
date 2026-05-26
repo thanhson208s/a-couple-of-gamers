@@ -22,10 +22,11 @@
 
 | File | Purpose |
 |------|---------|
-| [README.md](README.md) | Local dev setup (install → run) |
-| [docs/architecture.md](docs/architecture.md) | System diagram, all services (internal + external), module responsibilities, key decisions |
-| [docs/security.md](docs/security.md) | Auth mechanism (JWT lifecycle, WS ticket), rate limiting, input validation, secrets |
-| [docs/conventions.md](docs/conventions.md) | Code conventions and developer workflow — guards, errors, DTOs, modules, BullMQ jobs, entities, branching, commits, migrations, adding modules/games, publishing, PR checklist |
-| [docs/api-reference.md](docs/api-reference.md) | [DRAFT] REST endpoints and WebSocket events |
-| [docs/database-schema.md](docs/database-schema.md) | Postgres tables, indexes, data ownership |
-| [docs/structure.md](docs/structure.md) | Living codebase map — every file and directory with its purpose |
+| [README.md](README.md) | Tech stack + Local dev setup (install → run) |
+| [docs/architecture.md](docs/architecture.md) | System diagram, all services and responsibilites |
+| [docs/security.md](docs/security.md) | Auth mechanism, rate limiting, input validation, secrets |
+| [docs/conventions.md](docs/conventions.md) | Project conventions and developer workflow |
+| [docs/api-reference.md](docs/api-reference.md) | REST endpoints and WebSocket events |
+| [docs/database-schema.md](docs/database-schema.md) | Postgres tables, indexes, cache keys with description |
+| [docs/structure.md](docs/structure.md) | Map of every file and directory with its purpose |
+| [docs/features/*](docs/features/) | Technical docs per feature, document system behaviors |

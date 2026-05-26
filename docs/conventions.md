@@ -37,7 +37,7 @@ Code patterns, developer workflow, and repeatable processes. Read this before wr
 
 | Branch / ref | Purpose |
 |---|---|
-| `main` | Integration branch. All feature PRs merge here. Auto-deploys to staging on every push. |
+| `main` | Integration branch. All feature PRs merge here. Auto-deploys to staging on every push that touches app/infra code (docs-only pushes are skipped). |
 | `{feature, fix}/<name>` | Short-lived branches for a single feature or fix. Branch from `main`, PR back to `main`. |
 | `v<major>.<minor>.<patch>` | Release tag cut from `main` (e.g. `v1.2.3`). Builds a versioned image; use it to trigger the manual production deploy. |
 
