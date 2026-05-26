@@ -257,6 +257,8 @@ describe('UsersService', () => {
     const staleIat = now - 400;  // ~6.7 min ago — outside 5-min window
 
     it('deletes DB record and Firebase account when token is fresh and user matches', async () => {
+      const cleanup = jest.fn().mockResolvedValue(undefined);
+      service.registerCleanupCallback(cleanup);
       firebaseAuth.verifyIdToken.mockResolvedValue({ uid: user.providerId, iat: freshIat });
       usersRepo.findOne.mockResolvedValue(user);
       usersRepo.delete.mockResolvedValue({ affected: 1, raw: [] });
@@ -264,6 +266,7 @@ describe('UsersService', () => {
 
       await service.deleteAccount(user.id, 'valid-id-token');
 
+      expect(cleanup).toHaveBeenCalledWith(user.id);
       expect(usersRepo.delete).toHaveBeenCalledWith(user.id);
       expect(firebaseAuth.deleteUser).toHaveBeenCalledWith(user.providerId);
     });
@@ -277,21 +280,28 @@ describe('UsersService', () => {
     });
 
     it('throws UnauthorizedException when decoded uid resolves to a different DB user', async () => {
+      const cleanup = jest.fn().mockResolvedValue(undefined);
+      service.registerCleanupCallback(cleanup);
       const otherUser = { id: 'ZZZZZZZZZZ', providerId: user.providerId, provider: 'google.com' } as User;
       firebaseAuth.verifyIdToken.mockResolvedValue({ uid: user.providerId, iat: freshIat });
       usersRepo.findOne.mockResolvedValue(otherUser);
 
       await expect(service.deleteAccount(user.id, 'valid-id-token')).rejects.toThrow(UnauthorizedException);
+      expect(cleanup).not.toHaveBeenCalled();
       expect(usersRepo.delete).not.toHaveBeenCalled();
+      expect(firebaseAuth.deleteUser).not.toHaveBeenCalled();
     });
 
-    it('skips DB delete but still removes Firebase account when user not found in DB', async () => {
+    it('removes an orphan Firebase identity but rejects local deletion when user is not found in DB', async () => {
+      const cleanup = jest.fn().mockResolvedValue(undefined);
+      service.registerCleanupCallback(cleanup);
       firebaseAuth.verifyIdToken.mockResolvedValue({ uid: 'orphan-firebase-uid', iat: freshIat });
       usersRepo.findOne.mockResolvedValue(null);
       firebaseAuth.deleteUser.mockResolvedValue(undefined);
 
-      await service.deleteAccount(user.id, 'valid-id-token');
+      await expect(service.deleteAccount(user.id, 'valid-id-token')).rejects.toThrow(UnauthorizedException);
 
+      expect(cleanup).not.toHaveBeenCalled();
       expect(usersRepo.delete).not.toHaveBeenCalled();
       expect(firebaseAuth.deleteUser).toHaveBeenCalledWith('orphan-firebase-uid');
     });
@@ -599,6 +609,37 @@ describe('UsersService', () => {
 
       expect(row.status).toBe(FriendStatus.Accepted);
       expect(userFriendsRepo.save).toHaveBeenCalledWith(row);
+    });
+  });
+
+  describe('getFriendRequests', () => {
+    const userId = 'AAAAAAAAAA';
+    const otherId = 'ZZZZZZZZZZ';
+
+    it('returns the other party for sent and received pending requests', async () => {
+      userFriendsRepo.find.mockResolvedValue([
+        {
+          requesterId: userId,
+          addresseeId: otherId,
+          status: FriendStatus.Pending,
+          requester: { id: userId, displayName: 'Caller', avatarUrl: null },
+          addressee: { id: otherId, displayName: 'Recipient', avatarUrl: 'recipient.png' },
+        },
+        {
+          requesterId: otherId,
+          addresseeId: userId,
+          status: FriendStatus.Pending,
+          requester: { id: otherId, displayName: 'Sender', avatarUrl: 'sender.png' },
+          addressee: { id: userId, displayName: 'Caller', avatarUrl: null },
+        },
+      ] as UserFriend[]);
+
+      const result = await service.getFriendRequests(userId);
+
+      expect(result).toEqual({
+        sent: [{ friendId: otherId, displayName: 'Recipient', avatarUrl: 'recipient.png' }],
+        received: [{ friendId: otherId, displayName: 'Sender', avatarUrl: 'sender.png' }],
+      });
     });
   });
 
