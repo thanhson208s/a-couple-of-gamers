@@ -17,16 +17,19 @@
 ### Core Principles
 - **No duplications**: Use markdown links to reference related sections from the docs folder.
 - **Keep it concise**: Only document the abstract essentials, don't put all codebase in docs.
+- **Runtime truth**: Technical docs describe implemented behavior; label partial or scaffolded paths explicitly.
+- **Stable updates**: Update system docs for changed behavior or contracts, not internal helper/refactor churn.
 
 ### Document Index
 
 | File | Purpose |
 |------|---------|
-| [README.md](README.md) | Tech stack + Local dev setup (install → run) |
-| [docs/architecture.md](docs/architecture.md) | System diagram, all services and responsibilites |
-| [docs/security.md](docs/security.md) | Auth mechanism, rate limiting, input validation, secrets |
+| [docs/README.md](docs/README.md) | Technical documentation index, ownership, and status policy |
+| [README.md](README.md) | Local development setup (install to run) |
+| [docs/architecture.md](docs/architecture.md) | Application runtime components and subsystem boundaries |
+| [docs/security.md](docs/security.md) | Authentication, authorization, rate limiting, validation, secrets |
 | [docs/conventions.md](docs/conventions.md) | Project conventions and developer workflow |
-| [docs/api-reference.md](docs/api-reference.md) | REST endpoints and WebSocket events |
-| [docs/database-schema.md](docs/database-schema.md) | Postgres tables, indexes, cache keys with description |
-| [docs/structure.md](docs/structure.md) | Map of every file and directory with its purpose |
-| [docs/features/*](docs/features/) | Technical docs per feature, document system behaviors |
+| [docs/api-reference.md](docs/api-reference.md) | Active REST endpoints and WebSocket contracts |
+| [docs/database-schema.md](docs/database-schema.md) | PostgreSQL and Redis state reference |
+| [docs/structure.md](docs/structure.md) | Stable repository and subsystem map |
+| [docs/systems/](docs/systems/) | Durable technical system behavior pages |

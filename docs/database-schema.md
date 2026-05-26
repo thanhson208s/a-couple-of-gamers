@@ -1,145 +1,163 @@
-# Database Schema
+# Database Schema and Redis State
 
-All Postgres table definitions, indexes, and Redis key catalog.
+Canonical reference for persisted application state. The committed migration is
+the authority for deployed PostgreSQL structure; entity differences that affect
+runtime behavior are recorded in [Material Drift](#material-drift).
 
-Tables without a tag are **live** (migrated). `[DRAFT]` = entity exists but no migration yet.
-
----
-
-## Postgres Tables
+## PostgreSQL Tables
 
 ### `users`
-```sql
-id              CHAR(10) PRIMARY KEY     -- server-generated; charset A-Z + 2-9 (base32, no ambiguous chars); used as PK, JWT sub, and client-facing identifier
-provider        TEXT NOT NULL            -- Firebase sign_in_provider: 'google.com' | 'apple.com' | 'facebook.com' | 'anonymous' | 'dev'
-provider_id     TEXT NOT NULL UNIQUE     -- Firebase UID
-display_name    TEXT NOT NULL
-avatar_url      TEXT                     -- Firebase photoURL; NULL for anonymous users or when not provided
-created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
-```
 
-### `games`
-```sql
-id      TEXT PRIMARY KEY       -- slug, e.g. 'tictactoe', 'battleship'
-name    TEXT NOT NULL          -- display name; initially set to id, update via admin API
-status  INTEGER NOT NULL DEFAULT 1  -- 0=under_maintenance, 1=coming_soon, 2=enabled, 3=disabled
-```
+Stores the application identity linked to an authentication provider.
 
-### `matches`
-```sql
-id           UUID PRIMARY KEY DEFAULT uuid_generate_v4()
-game_id      TEXT REFERENCES games(id)
-status       TEXT NOT NULL    -- 'active' | 'completed' | 'abandoned'  (pending matches live in Redis only)
-state        JSONB NOT NULL   -- full game state; shape owned by game plugin
-player1_id   CHAR(10) REFERENCES users(id) ON DELETE SET NULL  -- nullable: preserved as NULL after account deletion
-player2_id   CHAR(10) REFERENCES users(id) ON DELETE SET NULL
-options      JSONB            -- game-specific creation options; NULL if omitted
-winner       INT              -- 1v1: 1=p1 wins, 2=p2 wins, 0=draw; coop: 1=both win, 0=both lose; NULL if not finished
-created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
-updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
-```
-_Pending matches are stored in Redis only (see Redis Keys below). A Postgres row is created only when the second player joins. vs AI matches are client-only — no server record is created. `updated_at` is used by the stale-match cleanup worker to detect inactive matches (>30 days) and abandoned matches (>1 day)._
-
-### `config`
-```sql
-id         SERIAL PRIMARY KEY   -- always a single row (id = 1)
-config     JSONB NOT NULL       -- full config document (see ConfigData interface in config.entity.ts)
-updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-updated_by TEXT                 -- admin identifier for audit trail; NULL if not set
-```
-_Single-row table. Always updated in place. `GET /v1/config` reads this row._
+| Column | Type / Constraints | Purpose |
+|---|---|
+| `id` | `char(10)` primary key | Server-generated public/user identity. |
+| `provider` | `text` not null | Current identity provider value. |
+| `provider_id` | `text` not null, unique | Firebase UID or development account identifier. |
+| `display_name` | `text` not null | Profile display name. |
+| `avatar_url` | `text`, nullable | Profile avatar URL. |
+| `created_at` | `timestamptz` not null, default `now()` | Creation timestamp. |
 
 ### `refresh_tokens`
-```sql
-id          UUID PRIMARY KEY DEFAULT uuid_generate_v4()
-user_id     CHAR(10) NOT NULL REFERENCES users(id) ON DELETE CASCADE
-token_hash  TEXT NOT NULL UNIQUE   -- SHA-256 of the raw opaque token; never store raw token
-expires_at  TIMESTAMPTZ NOT NULL
-revoked_at  TIMESTAMPTZ            -- NULL = active; set on use or reuse detection
-created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-```
-_Rotation: each use revokes the old row and inserts a new one. Reuse of a revoked token triggers full session wipe (`revoked_at` set on all rows for that user)._
 
-### `user_rivals`
-```sql
-user_id1    CHAR(10) NOT NULL REFERENCES users(id) ON DELETE CASCADE
-user_id2    CHAR(10) NOT NULL            -- no FK: opponent row kept when they delete account
-game_id     TEXT NOT NULL REFERENCES games(id)
-match_count INT GENERATED ALWAYS AS (win_count + loss_count + draw_count) STORED
-win_count   INT NOT NULL DEFAULT 0
-loss_count  INT NOT NULL DEFAULT 0
-draw_count  INT NOT NULL DEFAULT 0
-PRIMARY KEY (user_id1, user_id2, game_id)
-```
-_Two rows per pair per game: (A,B) and (B,A). `win_count`/`loss_count`/`draw_count` are from `user_id1`'s perspective. Updated at match completion._
+Stores rotating application sessions.
+
+| Column | Type / Constraints | Purpose |
+|---|---|---|
+| `id` | `uuid` primary key, generated | Token row identity. |
+| `user_id` | `char(10)` not null, FK to `users.id` with cascading delete | Token owner. |
+| `token_hash` | `text` not null, unique | SHA-256 hash of the opaque refresh token. |
+| `expires_at` | `timestamptz` not null | Expiration. |
+| `revoked_at` | `timestamptz`, nullable | Revocation/rotation marker. |
+| `created_at` | `timestamptz` not null, default `now()` | Creation timestamp. |
+
+### `games`
+
+Stores the persisted catalog row for registered and administratively
+configured games.
+
+| Column | Type / Constraints | Purpose |
+|---|---|---|
+| `id` | `text` primary key | Game slug. |
+| `name` | `text` not null | Administrative display name. |
+| `status` | `integer` not null, default `1` | Availability state used by new-match creation. |
+
+Status semantics are described in
+[Game Catalog and Configuration](systems/game-config.md).
+
+### `config`
+
+Stores JSON runtime configuration. Application reads and writes target row
+`id = 1`; this single-row usage is an application convention, not a database
+constraint.
+
+| Column | Type / Constraints | Purpose |
+|---|---|---|
+| `id` | `serial` primary key | Configuration row identity. |
+| `config` | `jsonb` not null | Version and account-limit configuration document. |
+| `updated_at` | `timestamptz` not null, default `now()` | Update timestamp. |
+| `updated_by` | `text`, nullable | Optional mutation attribution. |
+
+### `matches`
+
+Stores joined matches only. Pending invitations are not rows in this table.
+
+| Column | Type / Constraints | Purpose |
+|---|---|---|
+| `id` | `uuid` primary key, generated | Durable match identity. |
+| `game_id` | `text`, nullable, FK to `games.id` | Game identity. |
+| `status` | `text` not null | `active`, `completed`, or `abandoned`. |
+| `state` | `jsonb` not null | Plugin-owned game state. |
+| `options` | `jsonb`, nullable | Plugin-specific creation options. |
+| `player1_id`, `player2_id` | `char(10)`, nullable | Participant IDs. |
+| `winner` | `integer`, nullable | Completion result (`0`, `1`, or `2`). |
+| `created_at`, `updated_at` | `timestamptz` not null, default `now()` | Record timestamps. |
+
+In the current migration, the player identifier columns do not have foreign
+keys to `users`.
 
 ### `user_favorites`
-```sql
-user_id CHAR(10) NOT NULL REFERENCES users(id) ON DELETE CASCADE
-game_id TEXT NOT NULL REFERENCES games(id)
-PRIMARY KEY (user_id, game_id)
-```
+
+| Column | Type / Constraints | Purpose |
+|---|---|---|
+| `user_id` | `char(10)` PK part, FK to `users.id` with cascading delete | User identity. |
+| `game_id` | `text` PK part, FK to `games.id` | Favorited game. |
+
+### `user_rivals`
+
+| Column | Type / Constraints | Purpose |
+|---|---|---|
+| `user_id1` | `char(10)` PK part, FK to `users.id` with cascading delete | Perspective owner. |
+| `user_id2` | `char(10)` PK part, no user FK | Historical opponent identifier. |
+| `game_id` | `text` PK part, FK to `games.id` | Game identity. |
+| `match_count` | `integer`, stored generated value | Sum of win/loss/draw counts. |
+| `win_count`, `loss_count`, `draw_count` | `integer` not null, default `0` | Results from `user_id1`'s perspective. |
+
+The absence of a user foreign key on `user_id2` permits surviving historical
+statistics after the opponent account is removed.
 
 ### `user_friends`
-```sql
-requester_id CHAR(10) NOT NULL REFERENCES users(id) ON DELETE CASCADE
-addressee_id CHAR(10) NOT NULL REFERENCES users(id) ON DELETE CASCADE
-status       TEXT NOT NULL DEFAULT 'pending'   -- 'pending' | 'accepted'
-created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
-updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
-CHECK (requester_id != addressee_id)
-PRIMARY KEY (requester_id, addressee_id)
-```
-_Directional: (A→B) is the request row; (B→A) does not exist until accepted (then the single row's status flips)._
 
-### `fcm_tokens` 
-```sql
-token       TEXT PRIMARY KEY             -- FCM token; globally unique
-user_id     CHAR(10) NOT NULL REFERENCES users(id) ON DELETE CASCADE
-platform    TEXT NOT NULL                -- 'ios' | 'android'
-created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-```
-_FCM device tokens for sending push notifications._
+| Column | Type / Constraints | Purpose |
+|---|---|---|
+| `requester_id` | `char(10)` PK part, FK to `users.id` with cascading delete | Request origin. |
+| `addressee_id` | `char(10)` PK part, FK to `users.id` with cascading delete | Request destination. |
+| `status` | `text` not null, default `pending` | Request/accepted state. |
+| `created_at`, `updated_at` | `timestamptz` not null, default `now()` | Relationship timestamps in the migration. |
 
-### `user_entitlements` 
-```sql
-user_id                  CHAR(10) NOT NULL REFERENCES users(id) ON DELETE CASCADE
-entitlement_id           TEXT NOT NULL       -- RevenueCat entitlement identifier
-store                    TEXT NOT NULL       -- 'play_store' | 'app_store'
-original_transaction_id  TEXT NOT NULL
-created_at               TIMESTAMPTZ NOT NULL DEFAULT now()
-updated_at               TIMESTAMPTZ NOT NULL DEFAULT now()
-PRIMARY KEY (user_id, entitlement_id)
-```
-_Tracks active in-app purchase entitlements synced from RevenueCat webhooks. Entity exists; migration pending._
+### `fcm_tokens`
 
----
+| Column | Type / Constraints | Purpose |
+|---|---|---|
+| `token` | `text` primary key | FCM device registration token. |
+| `user_id` | `char(10)` not null, FK to `users.id` with cascading delete | Token owner. |
+| `platform` | `text` not null | Device platform marker. |
+| `created_at`, `updated_at` | `timestamptz` not null, default `now()` | Token timestamps. |
+
+### `user_entitlements`
+
+A migrated table with no active runtime purchases behavior.
+
+| Column | Type / Constraints | Purpose |
+|---|---|---|
+| `user_id` | `char(10)` PK part, FK to `users.id` with cascading delete | Entitlement owner. |
+| `game_id` | `text` PK part | Migrated entitlement/game identifier column. |
+| `store` | `text` not null | Store marker. |
+| `original_transaction_id` | `text` not null | Store transaction identity. |
+| `created_at`, `updated_at` | `timestamptz` not null, default `now()` | Record timestamps. |
 
 ## Indexes
 
-No explicit indexes beyond PKs and unique constraints are defined in migrations yet. Candidates for future addition:
+The committed migration defines only primary-key and uniqueness indexes. It
+does not define additional lookup or cleanup indexes.
 
-```sql
-CREATE INDEX ON matches(player1_id);
-CREATE INDEX ON matches(player2_id);
-CREATE INDEX ON matches(status, updated_at);  -- stale-match cleanup worker
-CREATE INDEX ON user_rivals(user_id1);
-```
+## Material Drift
 
----
+The current source and committed migration are not fully aligned:
+
+| Area | Migration Truth | Source/Runtime Impact |
+|---|---|---|
+| Friends | Table has `created_at` and `updated_at`. | The current entity maps a required `accepted_at` column instead; friendship persistence against this migration can fail. |
+| Match players | No foreign keys from `matches.player1_id` / `player2_id` to `users`. | Account deletion does not automatically null player IDs in historical matches. |
+| Entitlements | Migrated key column is named `game_id`; no gift column/relation exists. | The entity describes an entitlement identifier and a `gift_id` relation not represented in the migration. No active purchases path currently exercises it. |
+| Gifts | No `user_gifts` table is created by the committed migration. | A source entity exists, but no migrated storage is available for it. |
+
+These are schema/runtime concerns to resolve in code and migrations; behavior
+documents must not present the unmatched entity shapes as live storage.
 
 ## Redis Keys
 
-All keys follow `namespace:subtype:identifier` naming. TTLs are set on write and reset on sliding-window reads where noted.
+| Key Pattern | Data | Lifetime / Mutation Rule |
+|---|---|---|
+| `invite:code:{inviteCode}` | JSON invitation containing game, creator, player slot, options, and creation time. | 24 hours; deleted on join/cancel/account cleanup. |
+| `invite:user:{userId}` | Sorted-set index of invitation codes created by a user. | No key expiry; expired members are pruned on relevant reads/creation and key deleted during account cleanup. |
+| `match:meta:{matchId}` | JSON players, game ID, and lifecycle status for realtime lookup. | Written with finite TTL; current write paths set either 24 hours or 30 days; deleted on completion/abandonment cleanup. |
+| `match:state:{matchId}` | JSON plugin state used while active interactions occur. | 1 hour from each write; flushed to PostgreSQL at session boundaries and removed on match finalization. |
+| `match:user:{userId}` | ID of the match currently opened by a user. | No expiry; removed on close/disconnect/account cleanup. |
+| `match:replay:{matchId}:{userId}` | JSON per-player replay `{ initialView, steps }`. | 7 days from write; consumed on open and removed on abandonment. |
+| `ws:ticket:{ticket}` | User ID for one-use WebSocket authentication. | 60 seconds or first successful use. |
+| `ws:throttle:{event}:{userId}` | Event-specific message counter. | Fixed event window, currently 60 seconds. |
 
-| Key pattern | Type | TTL | Value | Notes |
-|-------------|------|-----|-------|-------|
-| `invite:code:{inviteCode}` | STRING | 24 h | JSON `MatchInvite` | Pending match data; auto-expires if not joined |
-| `invite:user:{userId}` | SORTED SET | none | members = inviteCodes, scores = expiresAt (ms) | User's pending invite index; lazily pruned via `ZREMRANGEBYSCORE` |
-| `match:meta:{matchId}` | STRING | sliding: 1 day (active) / 30 days (inactive) | JSON `{ player1Id, player2Id, gameId, status }` | Fast lookup cache; refreshed on every read; deleted on game over / cleanup |
-| `match:state:{matchId}` | STRING | sliding 1 h | JSON `GameState` | In-flight match state cache; Postgres is flushed at session boundaries; deleted on game over / cleanup |
-| `match:user:{userId}` | STRING | none | `matchId` | Tracks which match a user currently has open (is viewing); set on `match:open`, deleted on `match:close` / disconnect |
-| `match:replay:{matchId}:{userId}` | STRING | 7 days | JSON `{ initialView, steps: [{move, view, playerIndex}] }` | Buffered moves for offline player; consumed (GETDEL) on `match:open`; cleared on game over |
-| `ws:ticket:{ticket}` | STRING | 60 s | `userId` | One-time WS auth token; deleted on first use |
-| `ws:throttle:{event}:{userId}` | STRING | per-event TTL (default 60 s) | integer counter | WS rate-limit counter; incremented per message, expires after TTL window |
+The state ownership and transition rules using these stores are documented in
+[Match Runtime](systems/match-runtime.md).

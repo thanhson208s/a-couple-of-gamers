@@ -1,28 +1,20 @@
 # A Couple of Gamers
 
-## Tech Stack
+Technical application behavior and runtime availability are documented in
+[docs/README.md](docs/README.md). This page summarizes application
+dependencies and local development setup.
 
-| Layer | Choice | Note |
-|-------|--------|------|
-| Client | Godot + GDScript | Cross-platform engine optimized for 2D |
-| Server + Worker | NestJS + TypeScript | Structured module, built-in WS |
-| Reverse proxy | Caddy | WebSocket upgrade + HTTPS redirect |
-| Cache | Redis | Fast in-memory store for multiple uses |
-| Job queue | BullMQ (via Redis) | Persistent delayed and repeatable jobs |
-| Database | PostgreSQL | Relational, supports JSONB for game state |
-| ORM | TypeORM | NestJS-native, built-in migration system |
-| Object storage | Cloudflare R2 | DB backups, dynamic assets |
-| DNS | Cloudflare DNS Proxy | Protection, hide origin IP, cache responses |
-| Auth | Firebase Authentication | Supports Google, Facebook, Apple and anon |
-| Push notifications | Firebase Cloud Messaging | Covers both IOS and Android /w same API |
-| Analytics | Firebase Analytics | Client event tracking with Godot plugins |
-| Container | Docker Compose | Easy isolated deployment |
-| CI/CD | Github Actions + self hosted runners | Lint → test → build → deploy pipeline |
-| Error tracking | Bugsink | Sentry-compatible, free self-hosted plan |
-| Uptime | Uptime Kuma | Monitor uptime and critical endpoints |
-| Metrics, Logs, Traces | Grafana Cloud/Alloy + exporters | Full monitoring /w Prometheus, Loki, Tempo |
-| IAP | Revenue Cat | Unified interface for Android/IOS IAP |
-| Ads | Google Admob | Integrate ads with mediation |
+## Application Stack
+
+| Area | Technology | Current Role |
+|---|---|---|
+| Client project | Godot / GDScript | Checked-in mobile project scaffold; first-party server flows are not yet verified. |
+| API and worker | NestJS / TypeScript | HTTP, WebSocket, application behavior, and background-worker entrypoints. |
+| Durable state | PostgreSQL / TypeORM | Migrated application storage; see [Database Schema](docs/database-schema.md). |
+| Transient state and queues | Redis / BullMQ | Invitation/cache/realtime state, throttling state, and queued-work backing storage. |
+| Authentication | Firebase Admin | ID-token verification for server identity creation and account deletion checks. |
+| Push delivery | Firebase Cloud Messaging | Device-token registration and match-invitation push delivery; see [Notification Delivery](docs/systems/notification-delivery.md). |
+| Local services | Docker Compose | Runs database, Redis, and local inspection tools. |
 
 ## Local Dev Setup
 
@@ -69,7 +61,7 @@ Edit `.env.local` with local values:
 
 ```env
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/acog
-REDIS_URL=redis://:redis:localhost:6379
+REDIS_URL=redis://:redis@localhost:6379
 JWT_ACCESS_SECRET=local-dev-access-secret-change-in-prod
 JWT_REFRESH_SECRET=local-dev-refresh-secret-change-in-prod
 FIREBASE_PROJECT_ID=           # leave empty unless testing Firebase services locally
@@ -133,14 +125,15 @@ Two web UIs are included in the local stack — no extra installs needed.
 
 ### 5. Run migrations
 
-Generate the initial migration from entities (if there isn't already), then apply it:
+Apply the committed migrations:
 
 ```bash
-npm run migration:generate:dev -w server -- src/migrations/InitialSchema
 npm run migration:run:dev -w server
 ```
 
-The generated file (e.g. `src/migrations/1234567890-InitialSchema.ts`) must be committed.
+Create and review a new migration only when persisted schema changes. Current
+storage authority and known drift are documented in
+[Database Schema](docs/database-schema.md).
 
 ---
 
@@ -160,7 +153,11 @@ Endpoints are prefixed with `/v1/` (e.g. `GET http://localhost:3000/v1/games`). 
 
 ### 7. Start the worker (optional)
 
-The BullMQ worker processes background jobs. It is not required to run most features.
+The BullMQ worker starts background consumers. Reminder delivery and stale
+match cleanup do not currently have live effects; see
+[Match Runtime](docs/systems/match-runtime.md) and
+[Notification Delivery](docs/systems/notification-delivery.md). It is not
+required to run most features.
 
 ```bash
 npm run start:worker:dev -w server
@@ -174,7 +171,8 @@ This runs `ts-node` with the `worker.ts` entry point. No HTTP port — it only c
 
 ### 8. Start the dev console (optional)
 
-A browser-based dev console for testing API endpoints without the Godot client.
+A browser-based development console exists, but its current API interactions
+are stale relative to the active interface reference.
 
 ```bash
 cd dev
@@ -188,7 +186,8 @@ Opens at `http://localhost:5173`. Requires the API server (step 6) to be running
 
 ### 9. Start the admin console (optional)
 
-Browser-based admin console for changing server config.
+The browser-based admin project currently provides a frontend shell only; it
+does not implement configuration workflows.
 
 ```bash
 cd admin
@@ -202,9 +201,9 @@ Opens at `http://localhost:5173` (or next available port if the dev console is a
 
 ### 10. Open the client (Godot)
 
-1. Open Godot → **Open Project** → select `client/`
-2. Set the API base URL to `http://localhost:3000` in the project's network config
-3. Use the Godot **Preview** button to run in-browser or on a simulator
+Open Godot, select `client/`, and run the checked-in project. First-party
+server integration behavior is not yet implemented or verified; see
+[Repository Structure](docs/structure.md#client-surface).
 
 ---
 

@@ -1,197 +1,204 @@
 # API Reference
 
-All `/v1/` REST endpoints and WebSocket events with payloads.
+Active application HTTP and WebSocket interfaces. Technical lifecycle context
+is documented in [systems/](systems/).
 
----
+## Conventions
 
-## Versioning
+- The application API is prefixed with `/v1`; `GET /health` is the exception.
+- Endpoints marked `JWT` require `Authorization: Bearer <access-token>`.
+- Administrative endpoints use the authentication mode described in
+  [Security](security.md#admin-authentication).
+- REST errors currently use NestJS default exception/validation response
+  formats; there is no application-wide `{ error, code }` contract.
 
-All routes are prefixed with `/v1/`. When breaking changes are required, a `/v2/` prefix will be introduced while `/v1/` is maintained for a TBD sunset period. Old mobile clients that cannot be force-updated continue to function until sunset.
+## Shared Shapes
 
-Clients should send their version in a header: `X-Client-Version: <semver>`. The server may reject clients below a minimum supported version with `426 Upgrade Required`.
+The endpoint and WebSocket tables use these abbreviated shapes:
 
----
-
-## Auth Conventions
-
-Authenticated requests use:
-- `Authorization: Bearer <access-token>`
-
-Error response shape (all endpoints):
-```json
-{ "error": "string description", "code": "MACHINE_READABLE_CODE" }
+```text
+MatchSummary = { id, status, gameId, player1Id, player2Id }
+MatchResult  = { id, status, winner, player1Id, player2Id }
+MatchStep    = { move, view, playerIndex }
+Replay       = { initialView, steps: MatchStep[] } | null
 ```
 
----
+`status` values for a durable match are `active`, `completed`, and
+`abandoned`. Pending invitations are Redis-backed invitation values rather
+than durable match rows. For the currently registered competitive game,
+`winner` is `0` for a draw, `1` or `2` for the winning player slot, and
+`null` for abandonment.
 
-## REST Endpoints
+## HTTP Endpoints
 
-### Auth
+### Health
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/v1/auth/login` | Verify a Firebase ID token and return access + refresh tokens. Body: `{ idToken }`. Works for both anonymous (`signInAnonymously`) and social (`google.com`, `apple.com`, `facebook.com`) Firebase users. Returns `type:'anonymous'` or `type:'social'` depending on the Firebase `sign_in_provider`. If the Firebase UID matches an existing anonymous user and the token is now a social provider, the record is upgraded in-place. |
-| `POST` | `/v1/auth/refresh` | Exchange refresh token for new access token. Body: `{ refreshToken }` |
-| `POST` | `/v1/auth/logout` | Invalidate a refresh token. Body: `{ refreshToken }` |
+| Method | Path | Auth | Response / Behavior |
+|---|---|---|---|
+| `GET` | `/health` | None | Returns `{ status: "ok", db: "ok", cache: "ok" }`. These values are static and do not probe dependencies. |
 
----
+### Authentication
 
-### WebSocket Ticket
+| Method | Path | Auth | Request / Response |
+|---|---|---|---|
+| `POST` | `/v1/auth/login` | None | Body `{ idToken: string }`; verifies Firebase ID token and returns `{ accessToken, refreshToken }`. |
+| `POST` | `/v1/auth/refresh` | None | Body `{ refreshToken: string }`; rotates an active refresh token and returns `{ accessToken, refreshToken }`. |
+| `POST` | `/v1/auth/logout` | None | Body `{ refreshToken: string }`; revokes the matching active token if present. |
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/v1/ws/ticket` | Issue a short-lived one-time WS ticket. Requires valid JWT. Returns `{ ticket }`. |
+### WebSocket Connection Ticket
 
----
+| Method | Path | Auth | Response / Behavior |
+|---|---|---|---|
+| `POST` | `/v1/ws/ticket` | JWT | Returns a ticket string. The ticket is single-use and expires after 60 seconds. |
 
-### Games
+### Games and Configuration
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/v1/games` | List all games. Returns array of `{ id, slug, name, status }`. |
-| `GET` | `/v1/games/:slug` | Get single game row: `{ id, slug, name, status }`. Bundle version + URL are not here — they live in `game-bundles/<env>/manifest.json` on R2 (see [hot-update.md#source-of-truth](hot-update.md#source-of-truth)). Metadata (display name, icons, banners, intro/rule images) also not returned — it ships with the client catalog via [hot-update.md](hot-update.md). |
+| Method | Path | Auth | Response / Behavior |
+|---|---|---|---|
+| `GET` | `/v1/games` | None | Returns all catalog game rows `{ id, name, status }[]`. |
+| `GET` | `/v1/games/:slug` | None | Returns the matching catalog row `{ id, name, status }` or `null`. |
+| `GET` | `/v1/config` | JWT | Returns `{ appVersion?, featureLimits, games }`, where `games` maps game ID to `{ status }`; response has a five-minute public cache header. |
 
----
+Game `status` is serialized numerically: `0` is `under_maintenance`, `1` is
+`coming_soon`, `2` is `enabled`, and `3` is `disabled`.
 
-### Favorites
+See [Game Catalog and Configuration](systems/game-config.md)
+for catalog/runtime responsibilities.
 
-Requires JWT.
+### Users and Social State
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `PUT` | `/v1/users/favorites/:gameId` | Add game to favorites |
-| `DELETE` | `/v1/users/favorites/:gameId` | Remove game from favorites |
+All routes in this section require `JWT`.
 
----
+| Method | Path | Response / Behavior |
+|---|---|---|
+| `GET` | `/v1/users/profile` | Returns `{ id, provider, displayName, avatarUrl, favorites: string[], favoritesLimit }`. |
+| `DELETE` | `/v1/users/profile` | Body `{ idToken: string }`; deletes the authenticated account after recent Firebase reauthentication validation; no response payload. |
+| `PUT` | `/v1/users/favorites/:gameId` | Adds a favorite subject to limits; idempotent for an existing favorite; no response payload. |
+| `DELETE` | `/v1/users/favorites/:gameId` | Removes a favorite; idempotent; no response payload. |
+| `GET` | `/v1/users/stats` | Returns `{ gameId, matchCount, winCount, lossCount, drawCount }[]` aggregated by game. |
+| `GET` | `/v1/users/rivals/:opponentId` | Returns stored `{ userId1, userId2, gameId, matchCount, winCount, lossCount, drawCount }[]` against that user ID. |
+| `GET` | `/v1/users/friends` | Returns `{ id, displayName, avatarUrl }[]` for accepted friends. |
+| `GET` | `/v1/users/friends/requests` | Returns `{ sent, received }`, with each list containing `{ friendId, displayName, avatarUrl }` pending request projections. |
+| `POST` | `/v1/users/friends/:addresseeId` | Creates a pending friend request and returns `204`. |
+| `PUT` | `/v1/users/friends/:requesterId` | Accepts an incoming pending request and returns `204`. |
+| `DELETE` | `/v1/users/friends/:addresseeId/cancel` | Cancels an outgoing request and returns `204`. |
+| `DELETE` | `/v1/users/friends/:requesterId/delete` | Rejects an incoming request and returns `204`. |
+| `DELETE` | `/v1/users/friends/:friendId` | Removes an accepted friendship and returns `204`. |
 
-### Matches
-
-All endpoints require JWT.
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/v1/matches` | Create a new human match. Body: `{ gameSlug, playerSlot: 1\|2, options? }`. Stores pending match in Redis with 24 h TTL — no Postgres write yet. Returns `{ inviteCode, deepLink, expiresAt }`. vs AI matches are client-only — no server record created. |
-| `GET` | `/v1/matches/pending` | List caller's pending matches (from Redis). Each item: `{ status, inviteCode, deepLink, expiresAfter, playerSlot, gameId, createdAt }`. |
-| `GET` | `/v1/matches/active` | List caller's active matches (from Postgres). Each item: `{ match: { id, status, gameId, player1Id, player2Id }, nextTurns }`. |
-| `GET` | `/v1/matches/history` | List caller's last 10 completed matches (from Postgres), ordered by `updatedAt` DESC. |
-| `POST` | `/v1/matches/join` | Join a pending match by invite code. Body: `{ inviteCode }`. Reads from Redis, deletes Redis keys, creates Postgres `active` match. Returns `404` if code not found or expired, `403` if own match. Both players receive `match:start` over WebSocket. |
-| `POST` | `/v1/matches/pending/:inviteCode/invite/:friendId` | Send a friend a match invitation via push notification and `friend:invite` WS event. Returns `204`. `403` if not your invite or not a friend. |
-| `DELETE` | `/v1/matches/pending/:inviteCode` | Cancel a pending match. Creator only. Deletes from Redis — no Postgres record exists. Returns `404` if not found, `403` if not the creator. |
-| `DELETE` | `/v1/matches/:id` | Abandon an active match. Either player. Both players receive `match:over` over WebSocket. Returns `404` if not found, `403` if not a player. |
-
----
-
-### Users
-
-All endpoints require JWT.
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/v1/users/profile` | Get current user profile. Response includes `id` — a 10-char server-generated alphanumeric identifier used in friend requests and player views. |
-| `DELETE` | `/v1/users/profile` | Delete account and all associated data. Body: `{ idToken }`. See [requirements.md#account-deletion](requirements.md#account-deletion). |
-| `GET` | `/v1/users/stats` | Get current user's overall match stats. |
-| `GET` | `/v1/users/rivals/:opponentId` | Get rival stats vs a specific opponent (`:opponentId` is the opponent's `tag`), broken down by game. |
-| `GET` | `/v1/users/friends` | List all accepted friends. |
-| `GET` | `/v1/users/friends/requests` | List incoming pending friend requests. |
-| `POST` | `/v1/users/friends/:addresseeId` | Send a friend request. Returns `204`. Sends `friend:request` WS event to addressee. |
-| `PUT` | `/v1/users/friends/:requesterId` | Accept a friend request. Returns `204`. Sends `friend:accept` WS event to requester. |
-| `DELETE` | `/v1/users/friends/:addresseeId/cancel` | Cancel a sent friend request. Returns `204`. |
-| `DELETE` | `/v1/users/friends/:requesterId/delete` | Reject a received friend request. Returns `204`. |
-| `DELETE` | `/v1/users/friends/:friendId` | Remove an accepted friend. Returns `204`. |
-
----
+See [Identity and Social State](systems/identity-social.md).
 
 ### Notifications
 
-All endpoints require JWT.
+All routes in this section require `JWT`.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `PUT` | `/v1/notifications/fcm-token` | Register or update FCM device token. Body: `{ token, platform: 'ios'\|'android' }`. Returns `204`. |
-| `DELETE` | `/v1/notifications/fcm-token` | Remove an FCM device token. Body: `{ token }`. Returns `204`. |
+| Method | Path | Request / Response / Behavior |
+|---|---|---|
+| `PUT` | `/v1/notifications/fcm-token` | Body `{ token: string, platform: string }`; registers or reassigns a device token to the caller and returns `204`. |
+| `DELETE` | `/v1/notifications/fcm-token` | Body `{ token: string }`; removes the caller's matching stored device token if present and returns `204`. |
 
----
+See [Notification Delivery](systems/notification-delivery.md) for push
+trigger and reminder availability.
 
-### Config
+### Matches
 
-Requires JWT.
+All routes in this section require `JWT`.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/v1/config` | Returns app config. Each entry under `games` is `{ status }` — a numeric enum: `0` under maintenance, `1` coming soon, `2` enabled, `3` disabled. Clients hide `3` and block Play for `0` / `1`. Bundle version + URL per slug come from `game-bundles/<env>/manifest.json` on R2 (see [hot-update.md#source-of-truth](hot-update.md#source-of-truth)) — fetched by the client in parallel with this endpoint. Cached at Cloudflare for up to 5 minutes. |
+| Method | Path | Request / Response / Behavior |
+|---|---|---|
+| `POST` | `/v1/matches` | Body `{ gameSlug, playerSlot: 1 \| 2, options? }`; creates a pending invite and returns `{ inviteCode, deepLink, expiresAt }`. |
+| `GET` | `/v1/matches/pending` | Returns `{ status: "pending", inviteCode, deepLink, expiresAfter, playerSlot, gameId, createdAt }[]` for invitations created by the caller. |
+| `GET` | `/v1/matches/active` | Returns `{ match: MatchSummary, nextTurns }[]` for non-stale active matches. |
+| `GET` | `/v1/matches/history` | Returns up to ten completed durable match records, including stored state/options/result/timestamps, newest update first. |
+| `POST` | `/v1/matches/join` | Body `{ inviteCode }`; joins a pending invite, emits `match:start`, and returns no response payload. |
+| `POST` | `/v1/matches/pending/:inviteCode/invite/:friendId` | Sends an accepted friend an invitation attempt and returns `204`. |
+| `DELETE` | `/v1/matches/pending/:inviteCode` | Cancels a caller-owned pending invitation; no response payload. |
+| `DELETE` | `/v1/matches/:id` | Abandons a match containing the caller, emits `match:over`, and returns no response payload. |
 
----
+See [Match Runtime](systems/match-runtime.md) for transitions and state
+ownership.
 
-### Admin
+Material match failures:
 
-All admin endpoints require `X-Admin-Token: <token>` header.
+| Operation | Failure Conditions |
+|---|---|
+| Create pending invitation | `404` when a game is not currently eligible for creation or the user is absent; `400` when registered game logic cannot be obtained; `403` when the concurrent match limit is reached. |
+| Join invitation | `404` for a missing/expired invite; `403` when joining the caller's own invite. |
+| Invite friend | `404` for a missing invite; `403` when the caller does not own the invite or the target is not an accepted friend. |
+| Cancel invitation | `404` for a missing invite; `403` when the caller is not the creator. |
+| Abandon match | `404` for a missing match; `403` for a non-participant; `400` for an already completed match. |
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/v1/admin/config` | Get full current config for the admin dashboard |
-| `PUT` | `/v1/admin/config` | Replace config. Body: full config object |
-| `PUT` | `/v1/admin/games/:slug` | Update game. Body: `{ name?, status?: 0 \| 1 \| 2 \| 3 }` (0=under_maintenance, 1=coming_soon, 2=enabled, 3=disabled). Returns the updated row. 404 if slug unknown. |
+### Administration
 
----
+| Method | Path | Auth | Request / Response / Behavior |
+|---|---|---|---|
+| `GET` | `/v1/admin/config` | Admin | Returns `{ appVersion?, featureLimits, games }`, the current effective configuration with the game-status map. |
+| `PUT` | `/v1/admin/config` | Admin | Body `{ appVersion, featureLimits }`; replaces the stored configuration and returns no response payload. |
+| `PUT` | `/v1/admin/games/:slug` | Admin | Body `{ name?, status? }`; returns updated `{ id, name, status }` or `404` for an unknown slug. |
 
-### Purchases
+### Development Endpoints
 
-Requires RevenueCat webhook signature (`RcAuthGuard`).
+These routes are available only when `NODE_ENV=development` and
+`CF_TEAM_DOMAIN` is not configured; otherwise they return `404`.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/v1/purchases/rc-webhook` | Receive RevenueCat webhook events. Handles `TEST`, `INITIAL_PURCHASE`, `NON_RENEWING_PURCHASE`, `PRODUCT_CHANGE`, `CANCELLATION`, `EXPIRATION`, and `TRANSFER` event types. Returns `204`. |
+| Method | Path | Request / Response / Behavior |
+|---|---|---|
+| `GET` | `/v1/dev/ping` | Returns `{ ok: true, message: string }`. |
+| `POST` | `/v1/dev/auth` | Body `{ accountId: string }`; returns `{ accessToken, refreshToken }`. |
+| `POST` | `/v1/dev/matches/complete` | Body `{ matchId, winner }`; currently returns `501 Not Implemented`. |
 
----
+## WebSocket Protocol
 
-### Dev (local only)
+Connect to `/v1/ws?ticket=<ticket>` using a ticket obtained from
+`POST /v1/ws/ticket`. The connection is user-scoped. See
+[Security](security.md#websocket-authentication).
 
-All dev endpoints require `NODE_ENV=development`. Return `404` otherwise — see [security.md#dev-mode-local-only](security.md#dev-mode-local-only).
+### Message Envelopes
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET`  | `/v1/dev/ping` | Health check confirming dev mode is active. Returns `{ ok: true, message: string }`. |
-| `POST` | `/v1/dev/auth` | Sign in as any user by `accountId`. Creates the user if not found. Body: `{ accountId }`. Returns `{ accessToken, refreshToken }`. |
-| `POST` | `/v1/dev/matches/complete` | Force a match to completed status. Body: `{ matchId: string; winner: 0\|1\|2 }` (0=draw). |
+| Direction / Kind | Shape |
+|---|---|
+| Client domain message | `{ "event": "<name>", "data": { ... } }` |
+| Server domain message | `{ "event": "<name>", "data": { ... } }` |
+| Server handler/throttle error | `{ "event": "<request-event>", "error": <http-status-number> }` |
+| Server control message | Event-specific top-level object, such as `{ "event": "pong" }`. |
 
----
+Unknown events and malformed JSON are ignored. `ping` bypasses event
+throttling; other registered events are rate-limited as described in
+[Security](security.md#rate-limiting).
 
-## WebSocket Events
+### Client to Server Events
 
-Connection: `wss://<host>/v1/ws?ticket=<ws-ticket>`  
-Hosts: `api.acoupleofgamers.com` (production), `api.staging.acoupleofgamers.com` (staging)  
-Authentication: use a short-lived WS ticket obtained from `POST /v1/ws/ticket`. See [security.md#websocket-authentication](security.md#websocket-authentication).
+| Event | Data | Behavior |
+|---|---|---|
+| `match:open` | `{ matchId }` | Opens the user's presence in a match and requests current visible state and any buffered replay. |
+| `match:close` | `{ matchId }` | Closes presence in a match and flushes cached state. |
+| `match:action` | `{ matchId, action }` | Applies a game-specific action for an open active match. |
+| `ping` | Not used | Receives `pong`. |
 
-The connection is **user-scoped and persistent** — opened once after login. All match events for all of the user's active matches arrive over this single connection. Each event includes `matchId` so the client can route it to the correct scene. Player identifiers in all events are `tag` values, not internal UUIDs.
+### Server to Client Domain Events
 
-All messages use the envelope `{ event: string, data: object }` for client → server, and `{ event: string, ...payload }` for server → client.
+Payloads below are inside the `data` property of the domain envelope.
 
-### Client → Server
+| Event | Data | Emitted When |
+|---|---|---|
+| `match:start` | `{ inviteCode, initialView, nextTurns, match: MatchSummary }` | A pending invite is joined. |
+| `match:open` | `{ match: MatchSummary, view, replay: Replay }` | A user opens a match. |
+| `match:close` | `{ matchId }` | A current open match is closed. |
+| `match:moves` | `{ matchId, steps: MatchStep[], nextTurns }` | Visible state transitions are available to a user viewing the match. |
+| `match:turns` | `{ matchId, nextTurns }` | State changed while the recipient is not viewing the match. |
+| `match:over` | `{ match: MatchResult }` | A match completes or is abandoned. |
+| `opponent:connected` | `{ matchId, opponentId }` | Reports that the identified opponent currently has this match open: sent to the other participant when one opens, and sent back to the opener only when both participants now have it open. |
+| `opponent:disconnected` | `{ matchId, opponentId }` | A participant closes or disconnects from the open match. |
+| `friend:invite` | `{ inviteCode, deepLink, gameId }` | A friend invitation is issued to a connected target. |
+| `friend:request` | `{ userId, displayName, avatarUrl }` | A connected target receives a friend request. |
+| `friend:accept` | `{ userId, displayName, avatarUrl }` | A connected requester has a request accepted. |
 
-| Event | Payload | Description |
-|-------|---------|-------------|
-| `match:open` | `{ matchId }` | Client entered a match board scene. Server registers match-viewing presence, sends `match:open` back with current state, and notifies opponent via `opponent:connected`. |
-| `match:close` | `{ matchId }` | Client left a match board scene. Server flushes state to DB, removes viewing presence, sends `match:close` back, and notifies opponent via `opponent:disconnected`. |
-| `match:action` | `{ matchId, action }` | Submit a game action. `action` is game-specific. On error the server replies with `{ error: <http-code>, event: 'match:action' }`. On success, state changes are pushed as `match:moves` (or `match:turns` if offline) to both players. |
-| `ping` | — | Keepalive |
+### Server Control Events
 
-### Server → Client
+| Event | Shape | Emitted When |
+|---|---|---|
+| `pong` | `{ event: "pong" }` | Response to `ping`. |
+| `system:shutdown` | `{ event: "system:shutdown" }` | Application shutdown closes existing sockets. |
 
-Match events all include `matchId`. System and social events do not (unless noted).
+## Unavailable Interface Categories
 
-| Event | Payload | Description |
-|-------|---------|-------------|
-| `match:start` | `{ inviteCode, initialView, nextTurns, match: { id, status, gameId, player1Id, player2Id } }` | Sent to both players when the second player joins via invite code. |
-| `match:open` | `{ match: { id, status, gameId, player1Id, player2Id }, view, replay: { initialView, steps } \| null }` | Sent back to the caller of `match:open`. `replay` is non-null if the player has buffered moves from while they were offline (each step: `{ move, view, playerIndex }`). For completed/abandoned matches, `view` reflects the final state. |
-| `match:close` | `{ matchId }` | Sent back to the caller of `match:close` confirming the session was closed. |
-| `match:moves` | `{ matchId, steps: [{ move, view, playerIndex }], nextTurns }` | Sent to each online player after an action is applied. `playerIndex` in each step indicates who made the move (1 or 2). Each player receives their own view. |
-| `match:turns` | `{ matchId, nextTurns }` | Sent to an offline player (not currently in the match scene) when a move is applied. The full move sequence is buffered and delivered via `match:open.replay` when they re-enter. |
-| `match:over` | `{ match: { id, status, winner, player1Id, player2Id } }` | Game ended (win, draw, or abandonment). `winner` is `1`, `2`, or `null` for draw/abandon. |
-| `opponent:connected` | `{ matchId, opponentId }` | Opponent opened this match's board scene. |
-| `opponent:disconnected` | `{ matchId, opponentId }` | Opponent closed this match's board scene or disconnected. |
-| `friend:invite` | `{ inviteCode, deepLink, gameId }` | A friend sent you a match invitation. |
-| `friend:request` | `{ userId, displayName, avatarUrl }` | Someone sent you a friend request. |
-| `friend:accept` | `{ userId, displayName, avatarUrl }` | Your friend request was accepted. |
-| `pong` | — | Keepalive response. |
-| `system:maintenance` | `{ maintenanceAfter: number, maintenanceDuration: number }` | Broadcast every minute while maintenance is scheduled. Also sent immediately to any client that connects during the window. `maintenanceAfter` is milliseconds until maintenance starts; `maintenanceDuration` is in seconds. |
-| `system:shutdown` | — | Sent to all clients immediately before the server shuts down (SIGTERM). Clients should display a reconnect UI. |
+The running application exposes no active purchase webhook behavior.
