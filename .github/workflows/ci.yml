@@ -2,6 +2,12 @@ name: CI
 
 on:
   pull_request:
+    paths:
+      - 'server/**'
+      - 'admin/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/ci.yml'
 
 jobs:
   lint-test:
