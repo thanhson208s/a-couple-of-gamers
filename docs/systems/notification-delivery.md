@@ -13,7 +13,7 @@ define client permission handling or UI behavior.
 | Stored device-token associations | PostgreSQL device-token state; shape is in [Database Schema](../database-schema.md). | Authenticated HTTP registration and removal are active. |
 | Push send and invalid-token cleanup | Notification service using FCM. | Wired when a friend match invitation initiates a push attempt. |
 | Realtime friend-invite delivery | Match/WebSocket flow. | Wired separately from push for connected users. |
-| Turn reminder jobs | Reminder queue and worker. | Scheduling and delivery are incomplete. |
+| Turn reminder jobs | WebSocket session lifecycle, active match turn state, reminder queue, and worker. | Active when the worker process is running and the recipient has stored FCM tokens. |
 
 ## Active Behavior
 
@@ -47,12 +47,20 @@ The persisted token shape is documented in
 [Database Schema](../database-schema.md). The live match invitation interface
 is documented in [API Reference](../api-reference.md).
 
-## Incomplete Runtime Paths
+### Turn Reminder Delivery
 
-| Path | Current State | Observable Consequence |
-|---|---|---|
-| Turn reminder scheduling | Queue-writing support exists, and account-deletion match cleanup attempts to cancel reminder job identities, but action processing never schedules those jobs. | Match play creates no reminder notification work. |
-| Turn reminder processing | The worker registers a reminder processor without a delivery effect. | Even externally queued reminder work does not send a push notification. |
+Reminder jobs are based on authenticated WebSocket session presence. A user
+with an active WebSocket connection has no pending turn reminder jobs. When
+that connection disconnects, the server schedules reminders only for active
+matches where that user is currently eligible to act.
+
+| Stage | Behavior |
+|---|---|
+| WebSocket connected | Existing reminder jobs for all of the user's active matches are cancelled. |
+| WebSocket disconnected | The server finds the user's active matches, checks the current cached or durable game state, and schedules instant and delayed reminders only for matches where the user is in `nextTurns`. |
+| Action accepted | Match action processing updates turn state and realtime/replay delivery. If the opponent is offline and becomes eligible to act next, instant and delayed reminders are scheduled for that opponent. |
+| Reminder processing | The worker consumes `instant-reminder` and `delayed-reminder` jobs and sends FCM data containing `{ type, matchId }` plus the configured notification title/body. |
+| Match completion or account cleanup | Pending reminder jobs for affected players are cancelled. |
 
 ## Client Behavior Placeholder
 

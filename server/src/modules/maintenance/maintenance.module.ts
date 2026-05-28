@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
+import { getRedisOptions } from '../../common/redis/redis.helper';
 import { WsModule } from '../ws/ws.module';
 import { MaintenanceProcessor } from './maintenance.processor';
 import { MaintenanceService } from './maintenance.service';
@@ -11,7 +12,9 @@ import { MaintenanceService } from './maintenance.service';
 // the gateway) does not register a competing consumer.
 @Module({
   imports: [
-    BullModule.forRoot({ connection: { url: process.env.REDIS_URL } }),
+    BullModule.forRoot({
+      connection: getRedisOptions({ maxRetriesPerRequest: null }),
+    }),
     BullModule.registerQueue({ name: 'maintenance' }),
     WsModule,
   ],

@@ -76,13 +76,13 @@ describe('MatchesService', () => {
   let gamesService: jest.Mocked<Pick<GamesService, 'findBySlug'>>;
   let gamesRegistry: jest.Mocked<Pick<GamesRegistry, 'getPlugin' | 'getType'>>;
   let usersService: jest.Mocked<Pick<UsersService, 'updateRival' | 'areFriends' | 'findById'>>;
-  let notificationsService: { sendPush: jest.Mock; cancelReminders: jest.Mock };
+  let notificationsService: { sendPush: jest.Mock; scheduleReminders: jest.Mock; cancelReminders: jest.Mock };
   let redis: {
     get: jest.Mock; set: jest.Mock; del: jest.Mock;
     zadd: jest.Mock; zrem: jest.Mock; zrange: jest.Mock;
     zremrangebyscore: jest.Mock; zcard: jest.Mock; mget: jest.Mock; getdel: jest.Mock;
   };
-  let wsGateway: { sendToUser: jest.Mock; errorToUser: jest.Mock };
+  let wsGateway: { sendToUser: jest.Mock; errorToUser: jest.Mock; isUserConnected: jest.Mock };
   let mockPlugin: {
     initialState: jest.Mock; applyAction: jest.Mock; getNextTurns: jest.Mock;
     isGameOver: jest.Mock; getWinner: jest.Mock; getPlayerView: jest.Mock;
@@ -102,8 +102,12 @@ describe('MatchesService', () => {
     gamesService = { findBySlug: jest.fn() };
     gamesRegistry = { getPlugin: jest.fn().mockReturnValue(mockPlugin), getType: jest.fn().mockReturnValue(GameType.Versus) };
     usersService = { updateRival: jest.fn().mockResolvedValue(undefined), areFriends: jest.fn().mockResolvedValue(false), findById: jest.fn().mockResolvedValue({ id: CALLER_ID, provider: 'google.com' }) };
-    notificationsService = { sendPush: jest.fn().mockResolvedValue(undefined), cancelReminders: jest.fn().mockResolvedValue(undefined) };
-    wsGateway = { sendToUser: jest.fn(), errorToUser: jest.fn() };
+    notificationsService = {
+      sendPush: jest.fn().mockResolvedValue(undefined),
+      scheduleReminders: jest.fn().mockResolvedValue(undefined),
+      cancelReminders: jest.fn().mockResolvedValue(undefined),
+    };
+    wsGateway = { sendToUser: jest.fn(), errorToUser: jest.fn(), isUserConnected: jest.fn().mockReturnValue(false) };
     redis = {
       get: jest.fn().mockResolvedValue(null),
       set: jest.fn().mockResolvedValue('OK'),
@@ -465,6 +469,15 @@ describe('MatchesService', () => {
         { matchId: MATCH_ID, opponentId: CALLER_ID },
       );
     });
+
+    it('does not manage turn reminders when opening an active match', async () => {
+      mockRedisGet({ meta: makeMetaJson(), state: JSON.stringify({ board: [] }) });
+
+      await service.openMatch(MATCH_ID, CALLER_ID);
+
+      expect(notificationsService.cancelReminders).not.toHaveBeenCalled();
+      expect(notificationsService.scheduleReminders).not.toHaveBeenCalled();
+    });
   });
 
   // ─── submitAction ─────────────────────────────────────────────────────────
@@ -499,12 +512,14 @@ describe('MatchesService', () => {
       await expect(service.submitAction(MATCH_ID, CALLER_ID, action)).rejects.toThrow(BadRequestException);
     });
 
-    it('returns early without persisting or sending when plugin returns empty events', async () => {
+    it('returns early without persisting, sending, or managing reminders when plugin returns empty events', async () => {
       mockRedisGet({ meta: makeMetaJson(), state: JSON.stringify({ board: [] }) });
       mockPlugin.applyAction.mockReturnValue([]);
 
       await service.submitAction(MATCH_ID, CALLER_ID, action);
 
+      expect(notificationsService.cancelReminders).not.toHaveBeenCalled();
+      expect(notificationsService.scheduleReminders).not.toHaveBeenCalled();
       expect(redis.set).not.toHaveBeenCalled();
       expect(wsGateway.sendToUser).not.toHaveBeenCalled();
     });
@@ -525,7 +540,41 @@ describe('MatchesService', () => {
       );
     });
 
-    it('marks the match completed, clears cache, and sends match:over when game ends', async () => {
+    it('schedules a reminder after a non-terminal action when the opponent is offline and next to act', async () => {
+      mockRedisGet({ meta: makeMetaJson(), state: JSON.stringify({ board: [] }) });
+      mockPlugin.applyAction.mockReturnValue(events);
+      mockPlugin.getNextTurns.mockReturnValue([1]);
+      wsGateway.isUserConnected.mockReturnValue(false);
+
+      await service.submitAction(MATCH_ID, CALLER_ID, action);
+
+      expect(notificationsService.cancelReminders).not.toHaveBeenCalled();
+      expect(notificationsService.scheduleReminders).toHaveBeenCalledWith(MATCH_ID, OTHER_ID);
+    });
+
+    it('does not schedule a reminder after a non-terminal action when the opponent is online', async () => {
+      mockRedisGet({ meta: makeMetaJson(), state: JSON.stringify({ board: [] }) });
+      mockPlugin.applyAction.mockReturnValue(events);
+      mockPlugin.getNextTurns.mockReturnValue([1]);
+      wsGateway.isUserConnected.mockReturnValue(true);
+
+      await service.submitAction(MATCH_ID, CALLER_ID, action);
+
+      expect(notificationsService.scheduleReminders).not.toHaveBeenCalled();
+    });
+
+    it('does not schedule a reminder after a non-terminal action when it is not the opponent turn', async () => {
+      mockRedisGet({ meta: makeMetaJson(), state: JSON.stringify({ board: [] }) });
+      mockPlugin.applyAction.mockReturnValue(events);
+      mockPlugin.getNextTurns.mockReturnValue([2]);
+      wsGateway.isUserConnected.mockReturnValue(false);
+
+      await service.submitAction(MATCH_ID, CALLER_ID, action);
+
+      expect(notificationsService.scheduleReminders).not.toHaveBeenCalled();
+    });
+
+    it('marks the match completed, clears reminders/cache, and sends match:over when game ends', async () => {
       mockRedisGet({ meta: makeMetaJson(), state: JSON.stringify({ board: [] }) });
       mockPlugin.applyAction.mockReturnValue(events);
       mockPlugin.isGameOver.mockReturnValue(true);
@@ -535,6 +584,9 @@ describe('MatchesService', () => {
       await service.submitAction(MATCH_ID, CALLER_ID, action);
 
       expect(matchesRepo.save).toHaveBeenCalledWith(expect.objectContaining({ status: MatchStatus.Completed }));
+      expect(notificationsService.cancelReminders).toHaveBeenCalledWith(MATCH_ID, OTHER_ID);
+      expect(notificationsService.cancelReminders).toHaveBeenCalledWith(MATCH_ID, CALLER_ID);
+      expect(notificationsService.scheduleReminders).not.toHaveBeenCalled();
       expect(redis.del).toHaveBeenCalled();
       expect(wsGateway.sendToUser).toHaveBeenCalledWith(
         expect.any(String),
@@ -789,6 +841,92 @@ describe('MatchesService', () => {
 
       expect(matchesRepo.delete).not.toHaveBeenCalled();
       expect(redis.del).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('websocket presence reminders', () => {
+    it('cancels reminders for all active matches when a user connects', async () => {
+      matchesRepo.find.mockResolvedValue([
+        makeMatch({ id: 'match-1' }),
+        makeMatch({ id: 'match-2' }),
+      ]);
+
+      await service.onUserConnected({ userId: CALLER_ID });
+
+      expect(notificationsService.cancelReminders).toHaveBeenCalledWith('match-1', CALLER_ID);
+      expect(notificationsService.cancelReminders).toHaveBeenCalledWith('match-2', CALLER_ID);
+      expect(notificationsService.scheduleReminders).not.toHaveBeenCalled();
+    });
+
+    it('schedules reminders on disconnect for active matches where it is the user turn', async () => {
+      const state = { board: ['X'] };
+      matchesRepo.find.mockResolvedValue([makeMatch()]);
+      mockPlugin.getNextTurns.mockReturnValue([2]);
+      redis.get.mockImplementation((key: string) => {
+        if (key === `match:user:${CALLER_ID}`) return Promise.resolve(null);
+        if (key === `match:state:${MATCH_ID}`) return Promise.resolve(JSON.stringify(state));
+        return Promise.resolve(null);
+      });
+
+      await service.onUserDisconnected({ userId: CALLER_ID });
+
+      expect(notificationsService.scheduleReminders).toHaveBeenCalledWith(MATCH_ID, CALLER_ID);
+    });
+
+    it('does not schedule reminders on disconnect when it is not the user turn', async () => {
+      matchesRepo.find.mockResolvedValue([makeMatch()]);
+      mockPlugin.getNextTurns.mockReturnValue([1]);
+      redis.get.mockImplementation((key: string) => {
+        if (key === `match:user:${CALLER_ID}`) return Promise.resolve(null);
+        if (key === `match:state:${MATCH_ID}`) return Promise.resolve(JSON.stringify({ board: ['X'] }));
+        return Promise.resolve(null);
+      });
+
+      await service.onUserDisconnected({ userId: CALLER_ID });
+
+      expect(notificationsService.scheduleReminders).not.toHaveBeenCalled();
+    });
+
+    it('flushes and clears the open match on disconnect before scheduling reminders', async () => {
+      const state = { board: ['X'] };
+      matchesRepo.find.mockResolvedValue([makeMatch()]);
+      mockPlugin.getNextTurns.mockReturnValue([2]);
+      redis.get.mockImplementation((key: string) => {
+        if (key === `match:user:${CALLER_ID}`) return Promise.resolve(MATCH_ID);
+        if (key === `match:meta:${MATCH_ID}`) return Promise.resolve(makeMetaJson());
+        if (key === `match:state:${MATCH_ID}`) return Promise.resolve(JSON.stringify(state));
+        return Promise.resolve(null);
+      });
+
+      await service.onUserDisconnected({ userId: CALLER_ID });
+
+      expect(matchesRepo.update).toHaveBeenCalledWith({ id: MATCH_ID }, { state });
+      expect(redis.del).toHaveBeenCalledWith(`match:user:${CALLER_ID}`);
+      expect(wsGateway.sendToUser).toHaveBeenCalledWith(
+        OTHER_ID,
+        'opponent:disconnected',
+        { matchId: MATCH_ID, opponentId: CALLER_ID },
+      );
+      expect(notificationsService.scheduleReminders).toHaveBeenCalledWith(MATCH_ID, CALLER_ID);
+    });
+
+    it('still schedules current-turn reminders when open-match metadata is missing on disconnect', async () => {
+      matchesRepo.find.mockResolvedValue([makeMatch()]);
+      mockPlugin.getNextTurns.mockReturnValue([2]);
+      redis.get.mockImplementation((key: string) => {
+        if (key === `match:user:${CALLER_ID}`) return Promise.resolve(MATCH_ID);
+        if (key === `match:state:${MATCH_ID}`) return Promise.resolve(JSON.stringify({ board: ['X'] }));
+        return Promise.resolve(null);
+      });
+
+      await service.onUserDisconnected({ userId: CALLER_ID });
+
+      expect(wsGateway.sendToUser).not.toHaveBeenCalledWith(
+        OTHER_ID,
+        'opponent:disconnected',
+        expect.any(Object),
+      );
+      expect(notificationsService.scheduleReminders).toHaveBeenCalledWith(MATCH_ID, CALLER_ID);
     });
   });
 

@@ -64,9 +64,10 @@ user-scoped WebSocket connection.
 
 | Operation | Behavior |
 |---|---|
+| Socket connect | Authenticates the WebSocket ticket, records the user-scoped socket, dispatches connection handlers, and clears turn reminder jobs for that user's active matches. |
 | Open match | Confirms participation; if another match was open, flushes its cached state and reports disconnection to that match's opponent; then records the new open match, obtains the current per-player view, consumes buffered replay, and sends a match-open response. The opponent is notified that the caller opened the match; the caller is told that the opponent is connected only when the opponent already has the same match open. |
 | Close current match | Flushes cached state to durable state, clears that user's open-match record, acknowledges close to that user, and reports disconnection to the opponent. |
-| Socket disconnect | Performs the same state flush and opponent-disconnection reporting for the match recorded as open for that user. |
+| Socket disconnect | If the closing socket is still the user's active socket, performs the same state flush and opponent-disconnection reporting for the match recorded as open for that user, then schedules turn reminder jobs for active matches where the disconnected user is eligible to act. |
 
 ### Actions and Delivery
 
@@ -88,7 +89,7 @@ validation boundaries are specified in [Security](../security.md).
 |---|---|---|
 | Explicit abandonment | Any non-completed joined match containing the caller becomes abandoned. | Cached state is flushed and removed, buffered replay is cleared, and both connected players can receive `match:over`. |
 | Account deletion | Invites created by the deleting user are cancelled and its active matches become abandoned before deleting the user row. | Open presence is cleared for that user; cached state/replay is cleared; reminder jobs for both players are cancelled; connected opponents receive `match:over`. |
-| Stale-match cleanup function | Would delete aged abandoned rows and inactive active rows and remove their cached state/metadata. | Not invoked by the worker; see limitations below. |
+| Scheduled stale-match cleanup | Deletes aged abandoned rows and inactive active rows, then removes their cached state/metadata. | Invoked by the worker's repeatable cleanup queue job. |
 
 An abandoned match does not update rival statistics. Account deletion cannot
 cancel an invite merely addressed to the deleting user because a pending
@@ -99,11 +100,6 @@ invite has no joined recipient state.
 - Newly created Tic-Tac-Toe matches initialize without a player eligible to
   act (`nextTurns` is empty), so submitted normal moves are rejected as not
   belonging to the current turn.
-- Automated cleanup is not running for inactive active matches or aged
-  abandoned matches: cleanup behavior exists, but the worker processor does
-  not invoke it.
-- Turn reminder scheduling is not connected to submitted match actions; see
-  [Notification Delivery](notification-delivery.md).
 
 ## Client Behavior Placeholder
 

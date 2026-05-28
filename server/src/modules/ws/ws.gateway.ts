@@ -117,6 +117,10 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect, OnAp
     }
   }
 
+  isUserConnected(userId: string): boolean {
+    return this.clientMap.get(userId)?.readyState === WebSocket.OPEN;
+  }
+
   errorToUser(userId: string, event: string, error: number): void {
     const client = this.clientMap.get(userId);
     if (client?.readyState === WebSocket.OPEN) {
@@ -187,6 +191,7 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect, OnAp
     const userId = client.userId;
     if (!userId) return;
 
+    if (this.clientMap.get(userId) !== client) return;
     this.clientMap.delete(userId);
 
     await Promise.all(this.disconnectedHandlers.map((h) => h({ userId })));
