@@ -35,7 +35,7 @@ than durable match rows. For the currently registered competitive game,
 
 | Method | Path | Auth | Response / Behavior |
 |---|---|---|---|
-| `GET` | `/health` | None | Returns `{ status: "ok", db: "ok", cache: "ok" }`. These values are static and do not probe dependencies. |
+| `GET` | `/health` | None | Probes PostgreSQL and Redis. Returns `200` with `{ status: "ok", db: "ok", cache: "ok" }` when both probes pass. Returns `503` with `{ status: "error", db, cache }` when either dependency probe fails; failed dependencies are reported as `"error"`. |
 
 ### Authentication
 

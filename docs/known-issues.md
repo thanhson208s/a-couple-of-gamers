@@ -9,12 +9,6 @@ prevent an exposed flow from working, or leave runtime state inconsistent.
 Protocol and storage definitions remain owned by the linked reference/system
 pages.
 
-## Incorrect Behavior
-
-| Area | Current Behavior | Consequence | Related Documentation |
-|---|---|---|---|
-| Health endpoint | The health response reports database and cache state as `ok` without probing either dependency. | Health consumers can receive a healthy response while runtime dependencies are unavailable. | [API Reference](api-reference.md#health) |
-
 ## Consistency Hazards
 
 | Area | Current Behavior | Consequence | Related Documentation |
