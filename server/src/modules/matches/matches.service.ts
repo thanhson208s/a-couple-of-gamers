@@ -21,6 +21,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { WsGateway } from '../ws/ws.gateway';
 import { Match, MatchStatus } from './match.entity';
 import { OnWsConnected, OnWsDisconnected, OnWsMessage } from '../ws/ws.decorators';
+import { MatchMessageDto } from './match-message.dto';
 import { SubmitActionDto } from './submit-action.dto';
 import { ConfigService } from '../config/config.service';
 
@@ -690,8 +691,8 @@ export class MatchesService implements OnModuleInit {
     //       to break the circular dependency (MatchesService → UsersService already exists).
   }
 
-  @OnWsMessage('match:open')
-  async onUserOpenMatch(payload: { userId: string, matchId: string }) {
+  @OnWsMessage('match:open', MatchMessageDto)
+  async onUserOpenMatch(payload: { userId: string } & MatchMessageDto) {
     try {
       await this.openMatch(payload.matchId, payload.userId);
     } catch (e) {
@@ -699,8 +700,8 @@ export class MatchesService implements OnModuleInit {
     }
   }
 
-  @OnWsMessage('match:close')
-  async onUserCloseMatch(payload: { userId: string, matchId: string }) {
+  @OnWsMessage('match:close', MatchMessageDto)
+  async onUserCloseMatch(payload: { userId: string } & MatchMessageDto) {
     try {
       await this.closeMatch(payload.matchId, payload.userId);
     } catch (e) {

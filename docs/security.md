@@ -84,10 +84,8 @@ and event name.
 
 ## Input Validation
 
-Transport data with a runtime validation schema rejects unknown properties.
-Data represented only by TypeScript types, or handled without such a schema,
-does not receive runtime validation at this boundary. This applies to both
-HTTP request data and WebSocket message data.
+Active HTTP body payloads and registered WebSocket message payloads use runtime
+validation schemas. Unknown properties are rejected at the transport boundary.
 
 The active interfaces are cataloged in [API Reference](api-reference.md).
 
