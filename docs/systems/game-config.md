@@ -91,10 +91,16 @@ in-memory value in the handling process and attempts to purge the cached
 configuration response when cache-purge settings are present. Cache purge
 failure is logged without rolling back the configuration update.
 
-Because effective enforcement configuration is kept in process memory, another
-already-running API process is not refreshed merely because one process
-handles an administrative update. It observes stored configuration when it
-next performs a configuration read or update.
+Effective enforcement configuration is kept in process memory. The current
+deployment runs one API process, so an administrative configuration update
+refreshes the same process that enforces later limits.
+
+If the API is scaled to multiple simultaneously running processes, an
+administrative update refreshes only the process handling that request. Other
+already-running processes continue enforcing their current in-memory
+configuration until they perform a configuration read or update. That
+multi-process propagation behavior is an operational scaling boundary rather
+than a defect in the current single-process deployment.
 
 The active interface is defined in [API Reference](../api-reference.md), and
 the stored representation is defined in [Database Schema](../database-schema.md).

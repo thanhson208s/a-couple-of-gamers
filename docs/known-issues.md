@@ -15,9 +15,7 @@ pages.
 |---|---|---|---|
 | Friendship persistence | The committed migration and the runtime friendship entity disagree on relationship timestamp columns. | Friendship reads or mutations against the migrated schema can fail. | [Database Schema](database-schema.md#material-drift), [Identity and Social State](systems/identity-social.md#friendships) |
 | Account deletion atomicity | Match/cache cleanup, local user removal, and Firebase identity deletion are sequential effects rather than one transaction; failures are reported as authorization failure. | An account deletion request can fail after some cleanup or deletion effects have already occurred. | [Identity and Social State](systems/identity-social.md#account-deletion) |
-| Invitation join handoff | Joining deletes the Redis invitation before the durable active match is saved. | A failed durable save can lose an otherwise valid invitation without creating a match. | [Match Runtime](systems/match-runtime.md#invitation-flow) |
 | Match player retention | The committed schema has no user foreign keys on durable match player IDs, despite the runtime model indicating deleted participants should become null. | Account deletion can leave deleted user identifiers in historical match records. | [Database Schema](database-schema.md#material-drift) |
-| Runtime configuration propagation | Feature-limit enforcement uses in-memory configuration in each API process; an administrative update refreshes only the process handling that update until another process performs a configuration read or update. | When more than one API process is running, simultaneous requests can be enforced under different limits. | [Game Catalog and Configuration](systems/game-config.md#applying-configuration) |
 
 ## Incomplete Paths
 

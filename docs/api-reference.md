@@ -122,7 +122,7 @@ Material match failures:
 | Operation | Failure Conditions |
 |---|---|
 | Create pending invitation | `404` when a game is not currently eligible for creation or the user is absent; `400` when registered game logic cannot be obtained; `403` when the concurrent match limit is reached. |
-| Join invitation | `404` for a missing/expired invite; `403` when joining the caller's own invite. |
+| Join invitation | `404` for a missing/expired invite; `403` when joining the caller's own invite; `409` when another join attempt is already claiming the invite code. |
 | Invite friend | `404` for a missing invite; `403` when the caller does not own the invite or the target is not an accepted friend. |
 | Cancel invitation | `404` for a missing invite; `403` when the caller is not the creator. |
 | Abandon match | `404` for a missing match; `403` for a non-participant; `400` for an already completed match. |
