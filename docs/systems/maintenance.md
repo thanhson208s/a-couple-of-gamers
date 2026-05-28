@@ -43,9 +43,7 @@ WebSocket connection dispatch if the announcement is still active in that API
 process.
 
 Expired announcements are discarded before being returned by the admin read
-endpoint or sent to a newly connected socket. Expiry does not automatically
-broadcast a clear event; `system:maintenance:clear` is sent only when an
-administrator clears the announcement.
+endpoint or sent to a newly connected socket.
 
 ## Persistence and Process Scope
 

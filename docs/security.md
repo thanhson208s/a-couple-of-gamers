@@ -32,7 +32,9 @@ placed in the WebSocket URL:
 
 Missing, unknown, reused, or expired tickets cause the socket to close with
 code `4401`. A socket is associated with one user ID and replaces the
-gateway's target for future sends to that user.
+gateway's target for future sends to that user. The full connection,
+replacement, dispatch, and shutdown behavior is documented in
+[WebSocket Lifecycle](systems/websocket-lifecycle.md).
 
 ### Admin Authentication
 

@@ -25,9 +25,15 @@ interface AuthedSocket extends WebSocket {
 type MessageHandler = (payload: { userId: string } & Record<string, unknown>) => unknown | Promise<unknown>;
 type LifecycleHandler = (payload: { userId: string }) => unknown | Promise<unknown>;
 
+enum WsCloseCode {
+  ServerShutdown = 1001,
+  ReplacedSocket = 4000,
+  Unauthorized = 4401,
+}
+
 // Connection URL: wss://<host>/v1/ws?ticket=<ws-ticket>
 // User-scoped persistent connection — opened once after login.
-// Authentication: one-time WS ticket from POST /v1/auth/ws-ticket
+// Authentication: one-time WS ticket from POST /v1/ws/ticket
 // See: docs/security.md#websocket-authentication
 
 // Inbound dispatch: handlers register via @OnWsMessage(event), @OnWsConnected,
@@ -132,11 +138,8 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect, OnAp
     // Reject any new upgrades while we drain. Read by handleConnection.
     this.shuttingDown = true;
 
-    this.broadcastToAll({ event: 'system:shutdown' });
-
     // Initiate a graceful close on every client, then wait for the close handshake
     // (bounded per-socket — fall back to terminate() if a client doesn't ack in time).
-    const CLOSE_TIMEOUT_MS = 5_000;
     await Promise.allSettled(
       [...this.server.clients].map(
         (client) =>
@@ -146,7 +149,7 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect, OnAp
             const force = setTimeout(() => {
               client.terminate();
               resolve();
-            }, CLOSE_TIMEOUT_MS);
+            }, 5000);
 
             client.once('close', () => {
               clearTimeout(force);
@@ -154,7 +157,7 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect, OnAp
             });
 
             if (client.readyState === WebSocket.OPEN) {
-              client.close(1001, 'shutdown'); // 1001 = going away
+              client.close(WsCloseCode.ServerShutdown, "Server shutdown");
             }
           }),
       ),
@@ -163,22 +166,24 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect, OnAp
 
   async handleConnection(client: AuthedSocket, request: IncomingMessage): Promise<void> {
     if (this.shuttingDown) {
-      client.close(1001, 'shutdown');
+      client.close(WsCloseCode.ServerShutdown, "Server shutdown");
       return;
     }
 
     const qs = request.url?.split('?')[1] ?? '';
     const ticket = new URLSearchParams(qs).get('ticket');
     if (!ticket) {
-      client.close(4401, 'Missing ticket');
+      client.close(WsCloseCode.Unauthorized, 'Missing ticket');
       return;
     }
 
     const userId = await this.wsService.validateWsTicket(ticket);
     if (!userId) {
-      client.close(4401, 'Invalid or expired ticket');
+      client.close(WsCloseCode.Unauthorized, 'Invalid ticket');
       return;
     }
+
+    await this.closeExistingSocket(userId);
 
     client.userId = userId;
     this.clientMap.set(userId, client);
@@ -195,6 +200,43 @@ export class WsGateway implements OnGatewayConnection, OnGatewayDisconnect, OnAp
     this.clientMap.delete(userId);
 
     await Promise.all(this.disconnectedHandlers.map((h) => h({ userId })));
+  }
+
+  private async closeExistingSocket(userId: string): Promise<void> {
+    const existing = this.clientMap.get(userId);
+    if (!existing) return;
+
+    await new Promise<void>((resolve) => {
+      if (existing.readyState === WebSocket.CLOSED) return resolve();
+
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(force);
+        resolve();
+      };
+
+      const force = setTimeout(() => {
+        if (existing.readyState !== WebSocket.CLOSED) {
+          existing.terminate();
+        }
+        finish();
+      }, 3000);
+
+      existing.once('close', finish);
+
+      if (existing.readyState === WebSocket.OPEN) {
+        existing.close(WsCloseCode.ReplacedSocket, "Another device");
+      } else if (existing.readyState !== WebSocket.CLOSING) {
+        existing.terminate();
+        finish();
+      }
+    });
+
+    if (this.clientMap.get(userId) === existing) {
+      this.clientMap.delete(userId);
+    }
   }
 
   private async dispatchMessage(userId: string, raw: RawData): Promise<void> {

@@ -1,7 +1,7 @@
 import { randomBytes } from 'crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { REDIS_CLIENT } from '../../common/redis/redis.module';
-import { Redis } from 'ioredis'
+import type { Redis } from 'ioredis';
 
 @Injectable()
 export class WsService {

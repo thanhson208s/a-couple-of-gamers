@@ -88,7 +88,9 @@ user-scoped WebSocket connection.
 
 WebSocket event and envelope contracts are specified in the
 [API Reference](../api-reference.md#websocket-protocol); authentication and
-validation boundaries are specified in [Security](../security.md).
+validation boundaries are specified in [Security](../security.md). Socket
+admission, replacement, dispatch, and shutdown behavior is specified in
+[WebSocket Lifecycle](websocket-lifecycle.md).
 
 ## Cleanup Effects
 

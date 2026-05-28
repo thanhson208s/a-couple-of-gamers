@@ -84,9 +84,6 @@ describe('MaintenanceService', () => {
       service.clear();
 
       expect(service.check()).toBeNull();
-      expect(wsGateway.broadcastToAll).toHaveBeenLastCalledWith({
-        event: 'system:maintenance:clear',
-      });
     });
   });
 

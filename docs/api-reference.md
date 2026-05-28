@@ -136,7 +136,7 @@ Material match failures:
 | `PUT` | `/v1/admin/games/:slug` | Admin | Body `{ name?, status? }`; returns updated `{ id, name, status }` or `404` for an unknown slug. |
 | `GET` | `/v1/admin/maintenance` | Admin | Returns the active `{ maintenanceAfter, maintenanceDuration }` announcement, or `null` when none is active. |
 | `PUT` | `/v1/admin/maintenance` | Admin | Body `{ maintenanceAfter, maintenanceDuration }`, both positive integer millisecond values. Stores the announcement, broadcasts `system:maintenance`, and returns `{ maintenanceAfter, maintenanceDuration }`. |
-| `DELETE` | `/v1/admin/maintenance` | Admin | Clears the active announcement, broadcasts `system:maintenance:clear`, and returns `204`. |
+| `DELETE` | `/v1/admin/maintenance` | Admin | Clears the active announcement and returns `204`. |
 
 ### Development Endpoints
 
@@ -154,6 +154,12 @@ These routes are available only when `NODE_ENV=development` and
 Connect to `/v1/ws?ticket=<ticket>` using a ticket obtained from
 `POST /v1/ws/ticket`. The connection is user-scoped. See
 [Security](security.md#websocket-authentication).
+
+Only one active socket is retained per authenticated user. When a new socket
+connects for a user that already has an active socket, the server closes the
+older socket with application code `4000` and reason `another_device`, waits
+up to three seconds, terminates it if needed, and then records the new socket
+as the user's active connection. See [WebSocket Lifecycle](systems/websocket-lifecycle.md).
 
 ### Message Envelopes
 
@@ -201,8 +207,6 @@ Payloads below are inside the `data` property of the domain envelope.
 |---|---|---|
 | `pong` | `{ event: "pong" }` | Response to `ping`. |
 | `system:maintenance` | `{ event: "system:maintenance", maintenanceAfter, maintenanceDuration }` | An administrator sets an active maintenance announcement, or a user connects while one is active. |
-| `system:maintenance:clear` | `{ event: "system:maintenance:clear" }` | An administrator clears the active maintenance announcement. |
-| `system:shutdown` | `{ event: "system:shutdown" }` | Application shutdown closes existing sockets. |
 
 ## Unavailable Interface Categories
 
