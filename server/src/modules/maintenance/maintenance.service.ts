@@ -1,9 +1,14 @@
-import { Injectable } from '@nestjs/common';
-import { OnEvent } from '@nestjs/event-emitter';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { OnWsConnected } from '../ws/ws.decorators';
 import { WsGateway } from '../ws/ws.gateway';
 
-interface MaintenanceState {
+export interface MaintenanceState {
   maintenanceTime: number;
+  maintenanceDuration: number;
+}
+
+export interface MaintenanceAnnouncement {
+  maintenanceAfter: number;
   maintenanceDuration: number;
 }
 
@@ -13,24 +18,54 @@ export class MaintenanceService {
 
   constructor(private readonly wsGateway: WsGateway) {}
 
-  setState(state: MaintenanceState | null): void {
-    this.state = state;
+  announce(maintenanceAfter: number, maintenanceDuration: number): MaintenanceAnnouncement {
+    if (maintenanceDuration <= 0) {
+      throw new BadRequestException('maintenance duration must be positive');
+    }
+
+    if (maintenanceAfter <= 0) {
+      throw new BadRequestException('maintenance time must be in the future');
+    }
+
+    this.state = { maintenanceTime: Date.now() + maintenanceAfter, maintenanceDuration };
+    this.wsGateway.broadcastToAll({
+      event: 'system:maintenance',
+      maintenanceAfter,
+      maintenanceDuration,
+    });
+
+    return { maintenanceAfter, maintenanceDuration };
   }
 
-  @OnEvent('ws:connected')
-  onUserConnected(payload: { userId: string }): void {
-    if (!this.state) return;
+  clear(): void {
+    this.state = null;
+    this.wsGateway.broadcastToAll({ event: 'system:maintenance:clear' });
+  }
+
+  check(): MaintenanceAnnouncement | null {
+    if (!this.state) return null;
 
     const maintenanceAfter = this.state.maintenanceTime - Date.now();
     if (maintenanceAfter <= 0) {
       this.state = null;
-      return;
+      return null;
     }
+
+    return {
+      maintenanceAfter,
+      maintenanceDuration: this.state.maintenanceDuration,
+    };
+  }
+
+  @OnWsConnected()
+  onUserConnected(payload: { userId: string }): void {
+    const announcement = this.check();
+    if (!announcement) return;
 
     this.wsGateway.broadcastToUser(payload.userId, {
       event: 'system:maintenance',
-      maintenanceAfter,
-      maintenanceDuration: this.state.maintenanceDuration,
+      maintenanceAfter: announcement.maintenanceAfter,
+      maintenanceDuration: announcement.maintenanceDuration,
     });
   }
 }

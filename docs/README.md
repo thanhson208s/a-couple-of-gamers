@@ -19,6 +19,7 @@ requirements set, roadmap, or operations runbook.
 | [Game Catalog and Configuration](systems/game-config.md) | Game availability, runtime configuration, and plugin responsibilities |
 | [Match Runtime](systems/match-runtime.md) | Invite-to-completion match lifecycle and realtime state handling |
 | [Notification Delivery](systems/notification-delivery.md) | Push-delivery boundary and currently incomplete notification paths |
+| [Maintenance Announcements](systems/maintenance.md) | Admin-controlled realtime maintenance announcement behavior |
 
 ## Status Labels
 
@@ -28,8 +29,8 @@ requirements set, roadmap, or operations runbook.
 | `Partially implemented` | Some behavior is live, but a documented runtime path is incomplete or unavailable. |
 | `Scaffolded` | Some implementation support exists, but it is not exposed as usable application behavior. |
 
-Purchases and maintenance announcements are currently scaffolded or
-incompletely triggered and therefore do not receive standalone system pages.
+Purchases are currently scaffolded and therefore do not receive a standalone
+system page.
 
 ## Maintenance Rules
 

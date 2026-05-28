@@ -32,7 +32,6 @@ pages.
 |---|---|---|---|
 | Tic-Tac-Toe start state | New matches initialize without an eligible first player. | The only currently registered game cannot advance through ordinary action submission. | [Match Runtime](systems/match-runtime.md#incomplete-runtime-paths) |
 | Friend-invite delivery ordering | Match invitation delivery awaits the FCM send before attempting the realtime socket event. | An FCM exception fails the request and prevents realtime delivery even though the underlying pending invitation remains valid. | [Notification Delivery](systems/notification-delivery.md#friend-invitation-delivery) |
-| Maintenance announcements | Maintenance queue processing can broadcast an externally submitted schedule, but no complete application trigger is exposed and late-connection notification is not connected to the gateway's connection dispatch. | Maintenance announcements cannot be relied on as a complete active application flow. | [Architecture](architecture.md#server-subsystems), [Structure](structure.md#server-modules) |
 
 ## Maintenance
 

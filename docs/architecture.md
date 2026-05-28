@@ -28,7 +28,6 @@ Godot client / development console / admin shell
 | PostgreSQL / TypeORM | Durable user, catalog, joined-match, configuration, token, social, and device-token data. | Active; see [schema drift](database-schema.md#material-drift). |
 | Redis | Pending invitations, realtime match cache/presence/replay, WS tickets, HTTP/WS rate state, and BullMQ backing state. | Active |
 | Firebase Admin | Firebase ID token verification and FCM send capability. | Auth and server-side push triggers are active. |
-| BullMQ maintenance handling | Processes queued maintenance announcement work in the API runtime. | No complete application-triggered announcement flow is active. |
 | BullMQ worker process | Hosts background reminder and stale-match cleanup work. | Stale-match cleanup and turn reminder delivery are active. |
 | Godot client | Mobile client project and third-party integration plugins. | Project scaffold/login scene only; server interaction is not verified. |
 | Development console | Local browser tool intended to exercise server behavior. | Present, but its route configuration is stale relative to current API. |
@@ -44,7 +43,7 @@ Godot client / development console / admin shell
 | Matches | Owns invite-to-result lifecycle and coordinates game logic, cache state, realtime events, statistics, and friend-invite push attempts. |
 | WebSocket gateway | Authenticates tickets, routes registered inbound events, limits WS activity, and targets outbound messages by user. |
 | Notifications | Manages authenticated FCM device tokens and sends invitation and turn-reminder pushes. |
-| Maintenance | No complete application-facing maintenance announcement flow is active. |
+| Maintenance | Owns active maintenance announcement state, admin mutation endpoints, realtime broadcasts, and late-connection notification. |
 | Purchases | No active application purchase behavior. |
 
 ## Technical System Pages
@@ -53,6 +52,7 @@ Godot client / development console / admin shell
 - [Game Catalog and Configuration](systems/game-config.md)
 - [Match Runtime](systems/match-runtime.md)
 - [Notification Delivery](systems/notification-delivery.md)
+- [Maintenance Announcements](systems/maintenance.md)
 
 Public protocol contracts, storage, and enforcement boundaries remain owned by
 [API Reference](api-reference.md), [Database Schema](database-schema.md), and
