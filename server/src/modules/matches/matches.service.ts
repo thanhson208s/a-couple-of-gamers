@@ -1,6 +1,7 @@
 import { randomBytes } from 'crypto';
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   HttpException,
   Inject,
@@ -30,7 +31,8 @@ const INACTIVITY_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const ABANDONMENT_TTL_MS = 24 * 60 * 60 * 1000; // 1 days
 const REPLAY_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const MATCH_STATE_TTL_MS = 60 * 60 * 1000; // 1 hours
-const INVITE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const INVITE_CODE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const INVITE_CLAIM_TTL_MS = 30 * 1000; // 30 seconds
 const INVITE_CODE_CHARSET = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // base57, no ambiguous chars
 const INVITE_CODE_LENGTH = 8;
 
@@ -142,7 +144,7 @@ export class MatchesService implements OnModuleInit {
       throw new ForbiddenException('Concurrent match limit reached');
 
     const inviteCode = generateInviteCode();
-    const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
+    const expiresAt = new Date(Date.now() + INVITE_CODE_TTL_MS);
     const data: MatchInvite = {
       gameId: game.id,
       gameName: game.name,
@@ -153,7 +155,7 @@ export class MatchesService implements OnModuleInit {
       createdAt: new Date().toISOString(),
     };
 
-    await this.redis.set(`invite:code:${inviteCode}`, JSON.stringify(data), 'PX', INVITE_TTL_MS);
+    await this.redis.set(`invite:code:${inviteCode}`, JSON.stringify(data), 'PX', INVITE_CODE_TTL_MS);
     await this.redis.zadd(`invite:user:${callerId}`, expiresAt.getTime(), inviteCode);
 
     return {
@@ -164,42 +166,83 @@ export class MatchesService implements OnModuleInit {
   }
 
   async joinMatch(inviteCode: string, callerId: string): Promise<void> {
-    const raw = await this.redis.get(`invite:code:${inviteCode}`);
+    const inviteKey = `invite:code:${inviteCode}`;
+    const claimKey = `invite:claim:${inviteCode}`;
+
+    const raw = await this.redis.get(inviteKey);
     if (!raw) throw new NotFoundException('Invite code not found');
 
-    const data: MatchInvite = JSON.parse(raw);
+    let data: MatchInvite = JSON.parse(raw);
     if (data.playerId === callerId) {
       throw new ForbiddenException('Cannot join your own match');
     }
 
-    await this.redis.del(`invite:code:${inviteCode}`);
-    await this.redis.zrem(`invite:user:${data.playerId}`, inviteCode);
+    const claimed = await this.redis.set(claimKey, callerId, 'PX', INVITE_CLAIM_TTL_MS, 'NX');
+    if (claimed !== 'OK') throw new ConflictException('Invite is already being joined');
 
-    const plugin = this.gamesRegistry.getPlugin(data.gameId);
-    const match = await this.matches.save(this.matches.create({
-      game: { id: data.gameId } as any,
-      status: MatchStatus.Active,
-      state: plugin.initialState(data.options ?? undefined),
-      options: data.options,
-      player1Id: data.playerSlot === 1 ? data.playerId : callerId,
-      player2Id: data.playerSlot === 2 ? data.playerId : callerId,
-    }));
-    const initialView1 = plugin.getPlayerView(match.state as GameState, 1);
-    const initialView2 = plugin.getPlayerView(match.state as GameState, 2);
-    const nextTurns = plugin.getNextTurns(match.state as GameState);
+    let matchSaved = false;
+    try {
+      const claimedRaw = await this.redis.get(inviteKey);
+      if (!claimedRaw) throw new NotFoundException('Invite code not found');
 
-    const meta: MatchMeta = { player1Id: match.player1Id!, player2Id: match.player2Id!, gameId: data.gameId, status: MatchStatus.Active };
-    await this.redis.set(`match:meta:${match.id}`, JSON.stringify(meta), 'PX', INACTIVITY_TTL_MS);
+      data = JSON.parse(claimedRaw);
+      if (data.playerId === callerId) {
+        throw new ForbiddenException('Cannot join your own match');
+      }
 
-    const matchPayload = {
-      id: match.id,
-      status: match.status,
-      gameId: match.game.id,
-      player1Id: match.player1Id,
-      player2Id: match.player2Id,
-    };
-    this.wsGateway.sendToUser(match.player1Id!, 'match:start', { inviteCode, initialView: initialView1, nextTurns, match: matchPayload });
-    this.wsGateway.sendToUser(match.player2Id!, 'match:start', { inviteCode, initialView: initialView2, nextTurns, match: matchPayload });
+      const plugin = this.gamesRegistry.getPlugin(data.gameId);
+      const match = await this.matches.save(this.matches.create({
+        game: { id: data.gameId } as any,
+        status: MatchStatus.Active,
+        state: plugin.initialState(data.options ?? undefined),
+        options: data.options,
+        player1Id: data.playerSlot === 1 ? data.playerId : callerId,
+        player2Id: data.playerSlot === 2 ? data.playerId : callerId,
+      }));
+      matchSaved = true;
+
+      await this.cleanupJoinedInvite(inviteCode, data.playerId, claimKey);
+
+      const initialView1 = plugin.getPlayerView(match.state as GameState, 1);
+      const initialView2 = plugin.getPlayerView(match.state as GameState, 2);
+      const nextTurns = plugin.getNextTurns(match.state as GameState);
+
+      const meta: MatchMeta = { player1Id: match.player1Id!, player2Id: match.player2Id!, gameId: data.gameId, status: MatchStatus.Active };
+      await this.redis.set(`match:meta:${match.id}`, JSON.stringify(meta), 'PX', INACTIVITY_TTL_MS);
+
+      const matchPayload = {
+        id: match.id,
+        status: match.status,
+        gameId: match.game.id,
+        player1Id: match.player1Id,
+        player2Id: match.player2Id,
+      };
+      this.wsGateway.sendToUser(match.player1Id!, 'match:start', { inviteCode, initialView: initialView1, nextTurns, match: matchPayload });
+      this.wsGateway.sendToUser(match.player2Id!, 'match:start', { inviteCode, initialView: initialView2, nextTurns, match: matchPayload });
+    } catch (err) {
+      if (!matchSaved) await this.releaseInviteClaim(claimKey);
+      throw err;
+    }
+  }
+
+  private async cleanupJoinedInvite(inviteCode: string, creatorId: string, claimKey: string): Promise<void> {
+    try {
+      await Promise.all([
+        this.redis.del(`invite:code:${inviteCode}`),
+        this.redis.zrem(`invite:user:${creatorId}`, inviteCode),
+        this.redis.del(claimKey),
+      ]);
+    } catch {
+      // Best effort: the durable match already exists, so stale invite cleanup failure is tolerated.
+    }
+  }
+
+  private async releaseInviteClaim(claimKey: string): Promise<void> {
+    try {
+      await this.redis.del(claimKey);
+    } catch {
+      // The claim has a short TTL; failed release should not mask the original join error.
+    }
   }
 
   async cancelMatch(inviteCode: string, callerId: string): Promise<void> {
@@ -280,7 +323,7 @@ export class MatchesService implements OnModuleInit {
         status: 'pending',
         inviteCode: d.inviteCode,
         deepLink: `acog://join?code=${d.inviteCode}`,
-        expiresAfter: new Date(new Date(d.createdAt).getTime() + INVITE_TTL_MS - now.getTime()),
+        expiresAfter: new Date(new Date(d.createdAt).getTime() + INVITE_CODE_TTL_MS - now.getTime()),
         playerSlot: d.playerSlot,
         gameId: d.gameId,
         createdAt: new Date(d.createdAt),

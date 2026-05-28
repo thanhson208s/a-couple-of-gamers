@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
@@ -252,8 +253,62 @@ describe('MatchesService', () => {
 
       await service.joinMatch('ABCD', CALLER_ID);
 
+      expect(redis.set).toHaveBeenCalledWith('invite:claim:ABCD', CALLER_ID, 'PX', expect.any(Number), 'NX');
       expect(redis.del).toHaveBeenCalledWith('invite:code:ABCD');
+      expect(redis.del).toHaveBeenCalledWith('invite:claim:ABCD');
       expect(redis.zrem).toHaveBeenCalledWith(`invite:user:${OTHER_ID}`, 'ABCD');
+    });
+
+    it('creates the durable match before removing the Redis invite', async () => {
+      redis.get.mockResolvedValue(makePendingJson({ playerSlot: 1, playerId: OTHER_ID }));
+      const saved = makeMatch({ player1Id: OTHER_ID, player2Id: CALLER_ID });
+      matchesRepo.create.mockReturnValue(saved);
+      matchesRepo.save.mockResolvedValue(saved);
+
+      await service.joinMatch('ABCD', CALLER_ID);
+
+      const saveOrder = matchesRepo.save.mock.invocationCallOrder[0];
+      const inviteDeleteOrder = redis.del.mock.invocationCallOrder.find((_, index) =>
+        redis.del.mock.calls[index][0] === 'invite:code:ABCD',
+      );
+      expect(saveOrder).toBeLessThan(inviteDeleteOrder!);
+    });
+
+    it('rejects when another caller already holds the invite claim', async () => {
+      redis.get.mockResolvedValue(makePendingJson({ playerSlot: 1, playerId: OTHER_ID }));
+      redis.set.mockResolvedValueOnce(null);
+
+      await expect(service.joinMatch('ABCD', CALLER_ID)).rejects.toThrow(ConflictException);
+
+      expect(matchesRepo.save).not.toHaveBeenCalled();
+      expect(redis.del).not.toHaveBeenCalledWith('invite:code:ABCD');
+      expect(redis.zrem).not.toHaveBeenCalled();
+    });
+
+    it('keeps the invite and releases the claim when durable match creation fails', async () => {
+      redis.get.mockResolvedValue(makePendingJson({ playerSlot: 1, playerId: OTHER_ID }));
+      matchesRepo.create.mockReturnValue(makeMatch({ player1Id: OTHER_ID, player2Id: CALLER_ID }));
+      matchesRepo.save.mockRejectedValue(new Error('database unavailable'));
+
+      await expect(service.joinMatch('ABCD', CALLER_ID)).rejects.toThrow('database unavailable');
+
+      expect(redis.del).not.toHaveBeenCalledWith('invite:code:ABCD');
+      expect(redis.zrem).not.toHaveBeenCalledWith(`invite:user:${OTHER_ID}`, 'ABCD');
+      expect(redis.del).toHaveBeenCalledWith('invite:claim:ABCD');
+    });
+
+    it('tolerates invite cleanup failure after the durable match is created', async () => {
+      redis.get.mockResolvedValue(makePendingJson({ playerSlot: 1, playerId: OTHER_ID }));
+      redis.del.mockRejectedValueOnce(new Error('cleanup failed'));
+      const saved = makeMatch({ player1Id: OTHER_ID, player2Id: CALLER_ID });
+      matchesRepo.create.mockReturnValue(saved);
+      matchesRepo.save.mockResolvedValue(saved);
+
+      await expect(service.joinMatch('ABCD', CALLER_ID)).resolves.toBeUndefined();
+
+      expect(matchesRepo.save).toHaveBeenCalledTimes(1);
+      expect(wsGateway.sendToUser).toHaveBeenCalledWith(OTHER_ID, 'match:start', expect.any(Object));
+      expect(wsGateway.sendToUser).toHaveBeenCalledWith(CALLER_ID, 'match:start', expect.any(Object));
     });
 
     it('places the creator in their chosen slot and joiner in the other', async () => {

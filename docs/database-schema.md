@@ -151,6 +151,7 @@ documents must not present the unmatched entity shapes as live storage.
 | Key Pattern | Data | Lifetime / Mutation Rule |
 |---|---|---|
 | `invite:code:{inviteCode}` | JSON invitation containing game, creator, player slot, options, and creation time. | 24 hours; deleted on join/cancel/account cleanup. |
+| `invite:claim:{inviteCode}` | Caller ID for an in-progress join attempt. | 30 seconds; set with `NX` during join, deleted after successful invite cleanup or released when durable match creation fails. |
 | `invite:user:{userId}` | Sorted-set index of invitation codes created by a user. | No key expiry; expired members are pruned on relevant reads/creation and key deleted during account cleanup. |
 | `match:meta:{matchId}` | JSON players, game ID, and lifecycle status for realtime lookup. | Written with finite TTL; current write paths set either 24 hours or 30 days; deleted on completion/abandonment cleanup. |
 | `match:state:{matchId}` | JSON plugin state used while active interactions occur. | 1 hour from each write; flushed to PostgreSQL at session boundaries and removed on match finalization. |

@@ -28,10 +28,9 @@ match cleanup behavior. Protocol shapes are listed in the
 | Abandoned match | PostgreSQL | Entered when a participating user abandons or deleting an account cleans up its active matches. No completion statistics are recorded. |
 
 Pending invitations do not have PostgreSQL match rows or a designated invitee:
-they identify only their creator until someone joins. A joined invitation is
-removed from Redis before the active row is created. A persistence failure
-during join after invite removal can therefore consume an invitation without
-producing an active match.
+they identify only their creator until someone joins. Join uses a short-lived
+Redis claim key for the invitation code before creating the durable match row.
+The invitation is removed from Redis only after the active row is saved.
 
 ### Invitation Flow
 
@@ -39,8 +38,16 @@ producing an active match.
 |---|---|---|
 | Create pending invite | Game is enabled and executable; creator exists; creator has capacity under its configured pending-plus-active limit. | Writes the expiring invitation and the creator's pending index in Redis and returns shareable invite information. |
 | Cancel pending invite | Caller owns the still-present invitation. | Removes its Redis invitation value and creator index entry. |
-| Join pending invite | Invite exists and caller is not its creator. | Consumes pending Redis state, initializes a durable active match, caches match metadata, and sends each connected player their own `match:start` view. |
+| Join pending invite | Invite exists, caller is not its creator, and no active claim exists for the invite code. | Claims the invite code briefly, initializes a durable active match, removes pending Redis state after the match row is saved, caches match metadata, and sends each connected player their own `match:start` view. |
 | Invite accepted friend | Caller owns a still-present invitation and target has an accepted friendship with the caller. | Does not alter invitation state; initiates push/realtime delivery described in [Notification Delivery](notification-delivery.md). |
+
+If durable match creation fails while joining, the claim is released and the
+pending invitation remains available until it is joined, cancelled, or expires.
+If cleanup of the Redis invitation fails after the durable match is created,
+the join still succeeds. That stale invite can remain until its normal expiry
+and, after the short claim expires, could be joined again to create another
+match from the same invite code. This edge case is tolerated because invite
+codes are short-lived and reusable after a pending invite lifecycle ends.
 
 ## State Ownership
 
