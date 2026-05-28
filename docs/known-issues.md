@@ -24,7 +24,6 @@ pages.
 | Invitation join handoff | Joining deletes the Redis invitation before the durable active match is saved. | A failed durable save can lose an otherwise valid invitation without creating a match. | [Match Runtime](systems/match-runtime.md#invitation-flow) |
 | Match player retention | The committed schema has no user foreign keys on durable match player IDs, despite the runtime model indicating deleted participants should become null. | Account deletion can leave deleted user identifiers in historical match records. | [Database Schema](database-schema.md#material-drift) |
 | Runtime configuration propagation | Feature-limit enforcement uses in-memory configuration in each API process; an administrative update refreshes only the process handling that update until another process performs a configuration read or update. | When more than one API process is running, simultaneous requests can be enforced under different limits. | [Game Catalog and Configuration](systems/game-config.md#applying-configuration) |
-| Transport validation coverage | Some active structured inputs are handled without a runtime validation schema. | Malformed or unexpected input is not consistently rejected at the transport boundary. | [Security](security.md#input-validation) |
 
 ## Incomplete Paths
 

@@ -3,6 +3,7 @@ import { SkipThrottle } from '@nestjs/throttler';
 import { DevAuthGuard } from '../../common/guards/dev-auth.guard';
 import { MatchesService } from '../matches/matches.service';
 import { CompleteMatchDto } from './complete-match.dto';
+import { DevLoginDto } from './dev-login.dto';
 import { AuthService } from '../auth/auth.service';
 
 @Controller('dev')
@@ -20,8 +21,8 @@ export class DevController {
   }
 
   @Post('auth')
-  login(@Body() body: { accountId: string }) {
-    return this.authService.devLogin(body.accountId);
+  login(@Body() dto: DevLoginDto) {
+    return this.authService.devLogin(dto.accountId);
   }
 
   @Post('matches/complete')

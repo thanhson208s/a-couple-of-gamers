@@ -2,6 +2,7 @@ import { Controller, Post, Body } from '@nestjs/common';
 import { AppThrottle } from '../../app.guard';
 import { AuthService } from './auth.service';
 import { FirebaseLoginDto } from './firebase-login.dto';
+import { RefreshTokenDto } from './refresh-token.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -15,12 +16,12 @@ export class AuthController {
 
   @Post('refresh')
   @AppThrottle({ ttl: 60_000, limit: 20 })
-  refresh(@Body() body: { refreshToken: string }) {
-    return this.authService.refresh(body.refreshToken);
+  refresh(@Body() dto: RefreshTokenDto) {
+    return this.authService.refresh(dto.refreshToken);
   }
 
   @Post('logout')
-  logout(@Body() body: { refreshToken: string }) {
-    return this.authService.logout(body.refreshToken);
+  logout(@Body() dto: RefreshTokenDto) {
+    return this.authService.logout(dto.refreshToken);
   }
 }
