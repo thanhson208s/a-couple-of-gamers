@@ -41,7 +41,7 @@ Godot client / development console / admin shell
 | Users | Owns identity projection, favorites, friendships, result statistics, and account-deletion callbacks. |
 | Games and configuration | Owns plugin registration, persisted game availability, configuration defaults, and administrative mutations. |
 | Matches | Owns invite-to-result lifecycle and coordinates game logic, cache state, realtime events, statistics, and friend-invite push attempts. |
-| WebSocket gateway | Authenticates tickets, routes registered inbound events, limits WS activity, and targets outbound messages by user. |
+| WebSocket gateway | Authenticates tickets, owns the user-scoped socket lifecycle, routes registered inbound events, limits WS activity, and targets outbound messages by user. |
 | Notifications | Manages authenticated FCM device tokens and sends invitation and turn-reminder pushes. |
 | Maintenance | Owns active maintenance announcement state, admin mutation endpoints, realtime broadcasts, and late-connection notification. |
 | Purchases | No active application purchase behavior. |
@@ -50,6 +50,7 @@ Godot client / development console / admin shell
 
 - [Identity and Social State](systems/identity-social.md)
 - [Game Catalog and Configuration](systems/game-config.md)
+- [WebSocket Lifecycle](systems/websocket-lifecycle.md)
 - [Match Runtime](systems/match-runtime.md)
 - [Notification Delivery](systems/notification-delivery.md)
 - [Maintenance Announcements](systems/maintenance.md)

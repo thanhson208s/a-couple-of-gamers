@@ -39,7 +39,6 @@ export class MaintenanceService {
 
   clear(): void {
     this.state = null;
-    this.wsGateway.broadcastToAll({ event: 'system:maintenance:clear' });
   }
 
   check(): MaintenanceAnnouncement | null {

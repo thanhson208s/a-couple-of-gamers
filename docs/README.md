@@ -17,6 +17,7 @@ requirements set, roadmap, or operations runbook.
 | [Conventions](conventions.md) | Engineering and documentation maintenance rules |
 | [Identity and Social State](systems/identity-social.md) | Accounts, favorites, friendships, stats, and deletion effects |
 | [Game Catalog and Configuration](systems/game-config.md) | Game availability, runtime configuration, and plugin responsibilities |
+| [WebSocket Lifecycle](systems/websocket-lifecycle.md) | User-scoped socket admission, replacement, dispatch, and shutdown behavior |
 | [Match Runtime](systems/match-runtime.md) | Invite-to-completion match lifecycle and realtime state handling |
 | [Notification Delivery](systems/notification-delivery.md) | Push-delivery boundary and currently incomplete notification paths |
 | [Maintenance Announcements](systems/maintenance.md) | Admin-controlled realtime maintenance announcement behavior |
