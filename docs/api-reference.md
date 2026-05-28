@@ -134,6 +134,9 @@ Material match failures:
 | `GET` | `/v1/admin/config` | Admin | Returns `{ appVersion?, featureLimits, games }`, the current effective configuration with the game-status map. |
 | `PUT` | `/v1/admin/config` | Admin | Body `{ appVersion, featureLimits }`; replaces the stored configuration and returns no response payload. |
 | `PUT` | `/v1/admin/games/:slug` | Admin | Body `{ name?, status? }`; returns updated `{ id, name, status }` or `404` for an unknown slug. |
+| `GET` | `/v1/admin/maintenance` | Admin | Returns the active `{ maintenanceAfter, maintenanceDuration }` announcement, or `null` when none is active. |
+| `PUT` | `/v1/admin/maintenance` | Admin | Body `{ maintenanceAfter, maintenanceDuration }`, both positive integer millisecond values. Stores the announcement, broadcasts `system:maintenance`, and returns `{ maintenanceAfter, maintenanceDuration }`. |
+| `DELETE` | `/v1/admin/maintenance` | Admin | Clears the active announcement, broadcasts `system:maintenance:clear`, and returns `204`. |
 
 ### Development Endpoints
 
@@ -197,6 +200,8 @@ Payloads below are inside the `data` property of the domain envelope.
 | Event | Shape | Emitted When |
 |---|---|---|
 | `pong` | `{ event: "pong" }` | Response to `ping`. |
+| `system:maintenance` | `{ event: "system:maintenance", maintenanceAfter, maintenanceDuration }` | An administrator sets an active maintenance announcement, or a user connects while one is active. |
+| `system:maintenance:clear` | `{ event: "system:maintenance:clear" }` | An administrator clears the active maintenance announcement. |
 | `system:shutdown` | `{ event: "system:shutdown" }` | Application shutdown closes existing sockets. |
 
 ## Unavailable Interface Categories

@@ -42,7 +42,7 @@ but are outside this technical behavior documentation set.
 | `notifications` | Push delivery and reminder handling. | Active |
 | `admin` | Catalog/configuration administration endpoints. | Active |
 | `dev` | Development-only helper endpoints. | Active only under development guard conditions. |
-| `maintenance` | Maintenance announcement support. | No complete active flow. |
+| `maintenance` | Maintenance announcement support documented in [Maintenance Announcements](systems/maintenance.md). | Active |
 | `purchases` | Purchase integration placeholder. | No active behavior. |
 
 ## Client Surface
