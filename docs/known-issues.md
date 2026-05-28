@@ -31,10 +31,7 @@ pages.
 | Area | Current Behavior | Consequence | Related Documentation |
 |---|---|---|---|
 | Tic-Tac-Toe start state | New matches initialize without an eligible first player. | The only currently registered game cannot advance through ordinary action submission. | [Match Runtime](systems/match-runtime.md#incomplete-runtime-paths) |
-| Stale match cleanup | Cleanup logic exists, but the background processor does not invoke it. | Inactive active matches and aged abandoned matches are not automatically removed. | [Match Runtime](systems/match-runtime.md#incomplete-runtime-paths) |
-| FCM token management | Token registration/removal controller code exists but is not registered in the active notification module. | The active API provides no way for first-party clients to supply the tokens needed for invitation push delivery. | [Notification Delivery](systems/notification-delivery.md#incomplete-runtime-paths) |
 | Friend-invite delivery ordering | Match invitation delivery awaits the FCM send before attempting the realtime socket event. | An FCM exception fails the request and prevents realtime delivery even though the underlying pending invitation remains valid. | [Notification Delivery](systems/notification-delivery.md#friend-invitation-delivery) |
-| Turn reminders | Match actions do not schedule reminder jobs, and the registered reminder processor performs no send effect. | No turn reminder push notifications are delivered. | [Notification Delivery](systems/notification-delivery.md#incomplete-runtime-paths) |
 | Maintenance announcements | Maintenance queue processing can broadcast an externally submitted schedule, but no complete application trigger is exposed and late-connection notification is not connected to the gateway's connection dispatch. | Maintenance announcements cannot be relied on as a complete active application flow. | [Architecture](architecture.md#server-subsystems), [Structure](structure.md#server-modules) |
 
 ## Maintenance

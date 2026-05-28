@@ -20,7 +20,7 @@ import { UsersService } from '../users/users.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { WsGateway } from '../ws/ws.gateway';
 import { Match, MatchStatus } from './match.entity';
-import { OnWsDisconnected, OnWsMessage } from '../ws/ws.decorators';
+import { OnWsConnected, OnWsDisconnected, OnWsMessage } from '../ws/ws.decorators';
 import { SubmitActionDto } from './submit-action.dto';
 import { ConfigService } from '../config/config.service';
 
@@ -68,7 +68,7 @@ function generateInviteCode(): string {
     .join('');
 }
 
-function getPlayerIndex(player1Id: string, player2Id: string, userId: string) {
+function getPlayerIndex(player1Id: string, player2Id: string, userId: string): 1 | 2 {
   if (player1Id === userId) return 1;
   if (player2Id === userId) return 2;
   throw new ForbiddenException();
@@ -288,14 +288,7 @@ export class MatchesService implements OnModuleInit {
   }
 
   async listActiveMatches(userId: string): Promise<object[]> {
-    const inactivityCutoff = new Date(Date.now() - INACTIVITY_TTL_MS);
-    const matches = await this.matches.find({
-      where: [
-        { player1Id: userId, status: MatchStatus.Active, updatedAt: MoreThan(inactivityCutoff) },
-        { player2Id: userId, status: MatchStatus.Active, updatedAt: MoreThan(inactivityCutoff) },
-      ],
-      relations: ['game'],
-    });
+    const matches = await this.listActiveMatchesForUser(userId);
     
     return matches.map(match => {
       const plugin = this.gamesRegistry.getPlugin(match.game.id);
@@ -420,7 +413,11 @@ export class MatchesService implements OnModuleInit {
     const finalState = events[events.length - 1].state;
     await this.persistState(matchId, finalState);
     await this.broadcastMoves(matchId, callerId, opponentId, playerIndex!, opponentIndex!, initialState, finalState, events, plugin);
-    await this.handleMatchOver(matchId, meta, finalState, callerId, opponentId, plugin);
+    if (plugin.isGameOver(finalState)) {
+      await this.handleMatchOver(matchId, meta, finalState, callerId, opponentId, plugin);
+    } else {
+      await this.scheduleOfflineOpponentReminder(matchId, opponentId, opponentIndex!, finalState, plugin);
+    }
   }
 
   private async broadcastMoves(
@@ -475,14 +472,16 @@ export class MatchesService implements OnModuleInit {
     opponentId: string,
     plugin: GamePlugin,
   ): Promise<void> {
-    if (!plugin.isGameOver(finalState)) return;
-
     const match = await this.matches.findOneOrFail({ where: { id: matchId } });
     match.status = MatchStatus.Completed;
     match.winner = plugin.getWinner(finalState);
     match.state = finalState as object;
 
     await this.matches.save(match);
+    await Promise.all([
+      this.notificationsService.cancelReminders(matchId, meta.player1Id),
+      this.notificationsService.cancelReminders(matchId, meta.player2Id),
+    ]);
     await this.clearStateFromCache(matchId);
     await this.usersService.updateRival(
       meta.player1Id,
@@ -595,6 +594,52 @@ export class MatchesService implements OnModuleInit {
     throw new NotImplementedException();
   }
 
+  private async listActiveMatchesForUser(userId: string): Promise<Match[]> {
+    const inactivityCutoff = new Date(Date.now() - INACTIVITY_TTL_MS);
+    return this.matches.find({
+      where: [
+        { player1Id: userId, status: MatchStatus.Active, updatedAt: MoreThan(inactivityCutoff) },
+        { player2Id: userId, status: MatchStatus.Active, updatedAt: MoreThan(inactivityCutoff) },
+      ],
+      relations: ['game'],
+    });
+  }
+
+  private async cancelRemindersForActiveMatches(userId: string): Promise<void> {
+    const matches = await this.listActiveMatchesForUser(userId);
+    await Promise.all(matches.map((match) => this.notificationsService.cancelReminders(match.id, userId)));
+  }
+
+  private async scheduleRemindersForCurrentTurns(userId: string): Promise<void> {
+    const matches = await this.listActiveMatchesForUser(userId);
+    await Promise.all(matches.map(async (match) => {
+      if (!match.player1Id || !match.player2Id) return;
+
+      const playerIndex = getPlayerIndex(match.player1Id, match.player2Id, userId);
+      const plugin = this.gamesRegistry.getPlugin(match.game.id);
+      const state = await this.getStateFromCache(match.id);
+      const nextTurns = plugin.getNextTurns(state);
+      if (nextTurns.includes(playerIndex)) {
+        await this.notificationsService.scheduleReminders(match.id, userId);
+      }
+    }));
+  }
+
+  private async scheduleOfflineOpponentReminder(
+    matchId: string,
+    opponentId: string,
+    opponentIndex: 1 | 2,
+    state: GameState,
+    plugin: GamePlugin,
+  ): Promise<void> {
+    if (this.wsGateway.isUserConnected(opponentId)) return;
+
+    const nextTurns = plugin.getNextTurns(state);
+    if (nextTurns.includes(opponentIndex)) {
+      await this.notificationsService.scheduleReminders(matchId, opponentId);
+    }
+  }
+
   // Called by UsersService.deleteAccount before the user row is deleted.
   // Cancels all pending invites and abandons all active matches, notifying opponents.
   async cleanupForUser(userId: string): Promise<void> {
@@ -672,6 +717,11 @@ export class MatchesService implements OnModuleInit {
     }
   }
 
+  @OnWsConnected()
+  async onUserConnected(payload: { userId: string }) {
+    await this.cancelRemindersForActiveMatches(payload.userId);
+  }
+
   @OnWsDisconnected()
   async onUserDisconnected(payload: { userId: string }) {
     const matchId = await this.redis.get(`match:user:${payload.userId}`);
@@ -682,10 +732,11 @@ export class MatchesService implements OnModuleInit {
       ]);
 
       const meta = await this.getMatchMeta(matchId);
-      if (!meta) return;
-
-      const opponentId = getOpponentId(meta.player1Id, meta.player2Id, payload.userId);
-      this.wsGateway.sendToUser(opponentId, 'opponent:disconnected', { matchId, opponentId: payload.userId });
+      if (meta) {
+        const opponentId = getOpponentId(meta.player1Id, meta.player2Id, payload.userId);
+        this.wsGateway.sendToUser(opponentId, 'opponent:disconnected', { matchId, opponentId: payload.userId });
+      }
     }
+    await this.scheduleRemindersForCurrentTurns(payload.userId);
   }
 }

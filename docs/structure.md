@@ -39,7 +39,7 @@ but are outside this technical behavior documentation set.
 | `config` | Effective runtime configuration and configured limits. | Active |
 | `matches` | Pending/active match lifecycle and realtime game behavior. | Active, with limitations in [Match Runtime](systems/match-runtime.md). |
 | `ws` | Ticket endpoint and WebSocket gateway. | Active |
-| `notifications` | Push delivery and reminder handling. | Partially implemented; see [Notification Delivery](systems/notification-delivery.md). |
+| `notifications` | Push delivery and reminder handling. | Active |
 | `admin` | Catalog/configuration administration endpoints. | Active |
 | `dev` | Development-only helper endpoints. | Active only under development guard conditions. |
 | `maintenance` | Maintenance announcement support. | No complete active flow. |
