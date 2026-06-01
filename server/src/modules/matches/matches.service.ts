@@ -49,6 +49,8 @@ interface MatchInvite {
   playerSlot: 1 | 2;
   playerId: string;
   inviteCode: string;
+  private: boolean;
+  invitees: string[];
   options: Record<string, unknown> | null;
   createdAt: string;
 }
@@ -91,6 +93,38 @@ function errorCodeOf(err: unknown): number {
   return 500;
 }
 
+function getInvitees(data: MatchInvite): string[] {
+  return Array.isArray(data.invitees) ? data.invitees : [];
+}
+
+function ensureCanJoinInvite(data: MatchInvite, callerId: string): void {
+  if (data.private === true && !getInvitees(data).includes(callerId)) {
+    throw new ForbiddenException('You are not invited to this match');
+  }
+}
+
+function ensureInviteeLimit(invitees: string[], friendId: string, limit: number): void {
+  if (!invitees.includes(friendId) && invitees.length >= limit) {
+    throw new ForbiddenException('Invitee limit reached');
+  }
+}
+
+function getInviteExpiresAt(data: MatchInvite): Date {
+  return new Date(new Date(data.createdAt).getTime() + INVITE_CODE_TTL_MS);
+}
+
+function toInviteDto(data: MatchInvite, now: Date, includeInvitees = true): object {
+  const dto: Record<string, unknown> = {
+    inviteCode: data.inviteCode,
+    expiresAfter: new Date(getInviteExpiresAt(data).getTime() - now.getTime()),
+    gameId: data.gameId,
+    private: data.private === true,
+    createdAt: new Date(data.createdAt),
+  };
+  if (includeInvitees) dto.invitees = getInvitees(data);
+  return dto;
+}
+
 @Injectable()
 export class MatchesService implements OnModuleInit {
   constructor(
@@ -108,7 +142,13 @@ export class MatchesService implements OnModuleInit {
     this.usersService.registerCleanupCallback((userId) => this.cleanupForUser(userId));
   }
 
-  async createMatch(gameSlug: string, playerSlot: 1 | 2, callerId: string, options?: Record<string, unknown>): Promise<object> {
+  async createMatch(
+    gameSlug: string,
+    playerSlot: 0 | 1 | 2,
+    callerId: string,
+    options?: Record<string, unknown>,
+    isPrivate = false,
+  ): Promise<object> {
     const [game, user] = await Promise.all([
       this.gamesService.findBySlug(gameSlug),
       this.usersService.findById(callerId),
@@ -135,11 +175,7 @@ export class MatchesService implements OnModuleInit {
     ]);
 
     const { featureLimits } = this.configService.configData;
-    const tier =
-      user.provider === 'anonymous' ? 'anonymous' : 
-      user.provider === 'dev' ? 'dev' :
-      'social';
-    const matchLimit = featureLimits[tier].maxConcurrentMatches;
+    const matchLimit = featureLimits[UsersService.getAccountType(user.provider)].maxConcurrentMatches;
     if (matchLimit >= 0 && pendingCount + activeCount >= matchLimit)
       throw new ForbiddenException('Concurrent match limit reached');
 
@@ -148,15 +184,17 @@ export class MatchesService implements OnModuleInit {
     const data: MatchInvite = {
       gameId: game.id,
       gameName: game.name,
-      playerSlot,
+      playerSlot: playerSlot !== 0 ? playerSlot : (Math.random() < 0.5 ? 1 : 2),
       playerId: callerId,
       inviteCode,
+      private: isPrivate,
+      invitees: [],
       options: options ?? null,
       createdAt: new Date().toISOString(),
     };
 
     await this.redis.set(`invite:code:${inviteCode}`, JSON.stringify(data), 'PX', INVITE_CODE_TTL_MS);
-    await this.redis.zadd(`invite:user:${callerId}`, expiresAt.getTime(), inviteCode);
+    await this.addInviteIndex(`invite:user:${callerId}`, expiresAt.getTime(), inviteCode);
 
     return {
       inviteCode,
@@ -167,7 +205,6 @@ export class MatchesService implements OnModuleInit {
 
   async joinMatch(inviteCode: string, callerId: string): Promise<void> {
     const inviteKey = `invite:code:${inviteCode}`;
-    const claimKey = `invite:claim:${inviteCode}`;
 
     const raw = await this.redis.get(inviteKey);
     if (!raw) throw new NotFoundException('Invite code not found');
@@ -176,9 +213,9 @@ export class MatchesService implements OnModuleInit {
     if (data.playerId === callerId) {
       throw new ForbiddenException('Cannot join your own match');
     }
+    ensureCanJoinInvite(data, callerId);
 
-    const claimed = await this.redis.set(claimKey, callerId, 'PX', INVITE_CLAIM_TTL_MS, 'NX');
-    if (claimed !== 'OK') throw new ConflictException('Invite is already being joined');
+    const claimKey = await this.acquireInviteClaim(inviteCode, callerId);
 
     let matchSaved = false;
     try {
@@ -189,6 +226,7 @@ export class MatchesService implements OnModuleInit {
       if (data.playerId === callerId) {
         throw new ForbiddenException('Cannot join your own match');
       }
+      ensureCanJoinInvite(data, callerId);
 
       const plugin = this.gamesRegistry.getPlugin(data.gameId);
       const match = await this.matches.save(this.matches.create({
@@ -201,7 +239,7 @@ export class MatchesService implements OnModuleInit {
       }));
       matchSaved = true;
 
-      await this.cleanupJoinedInvite(inviteCode, data.playerId, claimKey);
+      await this.cleanupJoinedInvite(inviteCode, data, claimKey);
 
       const initialView1 = plugin.getPlayerView(match.state as GameState, 1);
       const initialView2 = plugin.getPlayerView(match.state as GameState, 2);
@@ -225,11 +263,12 @@ export class MatchesService implements OnModuleInit {
     }
   }
 
-  private async cleanupJoinedInvite(inviteCode: string, creatorId: string, claimKey: string): Promise<void> {
+  private async cleanupJoinedInvite(inviteCode: string, data: MatchInvite, claimKey: string): Promise<void> {
     try {
       await Promise.all([
         this.redis.del(`invite:code:${inviteCode}`),
-        this.redis.zrem(`invite:user:${creatorId}`, inviteCode),
+        this.redis.zrem(`invite:user:${data.playerId}`, inviteCode),
+        ...getInvitees(data).map((inviteeId) => this.redis.zrem(`invite:received:${inviteeId}`, inviteCode)),
         this.redis.del(claimKey),
       ]);
     } catch {
@@ -245,39 +284,142 @@ export class MatchesService implements OnModuleInit {
     }
   }
 
+  private async acquireInviteClaim(inviteCode: string, callerId: string): Promise<string> {
+    const claimKey = `invite:claim:${inviteCode}`;
+    const claimed = await this.redis.set(claimKey, callerId, 'PX', INVITE_CLAIM_TTL_MS, 'NX');
+    if (claimed !== 'OK') throw new ConflictException('Invite is already being joined');
+    return claimKey;
+  }
+
   async cancelMatch(inviteCode: string, callerId: string): Promise<void> {
-    const raw = await this.redis.get(`invite:code:${inviteCode}`);
+    const inviteKey = `invite:code:${inviteCode}`;
+    const raw = await this.redis.get(inviteKey);
     if (!raw) throw new NotFoundException('Invite code not found');
 
-    const data: MatchInvite = JSON.parse(raw);
+    let data: MatchInvite = JSON.parse(raw);
 
     if (data.playerId !== callerId) {
       throw new ForbiddenException('Only the creator can cancel this match');
     }
 
-    await this.redis.del(`invite:code:${inviteCode}`);
-    await this.redis.zrem(`invite:user:${callerId}`, inviteCode);
+    const claimKey = await this.acquireInviteClaim(inviteCode, callerId);
+    try {
+      const claimedRaw = await this.redis.get(inviteKey);
+      if (!claimedRaw) throw new NotFoundException('Invite code not found');
+
+      data = JSON.parse(claimedRaw);
+      if (data.playerId !== callerId) {
+        throw new ForbiddenException('Only the creator can cancel this match');
+      }
+
+      await Promise.all([
+        this.redis.del(inviteKey),
+        this.redis.zrem(`invite:user:${callerId}`, inviteCode),
+        ...getInvitees(data).map((inviteeId) => this.redis.zrem(`invite:received:${inviteeId}`, inviteCode)),
+      ]);
+    } finally {
+      await this.releaseInviteClaim(claimKey);
+    }
   }
 
   async inviteFriendToMatch(inviteCode: string, callerId: string, friendId: string): Promise<void> {
-    const raw = await this.redis.get(`invite:code:${inviteCode}`);
+    const inviteKey = `invite:code:${inviteCode}`;
+    const raw = await this.redis.get(inviteKey);
     if (!raw) throw new NotFoundException('Invite not found');
 
-    const data: MatchInvite = JSON.parse(raw);
+    let data: MatchInvite = JSON.parse(raw);
 
     if (data.playerId !== callerId)
       throw new ForbiddenException('Not your invite');
 
-    if (!(await this.usersService.areFriends(callerId, friendId)))
+    const [owner, areFriends] = await Promise.all([
+      this.usersService.findById(callerId),
+      this.usersService.areFriends(callerId, friendId),
+    ]);
+    if (!owner) throw new NotFoundException('User not found');
+    if (!areFriends)
       throw new ForbiddenException('Not a friend');
 
+    const claimKey = await this.acquireInviteClaim(inviteCode, callerId);
+    let nextData: MatchInvite;
+    try {
+      const claimedRaw = await this.redis.get(inviteKey);
+      if (!claimedRaw) throw new NotFoundException('Invite not found');
+
+      data = JSON.parse(claimedRaw);
+      if (data.playerId !== callerId)
+        throw new ForbiddenException('Not your invite');
+
+      const invitees = getInvitees(data);
+      ensureInviteeLimit(invitees, friendId, this.configService.configData.featureLimits[UsersService.getAccountType(owner.provider)].maxInviteesPerMatch);
+      nextData = {
+        ...data,
+        private: data.private === true,
+        invitees: invitees.includes(friendId) ? invitees : [...invitees, friendId],
+      };
+      await Promise.all([
+        this.redis.set(inviteKey, JSON.stringify(nextData), 'KEEPTTL'),
+        this.addInviteIndex(`invite:received:${friendId}`, getInviteExpiresAt(nextData).getTime(), inviteCode),
+      ]);
+    } finally {
+      await this.releaseInviteClaim(claimKey);
+    }
+
     const deepLink = `acog://join?code=${inviteCode}`;
-    await this.notificationsService.sendPush(
-      friendId, 'friend-invite',
-      { inviteCode, deepLink, gameId: data.gameId },
-      { title: 'Match Invitation', body: `A friend invited you to play ${data.gameName}!` },
-    );
-    this.wsGateway.sendToUser(friendId, 'friend:invite', { inviteCode, deepLink, gameId: data.gameId });
+    if (this.wsGateway.isUserConnected(friendId)) {
+      this.wsGateway.sendToUser(friendId, 'friend:invite', { inviteCode, deepLink, gameId: nextData.gameId });
+    } else {
+      await this.notificationsService.sendPush(
+        friendId, 'friend-invite',
+        { inviteCode, deepLink, gameId: nextData.gameId },
+        { title: 'Match Invitation', body: `A friend invited you to play ${nextData.gameName}!` },
+      );
+    }
+  }
+
+  private async addInviteIndex(key: string, expiresAt: number, inviteCode: string): Promise<void> {
+    await this.redis.zadd(key, expiresAt, inviteCode);
+    await this.redis.pexpire(key, INVITE_CODE_TTL_MS);
+  }
+
+  async rollbackFriendInvite(inviteCode: string, callerId: string, friendId: string): Promise<void> {
+    const inviteKey = `invite:code:${inviteCode}`;
+    const raw = await this.redis.get(inviteKey);
+    if (!raw) throw new NotFoundException('Invite not found');
+
+    let data: MatchInvite = JSON.parse(raw);
+
+    if (data.playerId !== callerId)
+      throw new ForbiddenException('Not your invite');
+
+    const claimKey = await this.acquireInviteClaim(inviteCode, callerId);
+    try {
+      const claimedRaw = await this.redis.get(inviteKey);
+      if (!claimedRaw) throw new NotFoundException('Invite not found');
+
+      data = JSON.parse(claimedRaw);
+      if (data.playerId !== callerId)
+        throw new ForbiddenException('Not your invite');
+
+      const invitees = getInvitees(data);
+      if (!invitees.includes(friendId)) {
+        await this.redis.zrem(`invite:received:${friendId}`, inviteCode);
+        return;
+      }
+
+      const nextData: MatchInvite = {
+        ...data,
+        private: data.private === true,
+        invitees: invitees.filter((inviteeId) => inviteeId !== friendId),
+      };
+
+      await Promise.all([
+        this.redis.set(inviteKey, JSON.stringify(nextData), 'KEEPTTL'),
+        this.redis.zrem(`invite:received:${friendId}`, inviteCode),
+      ]);
+    } finally {
+      await this.releaseInviteClaim(claimKey);
+    }
   }
 
   async abandonMatch(id: string, callerId: string): Promise<void> {
@@ -319,16 +461,86 @@ export class MatchesService implements OnModuleInit {
     const raws = await this.redis.mget(...inviteCodes.map((c) => `invite:code:${c}`));
     return raws.filter((r): r is string => r !== null).map((r) => {
       const d: MatchInvite = JSON.parse(r);
-      return {
-        status: 'pending',
-        inviteCode: d.inviteCode,
-        deepLink: `acog://join?code=${d.inviteCode}`,
-        expiresAfter: new Date(new Date(d.createdAt).getTime() + INVITE_CODE_TTL_MS - now.getTime()),
-        playerSlot: d.playerSlot,
-        gameId: d.gameId,
-        createdAt: new Date(d.createdAt),
-      };
+      return toInviteDto(d, now);
     });
+  }
+
+  async listReceivedInvites(userId: string): Promise<object[]> {
+    const now = new Date();
+    await this.redis.zremrangebyscore(`invite:received:${userId}`, '-inf', now.getTime());
+    const inviteCodes = await this.redis.zrange(`invite:received:${userId}`, 0, -1);
+    if (inviteCodes.length === 0) return [];
+
+    const raws = await this.redis.mget(...inviteCodes.map((c) => `invite:code:${c}`));
+    const staleCodes: string[] = [];
+    const invites: object[] = [];
+
+    raws.forEach((raw, index) => {
+      const inviteCode = inviteCodes[index];
+      if (!raw) {
+        staleCodes.push(inviteCode);
+        return;
+      }
+
+      const data: MatchInvite = JSON.parse(raw);
+      if (!getInvitees(data).includes(userId)) {
+        staleCodes.push(inviteCode);
+        return;
+      }
+
+      invites.push(toInviteDto(data, now, false));
+    });
+
+    if (staleCodes.length > 0) {
+      await this.redis.zrem(`invite:received:${userId}`, ...staleCodes);
+    }
+
+    return invites;
+  }
+
+  async deleteReceivedInvite(inviteCode: string, callerId: string): Promise<void> {
+    const inviteKey = `invite:code:${inviteCode}`;
+    const raw = await this.redis.get(inviteKey);
+    if (!raw) {
+      await this.redis.zrem(`invite:received:${callerId}`, inviteCode);
+      return;
+    }
+
+    let data: MatchInvite = JSON.parse(raw);
+    let invitees = getInvitees(data);
+    if (!invitees.includes(callerId)) {
+      await this.redis.zrem(`invite:received:${callerId}`, inviteCode);
+      return;
+    }
+
+    const claimKey = await this.acquireInviteClaim(inviteCode, callerId);
+    try {
+      const claimedRaw = await this.redis.get(inviteKey);
+      if (!claimedRaw) {
+        await this.redis.zrem(`invite:received:${callerId}`, inviteCode);
+        return;
+      }
+
+      data = JSON.parse(claimedRaw);
+      invitees = getInvitees(data);
+      if (!invitees.includes(callerId)) {
+        await this.redis.zrem(`invite:received:${callerId}`, inviteCode);
+        return;
+      }
+
+      const nextData: MatchInvite = {
+        ...data,
+        private: data.private === true,
+        invitees: invitees.filter((inviteeId) => inviteeId !== callerId),
+      };
+
+      await Promise.all([
+        this.redis.set(inviteKey, JSON.stringify(nextData), 'KEEPTTL'),
+        this.redis.zrem(`invite:received:${callerId}`, inviteCode),
+      ]);
+    } finally {
+      await this.releaseInviteClaim(claimKey);
+    }
   }
 
   async listActiveMatches(userId: string): Promise<object[]> {
@@ -690,9 +902,15 @@ export class MatchesService implements OnModuleInit {
     // Cancel all pending invites created by this user
     const inviteCodes = await this.redis.zrange(`invite:user:${userId}`, 0, -1);
     if (inviteCodes.length > 0) {
+      const raws = await this.redis.mget(...inviteCodes.map(c => `invite:code:${c}`));
+      await Promise.all(raws.map((raw, index) => {
+        if (!raw) return Promise.resolve();
+        const data: MatchInvite = JSON.parse(raw);
+        return Promise.all(getInvitees(data).map((inviteeId) => this.redis.zrem(`invite:received:${inviteeId}`, inviteCodes[index])));
+      }));
       await this.redis.del(...inviteCodes.map(c => `invite:code:${c}`));
     }
-    await this.redis.del(`invite:user:${userId}`, `match:user:${userId}`);
+    await this.redis.del(`invite:user:${userId}`, `invite:received:${userId}`, `match:user:${userId}`);
 
     // Abandon all active matches
     const activeMatches = await this.matches.find({

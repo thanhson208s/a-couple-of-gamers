@@ -57,6 +57,40 @@ describe('ConfigService', () => {
       expect(result.appVersion?.ios).toEqual(DEFAULT_CONFIG.appVersion?.ios);
       expect(result.appVersion?.android).toEqual(DEFAULT_CONFIG.appVersion?.android);
     });
+
+    it('fills missing account limit fields from defaults', async () => {
+      const oldConfig = {
+        ...DEFAULT_CONFIG,
+        featureLimits: {
+          anonymous: {
+            maxFavorites: 2,
+            maxFriends: 0,
+            maxConcurrentMatches: 1,
+          },
+          social: {
+            maxFavorites: 10,
+            maxFriends: 100,
+            maxConcurrentMatches: 5,
+          },
+          dev: {
+            maxFavorites: 1_000_000_000,
+            maxFriends: 1_000_000_000,
+            maxConcurrentMatches: 1_000_000_000,
+          },
+        },
+      };
+      configRepo.findOne.mockResolvedValue({
+        id: 1,
+        configData: oldConfig,
+      });
+      gamesService.listGames.mockResolvedValue([]);
+
+      const result = await service.getConfig() as any;
+
+      expect(result.featureLimits.anonymous.maxInviteesPerMatch).toBe(DEFAULT_CONFIG.featureLimits.anonymous.maxInviteesPerMatch);
+      expect(result.featureLimits.social.maxInviteesPerMatch).toBe(DEFAULT_CONFIG.featureLimits.social.maxInviteesPerMatch);
+      expect(result.featureLimits.dev.maxInviteesPerMatch).toBe(DEFAULT_CONFIG.featureLimits.dev.maxInviteesPerMatch);
+    });
   });
 
   describe('updateConfig', () => {

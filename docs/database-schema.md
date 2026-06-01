@@ -150,9 +150,10 @@ documents must not present the unmatched entity shapes as live storage.
 
 | Key Pattern | Data | Lifetime / Mutation Rule |
 |---|---|---|
-| `invite:code:{inviteCode}` | JSON invitation containing game, creator, player slot, options, and creation time. | 24 hours; deleted on join/cancel/account cleanup. |
-| `invite:claim:{inviteCode}` | Caller ID for an in-progress join attempt. | 30 seconds; set with `NX` during join, deleted after successful invite cleanup or released when durable match creation fails. |
-| `invite:user:{userId}` | Sorted-set index of invitation codes created by a user. | No key expiry; expired members are pruned on relevant reads/creation and key deleted during account cleanup. |
+| `invite:code:{inviteCode}` | JSON invitation containing game, creator, player slot, private flag, invitee user IDs, options, and creation time. | 24 hours; deleted on join/cancel/account cleanup. |
+| `invite:claim:{inviteCode}` | Caller ID for an in-progress join, friend invite, cancel, rollback, or received-invite delete operation. | 30 seconds; set with `NX` during claimed invite mutations, deleted after successful cleanup or released when the operation fails before consuming the invite. |
+| `invite:user:{userId}` | Sorted-set index of invitation codes created by a user. | 24 hours from each write; expired members are pruned on relevant reads/creation and key deleted during account cleanup. |
+| `invite:received:{userId}` | Sorted-set index of invitation codes sent to a user, scored by invite expiry time. | 24 hours from each write; expired members are pruned on read and members are removed on recipient delete, sender rollback, join, cancel, or account cleanup. |
 | `match:meta:{matchId}` | JSON players, game ID, and lifecycle status for realtime lookup. | Written with finite TTL; current write paths set either 24 hours or 30 days; deleted on completion/abandonment cleanup. |
 | `match:state:{matchId}` | JSON plugin state used while active interactions occur. | 1 hour from each write; flushed to PostgreSQL at session boundaries and removed on match finalization. |
 | `match:user:{userId}` | ID of the match currently opened by a user. | No expiry; removed on close/disconnect/account cleanup. |

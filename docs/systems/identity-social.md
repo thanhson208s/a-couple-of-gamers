@@ -90,7 +90,7 @@ does not authorize deletion of the caller's application account.
 | Phase | Behavior |
 |---|---|
 | Reauthentication check | The supplied Firebase identity token is verified with revocation checking and must be recently issued. A UID mapped to another application user is rejected without deletion. A UID with no application-user mapping is removed from Firebase and the account-deletion request is rejected. |
-| Pending-match cleanup | Pending invitations created by the deleting user are removed. Invites created by another user are not searched by invite recipient because pending invites do not yet have a second participant. |
+| Pending-match cleanup | Pending invitations created by the deleting user are removed, including recipient invite index entries. The deleting user's received-invite index is also removed. |
 | Active-match cleanup | Each active match involving the user becomes abandoned; current cached state is flushed, cached/replay state is removed, pending reminder work for both players is cancelled, and connected opponents receive `match:over`. |
 | Account removal | After the verified UID resolves to the authenticated caller, the application user row is deleted, followed by deletion of the same Firebase identity. Related row effects depend on committed database relationships. |
 

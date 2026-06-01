@@ -21,6 +21,7 @@ import { DEFAULT_CONFIG } from '../config/config.entity';
 
 const CALLER_ID = 'CALLER0001';
 const OTHER_ID  = 'OTHER00001';
+const FRIEND_ID = 'FRIEND0001';
 const MATCH_ID  = 'match-uuid-1';
 
 function makeGame(overrides: Partial<Game> = {}): Game {
@@ -45,7 +46,7 @@ function makeMatch(overrides: Partial<Match> = {}): Match {
 
 function makePendingJson(overrides: Partial<{
   gameId: string; gameName: string; playerSlot: 1 | 2; playerId: string;
-  inviteCode: string; options: null; createdAt: string;
+  inviteCode: string; private: boolean; invitees: string[]; options: null; createdAt: string;
 }> = {}): string {
   return JSON.stringify({
     gameId: 'tictactoe',
@@ -53,6 +54,8 @@ function makePendingJson(overrides: Partial<{
     playerSlot: 1,
     playerId: OTHER_ID,
     inviteCode: 'ABCD',
+    private: false,
+    invitees: [],
     options: null,
     createdAt: new Date().toISOString(),
     ...overrides,
@@ -78,10 +81,11 @@ describe('MatchesService', () => {
   let gamesRegistry: jest.Mocked<Pick<GamesRegistry, 'getPlugin' | 'getType'>>;
   let usersService: jest.Mocked<Pick<UsersService, 'updateRival' | 'areFriends' | 'findById'>>;
   let notificationsService: { sendPush: jest.Mock; scheduleReminders: jest.Mock; cancelReminders: jest.Mock };
+  let configService: { configData: typeof DEFAULT_CONFIG };
   let redis: {
     get: jest.Mock; set: jest.Mock; del: jest.Mock;
     zadd: jest.Mock; zrem: jest.Mock; zrange: jest.Mock;
-    zremrangebyscore: jest.Mock; zcard: jest.Mock; mget: jest.Mock; getdel: jest.Mock;
+    zremrangebyscore: jest.Mock; zcard: jest.Mock; mget: jest.Mock; getdel: jest.Mock; pexpire: jest.Mock;
   };
   let wsGateway: { sendToUser: jest.Mock; errorToUser: jest.Mock; isUserConnected: jest.Mock };
   let mockPlugin: {
@@ -108,6 +112,7 @@ describe('MatchesService', () => {
       scheduleReminders: jest.fn().mockResolvedValue(undefined),
       cancelReminders: jest.fn().mockResolvedValue(undefined),
     };
+    configService = { configData: structuredClone(DEFAULT_CONFIG) };
     wsGateway = { sendToUser: jest.fn(), errorToUser: jest.fn(), isUserConnected: jest.fn().mockReturnValue(false) };
     redis = {
       get: jest.fn().mockResolvedValue(null),
@@ -120,6 +125,7 @@ describe('MatchesService', () => {
       zcard: jest.fn().mockResolvedValue(0),
       mget: jest.fn().mockResolvedValue([]),
       getdel: jest.fn().mockResolvedValue(null),
+      pexpire: jest.fn().mockResolvedValue(1),
     };
 
     const module = await Test.createTestingModule({
@@ -132,7 +138,7 @@ describe('MatchesService', () => {
         { provide: WsGateway, useValue: wsGateway },
         { provide: UsersService, useValue: usersService },
         { provide: NotificationsService, useValue: notificationsService },
-        { provide: ConfigService, useValue: { configData: DEFAULT_CONFIG } },
+        { provide: ConfigService, useValue: configService },
       ],
     }).compile();
     service = module.get(MatchesService);
@@ -197,6 +203,10 @@ describe('MatchesService', () => {
         expect.any(Number),
         result.inviteCode,
       );
+      expect(redis.pexpire).toHaveBeenCalledWith(
+        `invite:user:${CALLER_ID}`,
+        24 * 60 * 60 * 1000,
+      );
     });
 
     it('does not write to Postgres', async () => {
@@ -215,6 +225,26 @@ describe('MatchesService', () => {
       const stored = JSON.parse(redis.set.mock.calls[0][1]);
       expect(stored.playerSlot).toBe(2);
       expect(stored.playerId).toBe(CALLER_ID);
+    });
+
+    it('stores public invite data by default', async () => {
+      gamesService.findBySlug.mockResolvedValue(makeGame());
+
+      await service.createMatch('tictactoe', 1, CALLER_ID);
+
+      const stored = JSON.parse(redis.set.mock.calls[0][1]);
+      expect(stored.private).toBe(false);
+      expect(stored.invitees).toEqual([]);
+    });
+
+    it('stores private invite data when requested', async () => {
+      gamesService.findBySlug.mockResolvedValue(makeGame());
+
+      await service.createMatch('tictactoe', 1, CALLER_ID, undefined, true);
+
+      const stored = JSON.parse(redis.set.mock.calls[0][1]);
+      expect(stored.private).toBe(true);
+      expect(stored.invitees).toEqual([]);
     });
 
     it('throws NotFoundException when the game slug is not found', async () => {
@@ -246,7 +276,7 @@ describe('MatchesService', () => {
 
   describe('joinMatch', () => {
     it('creates an active Postgres match and removes Redis keys', async () => {
-      redis.get.mockResolvedValue(makePendingJson({ playerSlot: 1, playerId: OTHER_ID }));
+      redis.get.mockResolvedValue(makePendingJson({ playerSlot: 1, playerId: OTHER_ID, invitees: [CALLER_ID] }));
       const saved = makeMatch({ player1Id: OTHER_ID, player2Id: CALLER_ID });
       matchesRepo.create.mockReturnValue(saved);
       matchesRepo.save.mockResolvedValue(saved);
@@ -257,6 +287,7 @@ describe('MatchesService', () => {
       expect(redis.del).toHaveBeenCalledWith('invite:code:ABCD');
       expect(redis.del).toHaveBeenCalledWith('invite:claim:ABCD');
       expect(redis.zrem).toHaveBeenCalledWith(`invite:user:${OTHER_ID}`, 'ABCD');
+      expect(redis.zrem).toHaveBeenCalledWith(`invite:received:${CALLER_ID}`, 'ABCD');
     });
 
     it('creates the durable match before removing the Redis invite', async () => {
@@ -323,6 +354,36 @@ describe('MatchesService', () => {
       );
     });
 
+    it('rejects private invites when the caller is not invited', async () => {
+      redis.get.mockResolvedValue(makePendingJson({
+        playerSlot: 1,
+        playerId: OTHER_ID,
+        private: true,
+        invitees: ['FRIEND0001'],
+      }));
+
+      await expect(service.joinMatch('ABCD', CALLER_ID)).rejects.toThrow(ForbiddenException);
+
+      expect(redis.set).not.toHaveBeenCalledWith('invite:claim:ABCD', CALLER_ID, 'PX', expect.any(Number), 'NX');
+      expect(matchesRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('allows private invites when the caller is invited', async () => {
+      redis.get.mockResolvedValue(makePendingJson({
+        playerSlot: 1,
+        playerId: OTHER_ID,
+        private: true,
+        invitees: [CALLER_ID],
+      }));
+      const saved = makeMatch({ player1Id: OTHER_ID, player2Id: CALLER_ID });
+      matchesRepo.create.mockReturnValue(saved);
+      matchesRepo.save.mockResolvedValue(saved);
+
+      await expect(service.joinMatch('ABCD', CALLER_ID)).resolves.toBeUndefined();
+
+      expect(matchesRepo.save).toHaveBeenCalledTimes(1);
+    });
+
     it('initialises game state via the plugin', async () => {
       redis.get.mockResolvedValue(makePendingJson());
       matchesRepo.create.mockReturnValue(makeMatch());
@@ -376,12 +437,25 @@ describe('MatchesService', () => {
 
   describe('cancelMatch', () => {
     it('deletes both Redis keys when the creator cancels', async () => {
-      redis.get.mockResolvedValue(makePendingJson({ playerId: CALLER_ID }));
+      redis.get.mockResolvedValue(makePendingJson({ playerId: CALLER_ID, invitees: [OTHER_ID] }));
 
       await service.cancelMatch('ABCD', CALLER_ID);
 
+      expect(redis.set).toHaveBeenCalledWith('invite:claim:ABCD', CALLER_ID, 'PX', expect.any(Number), 'NX');
       expect(redis.del).toHaveBeenCalledWith('invite:code:ABCD');
+      expect(redis.del).toHaveBeenCalledWith('invite:claim:ABCD');
       expect(redis.zrem).toHaveBeenCalledWith(`invite:user:${CALLER_ID}`, 'ABCD');
+      expect(redis.zrem).toHaveBeenCalledWith(`invite:received:${OTHER_ID}`, 'ABCD');
+    });
+
+    it('throws ConflictException when another caller already holds the invite claim', async () => {
+      redis.get.mockResolvedValue(makePendingJson({ playerId: CALLER_ID }));
+      redis.set.mockResolvedValueOnce(null);
+
+      await expect(service.cancelMatch('ABCD', CALLER_ID)).rejects.toThrow(ConflictException);
+
+      expect(redis.del).not.toHaveBeenCalledWith('invite:code:ABCD');
+      expect(redis.zrem).not.toHaveBeenCalledWith(`invite:user:${CALLER_ID}`, 'ABCD');
     });
 
     it('throws NotFoundException when invite code does not exist', async () => {
@@ -735,8 +809,9 @@ describe('MatchesService', () => {
       const result = await service.listPendingMatches(CALLER_ID);
 
       expect(result).toHaveLength(1);
-      expect((result[0] as any).status).toBe('pending');
       expect((result[0] as any).inviteCode).toBe('ABCD');
+      expect((result[0] as any).private).toBe(false);
+      expect((result[0] as any).invitees).toEqual([]);
     });
 
     it('prunes expired sorted set members before reading', async () => {
@@ -749,6 +824,129 @@ describe('MatchesService', () => {
         '-inf',
         expect.any(Number),
       );
+    });
+  });
+
+  describe('listReceivedInvites', () => {
+    it('returns empty array when no invite codes in sorted set', async () => {
+      redis.zrange.mockResolvedValue([]);
+
+      const result = await service.listReceivedInvites(CALLER_ID);
+
+      expect(result).toEqual([]);
+      expect(redis.mget).not.toHaveBeenCalled();
+    });
+
+    it('returns received invite DTOs from Redis', async () => {
+      redis.zrange.mockResolvedValue(['ABCD']);
+      redis.mget.mockResolvedValue([makePendingJson({
+        inviteCode: 'ABCD',
+        playerId: OTHER_ID,
+        private: true,
+        invitees: [CALLER_ID],
+      })]);
+
+      const result = await service.listReceivedInvites(CALLER_ID);
+
+      expect(result).toHaveLength(1);
+      expect((result[0] as any).inviteCode).toBe('ABCD');
+      expect((result[0] as any).private).toBe(true);
+      expect((result[0] as any).invitees).toBeUndefined();
+    });
+
+    it('prunes expired sorted set members before reading', async () => {
+      redis.zrange.mockResolvedValue([]);
+
+      await service.listReceivedInvites(CALLER_ID);
+
+      expect(redis.zremrangebyscore).toHaveBeenCalledWith(
+        `invite:received:${CALLER_ID}`,
+        '-inf',
+        expect.any(Number),
+      );
+    });
+
+    it('removes stale codes when the source invite no longer exists', async () => {
+      redis.zrange.mockResolvedValue(['ABCD']);
+      redis.mget.mockResolvedValue([null]);
+
+      const result = await service.listReceivedInvites(CALLER_ID);
+
+      expect(result).toEqual([]);
+      expect(redis.zrem).toHaveBeenCalledWith(`invite:received:${CALLER_ID}`, 'ABCD');
+    });
+
+    it('ignores and removes codes when the caller is no longer an invitee', async () => {
+      redis.zrange.mockResolvedValue(['ABCD']);
+      redis.mget.mockResolvedValue([makePendingJson({
+        inviteCode: 'ABCD',
+        playerId: OTHER_ID,
+        invitees: [FRIEND_ID],
+      })]);
+
+      const result = await service.listReceivedInvites(CALLER_ID);
+
+      expect(result).toEqual([]);
+      expect(redis.zrem).toHaveBeenCalledWith(`invite:received:${CALLER_ID}`, 'ABCD');
+    });
+  });
+
+  describe('deleteReceivedInvite', () => {
+    it('removes the caller from invitees and the received index', async () => {
+      redis.get.mockResolvedValue(makePendingJson({
+        inviteCode: 'ABCD',
+        playerId: OTHER_ID,
+        private: true,
+        invitees: [CALLER_ID, FRIEND_ID],
+      }));
+
+      await service.deleteReceivedInvite('ABCD', CALLER_ID);
+
+      expect(redis.set).toHaveBeenCalledWith(
+        'invite:code:ABCD',
+        expect.any(String),
+        'KEEPTTL',
+      );
+      const inviteWrite = redis.set.mock.calls.find((call) => call[0] === 'invite:code:ABCD' && call[2] === 'KEEPTTL');
+      const updated = JSON.parse(inviteWrite![1]);
+      expect(updated.invitees).toEqual([FRIEND_ID]);
+      expect(redis.zrem).toHaveBeenCalledWith(`invite:received:${CALLER_ID}`, 'ABCD');
+      expect(redis.del).toHaveBeenCalledWith('invite:claim:ABCD');
+    });
+
+    it('throws ConflictException when another caller already holds the invite claim', async () => {
+      redis.get.mockResolvedValue(makePendingJson({
+        inviteCode: 'ABCD',
+        playerId: OTHER_ID,
+        invitees: [CALLER_ID],
+      }));
+      redis.set.mockResolvedValueOnce(null);
+
+      await expect(service.deleteReceivedInvite('ABCD', CALLER_ID)).rejects.toThrow(ConflictException);
+
+      expect(redis.zrem).not.toHaveBeenCalledWith(`invite:received:${CALLER_ID}`, 'ABCD');
+    });
+
+    it('only removes the received index when the source invite is missing', async () => {
+      redis.get.mockResolvedValue(null);
+
+      await service.deleteReceivedInvite('ABCD', CALLER_ID);
+
+      expect(redis.set).not.toHaveBeenCalled();
+      expect(redis.zrem).toHaveBeenCalledWith(`invite:received:${CALLER_ID}`, 'ABCD');
+    });
+
+    it('only removes the received index when the caller is no longer an invitee', async () => {
+      redis.get.mockResolvedValue(makePendingJson({
+        inviteCode: 'ABCD',
+        playerId: OTHER_ID,
+        invitees: [FRIEND_ID],
+      }));
+
+      await service.deleteReceivedInvite('ABCD', CALLER_ID);
+
+      expect(redis.set).not.toHaveBeenCalled();
+      expect(redis.zrem).toHaveBeenCalledWith(`invite:received:${CALLER_ID}`, 'ABCD');
     });
   });
 
@@ -1011,9 +1209,86 @@ describe('MatchesService', () => {
       expect(notificationsService.sendPush).not.toHaveBeenCalled();
     });
 
-    it('sends push notification and WS event to friend on success', async () => {
+    it('throws ForbiddenException when a guest owner already has one invitee', async () => {
+      redis.get.mockResolvedValue(makePendingJson({
+        playerId: CALLER_ID,
+        inviteCode: INVITE_CODE,
+        invitees: [OTHER_ID],
+      }));
+      usersService.findById.mockResolvedValue({ id: CALLER_ID, provider: 'anonymous' } as any);
+      usersService.areFriends.mockResolvedValue(true);
+
+      await expect(service.inviteFriendToMatch(INVITE_CODE, CALLER_ID, FRIEND_ID)).rejects.toThrow(ForbiddenException);
+
+      expect(redis.set).not.toHaveBeenCalledWith(
+        `invite:code:${INVITE_CODE}`,
+        expect.any(String),
+        'KEEPTTL',
+      );
+      expect(redis.del).toHaveBeenCalledWith(`invite:claim:${INVITE_CODE}`);
+      expect(notificationsService.sendPush).not.toHaveBeenCalled();
+    });
+
+    it('throws ForbiddenException when a social owner already has five invitees', async () => {
+      redis.get.mockResolvedValue(makePendingJson({
+        playerId: CALLER_ID,
+        inviteCode: INVITE_CODE,
+        invitees: ['FRIEND0002', 'FRIEND0003', 'FRIEND0004', 'FRIEND0005', 'FRIEND0006'],
+      }));
+      usersService.findById.mockResolvedValue({ id: CALLER_ID, provider: 'google.com' } as any);
+      usersService.areFriends.mockResolvedValue(true);
+
+      await expect(service.inviteFriendToMatch(INVITE_CODE, CALLER_ID, FRIEND_ID)).rejects.toThrow(ForbiddenException);
+
+      expect(redis.set).not.toHaveBeenCalledWith(
+        `invite:code:${INVITE_CODE}`,
+        expect.any(String),
+        'KEEPTTL',
+      );
+      expect(redis.del).toHaveBeenCalledWith(`invite:claim:${INVITE_CODE}`);
+      expect(notificationsService.sendPush).not.toHaveBeenCalled();
+    });
+
+    it('uses the configured invitee limit for the owner tier', async () => {
+      configService.configData.featureLimits.social.maxInviteesPerMatch = 2;
+      redis.get.mockResolvedValue(makePendingJson({
+        playerId: CALLER_ID,
+        inviteCode: INVITE_CODE,
+        invitees: ['FRIEND0002', 'FRIEND0003'],
+      }));
+      usersService.findById.mockResolvedValue({ id: CALLER_ID, provider: 'google.com' } as any);
+      usersService.areFriends.mockResolvedValue(true);
+
+      await expect(service.inviteFriendToMatch(INVITE_CODE, CALLER_ID, FRIEND_ID)).rejects.toThrow(ForbiddenException);
+
+      expect(redis.set).not.toHaveBeenCalledWith(
+        `invite:code:${INVITE_CODE}`,
+        expect.any(String),
+        'KEEPTTL',
+      );
+      expect(redis.del).toHaveBeenCalledWith(`invite:claim:${INVITE_CODE}`);
+      expect(notificationsService.sendPush).not.toHaveBeenCalled();
+    });
+
+    it('throws ConflictException when another caller already holds the invite claim', async () => {
+      redis.get.mockResolvedValue(makePendingJson({ playerId: CALLER_ID, inviteCode: INVITE_CODE }));
+      usersService.areFriends.mockResolvedValue(true);
+      redis.set.mockResolvedValueOnce(null);
+
+      await expect(service.inviteFriendToMatch(INVITE_CODE, CALLER_ID, FRIEND_ID)).rejects.toThrow(ConflictException);
+
+      expect(redis.set).not.toHaveBeenCalledWith(
+        `invite:code:${INVITE_CODE}`,
+        expect.any(String),
+        'KEEPTTL',
+      );
+      expect(notificationsService.sendPush).not.toHaveBeenCalled();
+    });
+
+    it('sends push notification when the friend is offline', async () => {
       redis.get.mockResolvedValue(makePendingJson({ playerId: CALLER_ID, inviteCode: INVITE_CODE, gameId: 'tictactoe', gameName: 'Tic-Tac-Toe' }));
       usersService.areFriends.mockResolvedValue(true);
+      wsGateway.isUserConnected.mockReturnValue(false);
 
       await service.inviteFriendToMatch(INVITE_CODE, CALLER_ID, FRIEND_ID);
 
@@ -1023,7 +1298,142 @@ describe('MatchesService', () => {
         { inviteCode: INVITE_CODE, deepLink, gameId: 'tictactoe' },
         { title: 'Match Invitation', body: 'A friend invited you to play Tic-Tac-Toe!' },
       );
+      expect(wsGateway.sendToUser).not.toHaveBeenCalledWith(FRIEND_ID, 'friend:invite', expect.any(Object));
+    });
+
+    it('sends WS event when the friend is online', async () => {
+      redis.get.mockResolvedValue(makePendingJson({ playerId: CALLER_ID, inviteCode: INVITE_CODE, gameId: 'tictactoe', gameName: 'Tic-Tac-Toe' }));
+      usersService.areFriends.mockResolvedValue(true);
+      wsGateway.isUserConnected.mockReturnValue(true);
+
+      await service.inviteFriendToMatch(INVITE_CODE, CALLER_ID, FRIEND_ID);
+
+      const deepLink = `acog://join?code=${INVITE_CODE}`;
+      expect(notificationsService.sendPush).not.toHaveBeenCalled();
       expect(wsGateway.sendToUser).toHaveBeenCalledWith(FRIEND_ID, 'friend:invite', { inviteCode: INVITE_CODE, deepLink, gameId: 'tictactoe' });
+    });
+
+    it('adds the friend to invitees before sending invitation events', async () => {
+      redis.get.mockResolvedValue(makePendingJson({
+        playerId: CALLER_ID,
+        inviteCode: INVITE_CODE,
+        gameId: 'tictactoe',
+        gameName: 'Tic-Tac-Toe',
+        private: true,
+      }));
+      usersService.areFriends.mockResolvedValue(true);
+
+      await service.inviteFriendToMatch(INVITE_CODE, CALLER_ID, FRIEND_ID);
+
+      expect(redis.set).toHaveBeenCalledWith(
+        `invite:code:${INVITE_CODE}`,
+        expect.any(String),
+        'KEEPTTL',
+      );
+      expect(redis.zadd).toHaveBeenCalledWith(
+        `invite:received:${FRIEND_ID}`,
+        expect.any(Number),
+        INVITE_CODE,
+      );
+      expect(redis.pexpire).toHaveBeenCalledWith(
+        `invite:received:${FRIEND_ID}`,
+        24 * 60 * 60 * 1000,
+      );
+      const inviteWrite = redis.set.mock.calls.find((call) => call[0] === `invite:code:${INVITE_CODE}` && call[2] === 'KEEPTTL');
+      const updated = JSON.parse(inviteWrite![1]);
+      expect(updated.private).toBe(true);
+      expect(updated.invitees).toEqual([FRIEND_ID]);
+      expect(redis.del).toHaveBeenCalledWith(`invite:claim:${INVITE_CODE}`);
+      expect(redis.set.mock.invocationCallOrder[redis.set.mock.calls.indexOf(inviteWrite!)]).toBeLessThan(
+        notificationsService.sendPush.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('does not duplicate an existing invitee', async () => {
+      redis.get.mockResolvedValue(makePendingJson({
+        playerId: CALLER_ID,
+        inviteCode: INVITE_CODE,
+        invitees: [FRIEND_ID, 'FRIEND0002', 'FRIEND0003', 'FRIEND0004', 'FRIEND0005'],
+      }));
+      usersService.areFriends.mockResolvedValue(true);
+
+      await service.inviteFriendToMatch(INVITE_CODE, CALLER_ID, FRIEND_ID);
+
+      const inviteWrite = redis.set.mock.calls.find((call) => call[0] === `invite:code:${INVITE_CODE}` && call[2] === 'KEEPTTL');
+      const updated = JSON.parse(inviteWrite![1]);
+      expect(updated.invitees).toEqual([FRIEND_ID, 'FRIEND0002', 'FRIEND0003', 'FRIEND0004', 'FRIEND0005']);
+    });
+  });
+
+  describe('rollbackFriendInvite', () => {
+    const FRIEND_ID = 'FRIEND0001';
+    const INVITE_CODE = 'ABCD1234';
+
+    it('throws NotFoundException when invite code is not in Redis', async () => {
+      redis.get.mockResolvedValue(null);
+
+      await expect(service.rollbackFriendInvite(INVITE_CODE, CALLER_ID, FRIEND_ID)).rejects.toThrow(NotFoundException);
+      expect(redis.zrem).not.toHaveBeenCalled();
+    });
+
+    it('throws ForbiddenException when caller is not the invite creator', async () => {
+      redis.get.mockResolvedValue(makePendingJson({ playerId: OTHER_ID, inviteCode: INVITE_CODE }));
+
+      await expect(service.rollbackFriendInvite(INVITE_CODE, CALLER_ID, FRIEND_ID)).rejects.toThrow(ForbiddenException);
+      expect(redis.zrem).not.toHaveBeenCalled();
+    });
+
+    it('removes the friend from invitees and the received index', async () => {
+      redis.get.mockResolvedValue(makePendingJson({
+        playerId: CALLER_ID,
+        inviteCode: INVITE_CODE,
+        private: true,
+        invitees: [FRIEND_ID, OTHER_ID],
+      }));
+
+      await service.rollbackFriendInvite(INVITE_CODE, CALLER_ID, FRIEND_ID);
+
+      expect(redis.set).toHaveBeenCalledWith(
+        `invite:code:${INVITE_CODE}`,
+        expect.any(String),
+        'KEEPTTL',
+      );
+      const inviteWrite = redis.set.mock.calls.find((call) => call[0] === `invite:code:${INVITE_CODE}` && call[2] === 'KEEPTTL');
+      const updated = JSON.parse(inviteWrite![1]);
+      expect(updated.private).toBe(true);
+      expect(updated.invitees).toEqual([OTHER_ID]);
+      expect(redis.zrem).toHaveBeenCalledWith(`invite:received:${FRIEND_ID}`, INVITE_CODE);
+      expect(redis.del).toHaveBeenCalledWith(`invite:claim:${INVITE_CODE}`);
+    });
+
+    it('throws ConflictException when another caller already holds the invite claim', async () => {
+      redis.get.mockResolvedValue(makePendingJson({
+        playerId: CALLER_ID,
+        inviteCode: INVITE_CODE,
+        invitees: [FRIEND_ID],
+      }));
+      redis.set.mockResolvedValueOnce(null);
+
+      await expect(service.rollbackFriendInvite(INVITE_CODE, CALLER_ID, FRIEND_ID)).rejects.toThrow(ConflictException);
+
+      expect(redis.zrem).not.toHaveBeenCalledWith(`invite:received:${FRIEND_ID}`, INVITE_CODE);
+    });
+
+    it('only removes the received index when friend is not an invitee', async () => {
+      redis.get.mockResolvedValue(makePendingJson({
+        playerId: CALLER_ID,
+        inviteCode: INVITE_CODE,
+        invitees: [OTHER_ID],
+      }));
+
+      await service.rollbackFriendInvite(INVITE_CODE, CALLER_ID, FRIEND_ID);
+
+      expect(redis.set).not.toHaveBeenCalledWith(
+        `invite:code:${INVITE_CODE}`,
+        expect.any(String),
+        'KEEPTTL',
+      );
+      expect(redis.zrem).toHaveBeenCalledWith(`invite:received:${FRIEND_ID}`, INVITE_CODE);
     });
   });
 });

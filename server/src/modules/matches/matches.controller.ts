@@ -13,12 +13,23 @@ export class MatchesController {
   @Post()
   @AppThrottle({ ttl: 3_600_000, limit: 20 })
   createMatch(@Body() dto: CreateMatchDto, @CurrentUser() user: JwtUser) {
-    return this.matchesService.createMatch(dto.gameSlug, dto.playerSlot, user.id, dto.options);
+    return this.matchesService.createMatch(dto.gameSlug, dto.playerSlot, user.id, dto.options, dto.private);
   }
 
   @Get('pending')
   listPendingMatches(@CurrentUser() user: JwtUser) {
     return this.matchesService.listPendingMatches(user.id);
+  }
+
+  @Get('invites')
+  listReceivedInvites(@CurrentUser() user: JwtUser) {
+    return this.matchesService.listReceivedInvites(user.id);
+  }
+
+  @Delete('invites/:inviteCode')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  deleteReceivedInvite(@Param('inviteCode') inviteCode: string, @CurrentUser() user: JwtUser) {
+    return this.matchesService.deleteReceivedInvite(inviteCode, user.id);
   }
 
   @Get('active')
@@ -44,6 +55,16 @@ export class MatchesController {
     @CurrentUser() user: JwtUser,
   ) {
     return this.matchesService.inviteFriendToMatch(inviteCode, user.id, friendId);
+  }
+
+  @Delete('pending/:inviteCode/invite/:friendId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  rollbackFriendInvite(
+    @Param('inviteCode') inviteCode: string,
+    @Param('friendId') friendId: string,
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.matchesService.rollbackFriendInvite(inviteCode, user.id, friendId);
   }
 
   @Delete('pending/:inviteCode')

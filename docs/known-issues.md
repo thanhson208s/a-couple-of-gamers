@@ -22,7 +22,6 @@ pages.
 | Area | Current Behavior | Consequence | Related Documentation |
 |---|---|---|---|
 | Tic-Tac-Toe start state | New matches initialize without an eligible first player. | The only currently registered game cannot advance through ordinary action submission. | [Match Runtime](systems/match-runtime.md#incomplete-runtime-paths) |
-| Friend-invite delivery ordering | Match invitation delivery awaits the FCM send before attempting the realtime socket event. | An FCM exception fails the request and prevents realtime delivery even though the underlying pending invitation remains valid. | [Notification Delivery](systems/notification-delivery.md#friend-invitation-delivery) |
 
 ## Maintenance
 
