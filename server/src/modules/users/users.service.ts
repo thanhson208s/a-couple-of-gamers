@@ -76,12 +76,11 @@ export class UsersService {
     throw new InternalServerErrorException('Failed to generate unique user ID after 5 attempts');
   }
 
-  async getProfile(userId: string): Promise<{ id: string; provider: string; displayName: string; avatarUrl: string | null; favorites: string[]; favoritesLimit: number }> {
+  async getProfile(userId: string): Promise<{ id: string; provider: string; displayName: string; avatarUrl: string | null; favorites: string[] }> {
     const user = await this.users.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException();
     const favs = await this.userFavorites.find({ where: { userId }, relations: ['game'] });
-    const favoritesLimit = this.getFavoriteLimit(user.provider);
-    return { id: user.id, provider: user.provider, displayName: user.displayName, avatarUrl: user.avatarUrl, favorites: favs.map(f => f.game.id), favoritesLimit };
+    return { id: user.id, provider: user.provider, displayName: user.displayName, avatarUrl: user.avatarUrl, favorites: favs.map(f => f.game.id) };
   }
 
   async deleteAccount(userId: string, idToken: string): Promise<void> {
@@ -173,16 +172,12 @@ export class UsersService {
 
   private getFavoriteLimit(provider: string): number {
     const { featureLimits } = this.configService.configData;
-    if (provider === 'anonymous') return featureLimits.anonymous.maxFavorites;
-    if (provider === 'dev') return featureLimits.dev.maxFavorites;
-    return featureLimits.social.maxFavorites;
+    return featureLimits[UsersService.getAccountType(provider)].maxFavorites;
   }
 
   private getFriendLimit(provider: string): number {
     const { featureLimits } = this.configService.configData;
-    if (provider === 'anonymous') return featureLimits.anonymous.maxFriends;
-    if (provider === 'dev') return featureLimits.dev.maxFriends;
-    return featureLimits.social.maxFriends;
+    return featureLimits[UsersService.getAccountType(provider)].maxFriends;
   }
 
   private countFriends(userId: string): Promise<number> {
@@ -317,5 +312,10 @@ export class UsersService {
       sent: [] as {friendId: string, displayName: string, avatarUrl: string | null}[],
       received: [] as {friendId: string, displayName: string, avatarUrl: string | null}[],
     });
+  }
+
+  static getAccountType(provider: string) {
+    if (provider === 'anonymous' || provider === 'dev') return provider;
+    else return 'social';
   }
 }

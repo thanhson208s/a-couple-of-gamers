@@ -4,6 +4,33 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Config, ConfigData, DEFAULT_CONFIG } from './config.entity';
 import { Repository } from 'typeorm';
 
+function normalizeConfigData(configData: ConfigData | null | undefined): ConfigData {
+  if (!configData) return DEFAULT_CONFIG;
+
+  return {
+    ...DEFAULT_CONFIG,
+    ...configData,
+    appVersion: {
+      ...DEFAULT_CONFIG.appVersion,
+      ...configData.appVersion,
+    },
+    featureLimits: {
+      anonymous: {
+        ...DEFAULT_CONFIG.featureLimits.anonymous,
+        ...configData.featureLimits?.anonymous,
+      },
+      social: {
+        ...DEFAULT_CONFIG.featureLimits.social,
+        ...configData.featureLimits?.social,
+      },
+      dev: {
+        ...DEFAULT_CONFIG.featureLimits.dev,
+        ...configData.featureLimits?.dev,
+      },
+    },
+  };
+}
+
 @Injectable()
 export class ConfigService {
   configData: ConfigData = DEFAULT_CONFIG;
@@ -15,7 +42,7 @@ export class ConfigService {
 
   async getConfig() {
     const row = await this.config.findOne({ where: { id: 1 } });
-    this.configData = row?.configData ?? DEFAULT_CONFIG;
+    this.configData = normalizeConfigData(row?.configData);
 
     const games = await this.gamesService.listGames();
     const gamesMap: Record<string, unknown> = {};
@@ -26,8 +53,9 @@ export class ConfigService {
   }
 
   async updateConfig(configData: ConfigData) {
-    await this.config.save({ id: 1, configData });
-    this.configData = configData;
+    const normalizedConfigData = normalizeConfigData(configData);
+    await this.config.save({ id: 1, configData: normalizedConfigData });
+    this.configData = normalizedConfigData;
     await this.purgeCloudflareCache().catch((err) =>
       console.error('Cloudflare cache purge failed:', err),
     );

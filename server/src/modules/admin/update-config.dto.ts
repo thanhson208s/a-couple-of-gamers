@@ -35,6 +35,10 @@ class AccountLimitsDto {
   @IsNotEmpty()
   @IsInt()
   maxConcurrentMatches: number;
+
+  @IsNotEmpty()
+  @IsInt()
+  maxInviteesPerMatch: number;
 }
 
 class FeatureLimitsDto {

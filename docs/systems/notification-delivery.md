@@ -11,8 +11,8 @@ define client permission handling or UI behavior.
 | Concern | State or Effect Owner | Current Availability |
 |---|---|---|
 | Stored device-token associations | PostgreSQL device-token state; shape is in [Database Schema](../database-schema.md). | Authenticated HTTP registration and removal are active. |
-| Push send and invalid-token cleanup | Notification service using FCM. | Wired when a friend match invitation initiates a push attempt. |
-| Realtime friend-invite delivery | Match/WebSocket flow. | Wired separately from push for connected users. |
+| Push send and invalid-token cleanup | Notification service using FCM. | Wired when a friend match invitation targets an offline friend. |
+| Realtime friend-invite delivery | Match/WebSocket flow. | Wired instead of push for connected users. |
 | Turn reminder jobs | WebSocket session lifecycle, active match turn state, reminder queue, and worker. | Active when the worker process is running and the recipient has stored FCM tokens. |
 
 ## Active Behavior
@@ -27,21 +27,23 @@ through the notification interfaces listed in the
 
 ### Friend Invitation Delivery
 
-The currently wired push trigger is a still-pending match invitation shared
-with an accepted friend.
+The currently wired friend-invite trigger is a still-pending match invitation
+shared with an accepted friend.
 
 | Stage | Behavior |
 |---|---|
-| Authorization and invite lookup | The match flow confirms that the invitation exists, belongs to the caller, and the recipient is an accepted friend. |
-| Push attempt | The server looks up all stored tokens for the friend. With no tokens, push completes with no message; with tokens, it sends an FCM notification plus invitation data to all devices. |
+| Authorization and invite lookup | The match flow confirms that the invitation exists, belongs to the caller, and the recipient is an accepted friend. The friend is added to the invite's `invitees` list and recipient invite index before delivery is attempted. |
+| Delivery branch | If the friend has an active WebSocket connection, the server sends realtime `friend:invite`. Otherwise, it attempts FCM push delivery. |
+| Push attempt | For offline friends, the server looks up all stored tokens. With no tokens, push completes with no message; with tokens, it sends an FCM notification plus invitation data to all devices. |
 | Invalid-token cleanup | A send response identifying a no-longer-registered token removes that stored token association. Other send failures do not automatically remove a token. |
-| Realtime attempt | After the awaited push attempt completes, the match flow sends `friend:invite` if the recipient has an active socket. |
+| Realtime attempt | For connected friends, the match flow sends `friend:invite` and does not send push. |
 
 The notification attempt does not consume or reserve the pending match
 invitation; join, cancel, and expiry continue to determine its validity. Push
-is not durable delivery of the realtime event. If the FCM send operation
-throws, the invitation remains pending, but the invitation request fails
-before its realtime send is attempted.
+and realtime delivery are not durable, so the recipient invite index backs
+`GET /v1/matches/invites` for clients to recover missed invitation delivery.
+If the FCM send operation throws for an offline friend, the invitation remains
+pending and listed for the recipient, but the invitation request fails.
 
 The persisted token shape is documented in
 [Database Schema](../database-schema.md). The live match invitation interface

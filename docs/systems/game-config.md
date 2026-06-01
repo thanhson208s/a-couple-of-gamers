@@ -60,16 +60,17 @@ The configuration currently controls:
 - platform version values returned to consumers;
 - favorites limits per account tier;
 - friend limits per account tier;
-- concurrent pending-plus-active match limits per account tier.
+- concurrent pending-plus-active match limits per account tier;
+- invitee limits per pending match and account tier.
 
 The fallback configuration reports minimum/latest version `1.0.0` for both
 platforms and applies these limits:
 
-| Tier | Favorites | Friends | Concurrent Matches |
-|---|---:|---:|---:|
-| `anonymous` | 2 | 0 | 1 |
-| `social` | 10 | 100 | 5 |
-| `dev` | 1,000,000,000 | 1,000,000,000 | 1,000,000,000 |
+| Tier | Favorites | Friends | Concurrent Matches | Invitees Per Match |
+|---|---:|---:|---:|---:|
+| `anonymous` | 2 | 0 | 1 | 1 |
+| `social` | 10 | 100 | 5 | 5 |
+| `dev` | 1,000,000,000 | 1,000,000,000 | 1,000,000,000 | 1,000,000,000 |
 
 ### Applying Configuration
 
@@ -78,6 +79,7 @@ platforms and applies these limits:
 | Favorites | A new favorite is refused once the selected tier's favorite limit is occupied. |
 | Friendships | A new request is refused when either party's relationship-row count reaches that party's selected friend limit. |
 | Pending match creation | A new invitation is refused when the creator's pending invitations plus active matches reach its selected concurrent-match limit. |
+| Friend match invitations | Adding a new invitee to a pending match is refused once the creator's selected invitee-per-match limit is occupied. |
 | Configuration consumers | The read projection adds current catalog statuses to version and limit configuration. |
 
 Limit tier selection treats `anonymous` and `dev` specially; any other

@@ -27,19 +27,22 @@ match cleanup behavior. Protocol shapes are listed in the
 | Completed match | PostgreSQL | Entered when processing an action makes the plugin report game over. The server stores final state/winner and updates rival statistics. |
 | Abandoned match | PostgreSQL | Entered when a participating user abandons or deleting an account cleans up its active matches. No completion statistics are recorded. |
 
-Pending invitations do not have PostgreSQL match rows or a designated invitee:
-they identify only their creator until someone joins. Join uses a short-lived
-Redis claim key for the invitation code before creating the durable match row.
-The invitation is removed from Redis only after the active row is saved.
+Pending invitations do not have PostgreSQL match rows. They identify their
+creator and can accumulate invited user IDs in Redis for private-join
+authorization and recipient invite listing. Join uses a short-lived Redis
+claim key for the invitation code before creating the durable match row. The
+invitation is removed from Redis only after the active row is saved.
 
 ### Invitation Flow
 
 | Operation | State Check | Effect |
 |---|---|---|
 | Create pending invite | Game is enabled and executable; creator exists; creator has capacity under its configured pending-plus-active limit. | Writes the expiring invitation and the creator's pending index in Redis and returns shareable invite information. |
-| Cancel pending invite | Caller owns the still-present invitation. | Removes its Redis invitation value and creator index entry. |
-| Join pending invite | Invite exists, caller is not its creator, and no active claim exists for the invite code. | Claims the invite code briefly, initializes a durable active match, removes pending Redis state after the match row is saved, caches match metadata, and sends each connected player their own `match:start` view. |
-| Invite accepted friend | Caller owns a still-present invitation and target has an accepted friendship with the caller. | Does not alter invitation state; initiates push/realtime delivery described in [Notification Delivery](notification-delivery.md). |
+| Cancel pending invite | Caller owns the still-present invitation and no active claim exists for the invite code. | Claims the invite code briefly, then removes its Redis invitation value, creator index entry, and recipient index entries. |
+| Join pending invite | Invite exists, caller is not its creator, caller is allowed by private invite rules, and no active claim exists for the invite code. | Claims the invite code briefly, initializes a durable active match, removes pending Redis state after the match row is saved, caches match metadata, and sends each connected player their own `match:start` view. |
+| Invite accepted friend | Caller owns a still-present invitation, target has an accepted friendship with the caller, adding a new invitee stays within the configured owner-tier limit, and no active claim exists for the invite code. | Claims the invite code briefly, adds the target to the invitee list and recipient invite index, releases the claim, then initiates push/realtime delivery described in [Notification Delivery](notification-delivery.md). |
+| Roll back friend invite | Caller owns the still-present invitation and no active claim exists for the invite code. | Claims the invite code briefly, then removes the target from the invitee list and recipient invite index. |
+| Remove received invite | Caller has or had a recipient index entry for the invitation. If the source invitation still exists and still addresses the caller, no active claim can exist for the invite code. | Claims the invite code briefly when mutating the source invitation, removes the recipient index entry, and, when the source invitation still exists, removes the caller from its invitee list. |
 
 If durable match creation fails while joining, the claim is released and the
 pending invitation remains available until it is joined, cancelled, or expires.
@@ -97,12 +100,12 @@ admission, replacement, dispatch, and shutdown behavior is specified in
 | Trigger | Match Effect | Associated Cleanup |
 |---|---|---|
 | Explicit abandonment | Any non-completed joined match containing the caller becomes abandoned. | Cached state is flushed and removed, buffered replay is cleared, and both connected players can receive `match:over`. |
-| Account deletion | Invites created by the deleting user are cancelled and its active matches become abandoned before deleting the user row. | Open presence is cleared for that user; cached state/replay is cleared; reminder jobs for both players are cancelled; connected opponents receive `match:over`. |
+| Account deletion | Invites created by the deleting user are cancelled and its active matches become abandoned before deleting the user row. | Created invite values, creator invite indexes, recipient invite indexes for those created invites, the deleting user's received-invite index, and open presence are cleared; cached state/replay is cleared; reminder jobs for both players are cancelled; connected opponents receive `match:over`. |
 | Scheduled stale-match cleanup | Deletes aged abandoned rows and inactive active rows, then removes their cached state/metadata. | Invoked by the worker's repeatable cleanup queue job. |
 
-An abandoned match does not update rival statistics. Account deletion cannot
-cancel an invite merely addressed to the deleting user because a pending
-invite has no joined recipient state.
+An abandoned match does not update rival statistics. Account deletion removes
+the deleting user's received-invite index, but it does not cancel source
+invitations created by other users.
 
 ## Incomplete Runtime Paths
 

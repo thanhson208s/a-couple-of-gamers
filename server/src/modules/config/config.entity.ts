@@ -17,16 +17,19 @@ export interface ConfigData {
       maxFavorites: number;
       maxFriends: number;
       maxConcurrentMatches: number;
+      maxInviteesPerMatch: number;
     };
     social: {
       maxFavorites: number;
       maxFriends: number;
       maxConcurrentMatches: number;
+      maxInviteesPerMatch: number;
     };
     dev: {
       maxFavorites: number;
       maxFriends: number;
       maxConcurrentMatches: number;
+      maxInviteesPerMatch: number;
     };
   }
 }
@@ -48,16 +51,19 @@ export const DEFAULT_CONFIG: ConfigData = {
       maxFavorites: 2,
       maxFriends: 0,
       maxConcurrentMatches: 1,
+      maxInviteesPerMatch: 1,
     },
     social: {
       maxFavorites: 10,
       maxFriends: 100,
       maxConcurrentMatches: 5,
+      maxInviteesPerMatch: 5,
     },
     dev: {
       maxFavorites: 1_000_000_000,
       maxFriends: 1_000_000_000,
       maxConcurrentMatches: 1_000_000_000,
+      maxInviteesPerMatch: 1_000_000_000,
     }
   },
 };

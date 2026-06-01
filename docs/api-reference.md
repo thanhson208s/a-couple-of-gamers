@@ -71,7 +71,7 @@ All routes in this section require `JWT`.
 
 | Method | Path | Response / Behavior |
 |---|---|---|
-| `GET` | `/v1/users/profile` | Returns `{ id, provider, displayName, avatarUrl, favorites: string[], favoritesLimit }`. |
+| `GET` | `/v1/users/profile` | Returns `{ id, provider, displayName, avatarUrl, favorites: string[] }`. |
 | `DELETE` | `/v1/users/profile` | Body `{ idToken: string }`; deletes the authenticated account after recent Firebase reauthentication validation; no response payload. |
 | `PUT` | `/v1/users/favorites/:gameId` | Adds a favorite subject to limits; idempotent for an existing favorite; no response payload. |
 | `DELETE` | `/v1/users/favorites/:gameId` | Removes a favorite; idempotent; no response payload. |
@@ -105,12 +105,15 @@ All routes in this section require `JWT`.
 
 | Method | Path | Request / Response / Behavior |
 |---|---|---|
-| `POST` | `/v1/matches` | Body `{ gameSlug, playerSlot: 1 \| 2, options? }`; creates a pending invite and returns `{ inviteCode, deepLink, expiresAt }`. |
-| `GET` | `/v1/matches/pending` | Returns `{ status: "pending", inviteCode, deepLink, expiresAfter, playerSlot, gameId, createdAt }[]` for invitations created by the caller. |
+| `POST` | `/v1/matches` | Body `{ gameSlug, playerSlot: 0 \| 1 \| 2, private?, options? }`; creates a pending invite and returns `{ inviteCode, deepLink, expiresAt }`. Use `playerSlot: 0` to assign the creator's slot randomly. |
+| `GET` | `/v1/matches/pending` | Returns `{ inviteCode, expiresAfter, gameId, private, invitees, createdAt }[]` for invitations created by the caller. |
+| `GET` | `/v1/matches/invites` | Returns `{ inviteCode, expiresAfter, gameId, private, createdAt }[]` for pending invitations sent to the caller. |
 | `GET` | `/v1/matches/active` | Returns `{ match: MatchSummary, nextTurns }[]` for non-stale active matches. |
 | `GET` | `/v1/matches/history` | Returns up to ten completed durable match records, including stored state/options/result/timestamps, newest update first. |
-| `POST` | `/v1/matches/join` | Body `{ inviteCode }`; joins a pending invite, emits `match:start`, and returns no response payload. |
-| `POST` | `/v1/matches/pending/:inviteCode/invite/:friendId` | Sends an accepted friend an invitation attempt and returns `204`. |
+| `POST` | `/v1/matches/join` | Body `{ inviteCode }`; joins a pending invite, emits `match:start`, and returns no response payload. Private invites can only be joined by users in the invite's `invitees` list. |
+| `POST` | `/v1/matches/pending/:inviteCode/invite/:friendId` | Adds an accepted friend to the invite's `invitees` list, sends an invitation attempt, and returns `204`. |
+| `DELETE` | `/v1/matches/pending/:inviteCode/invite/:friendId` | Sender rollback: removes the friend from the invite's `invitees` list and recipient index, then returns `204`. |
+| `DELETE` | `/v1/matches/invites/:inviteCode` | Removes the caller from a received invitation and returns `204`; the creator's pending invitation remains active for other recipients. |
 | `DELETE` | `/v1/matches/pending/:inviteCode` | Cancels a caller-owned pending invitation; no response payload. |
 | `DELETE` | `/v1/matches/:id` | Abandons a match containing the caller, emits `match:over`, and returns no response payload. |
 
@@ -122,9 +125,11 @@ Material match failures:
 | Operation | Failure Conditions |
 |---|---|
 | Create pending invitation | `404` when a game is not currently eligible for creation or the user is absent; `400` when registered game logic cannot be obtained; `403` when the concurrent match limit is reached. |
-| Join invitation | `404` for a missing/expired invite; `403` when joining the caller's own invite; `409` when another join attempt is already claiming the invite code. |
-| Invite friend | `404` for a missing invite; `403` when the caller does not own the invite or the target is not an accepted friend. |
-| Cancel invitation | `404` for a missing invite; `403` when the caller is not the creator. |
+| Join invitation | `404` for a missing/expired invite; `403` when joining the caller's own invite or a private invite not addressed to the caller; `409` when another join attempt is already claiming the invite code. |
+| Invite friend | `404` for a missing invite; `403` when the caller does not own the invite, the target is not an accepted friend, or adding a new invitee would exceed the configured owner-tier invitee limit; `409` when another operation already claims the invite. |
+| Roll back friend invite | `404` for a missing invite; `403` when the caller does not own the invite; `409` when another operation already claims the invite. Removing a friend not currently in the invitee list is otherwise idempotent. |
+| Remove received invitation | Idempotently removes the caller from the received invite index; if the source invite still exists, the caller is also removed from its invitee list. Returns `409` when another operation already claims the source invite. |
+| Cancel invitation | `404` for a missing invite; `403` when the caller is not the creator; `409` when another operation already claims the invite. |
 | Abandon match | `404` for a missing match; `403` for a non-participant; `400` for an already completed match. |
 
 ### Administration

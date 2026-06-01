@@ -209,7 +209,7 @@ describe('UsersService', () => {
   describe('getProfile', () => {
     const user = { id: 'ABCD123456', provider: 'google.com', displayName: 'Test User', avatarUrl: 'https://photo.example.com/u.jpg' } as User;
 
-    it('returns id, provider, displayName, avatarUrl, favorite slugs, and favoritesLimit', async () => {
+    it('returns id, provider, displayName, avatarUrl, favorite slugs', async () => {
       usersRepo.findOne.mockResolvedValue(user);
       userFavoritesRepo.find.mockResolvedValue([
         { userId: user.id, gameId: 'tictactoe', game: { id: 'tictactoe' } },
@@ -218,7 +218,7 @@ describe('UsersService', () => {
 
       const result = await service.getProfile(user.id);
 
-      expect(result).toEqual({ id: 'ABCD123456', provider: 'google.com', displayName: 'Test User', avatarUrl: 'https://photo.example.com/u.jpg', favorites: ['tictactoe', 'chess'], favoritesLimit: DEFAULT_CONFIG.featureLimits.social.maxFavorites });
+      expect(result).toEqual({ id: 'ABCD123456', provider: 'google.com', displayName: 'Test User', avatarUrl: 'https://photo.example.com/u.jpg', favorites: ['tictactoe', 'chess'] });
       expect(usersRepo.findOne).toHaveBeenCalledWith({ where: { id: user.id } });
       expect(userFavoritesRepo.find).toHaveBeenCalledWith({ where: { userId: user.id }, relations: ['game'] });
     });
@@ -231,15 +231,6 @@ describe('UsersService', () => {
 
       expect(result.avatarUrl).toBeNull();
       expect(result.favorites).toEqual([]);
-    });
-
-    it('returns anonymous favoritesLimit for anonymous users', async () => {
-      usersRepo.findOne.mockResolvedValue({ ...user, provider: 'anonymous' } as User);
-      userFavoritesRepo.find.mockResolvedValue([]);
-
-      const result = await service.getProfile(user.id);
-
-      expect(result.favoritesLimit).toBe(DEFAULT_CONFIG.featureLimits.anonymous.maxFavorites);
     });
 
     it('throws NotFoundException when user does not exist', async () => {
