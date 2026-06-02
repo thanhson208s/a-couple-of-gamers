@@ -1,0 +1,274 @@
+[gd_scene format=3 uid="uid://b2qoicoxoeasv"]
+
+[ext_resource type="Script" uid="uid://lmw5w3bm64gk" path="res://scripts/login_screen.gd" id="1_nvnqe"]
+[ext_resource type="Texture2D" uid="uid://eregsnosjwfg" path="res://assets/sprites/login/bg.png" id="2_jrtqw"]
+[ext_resource type="Texture2D" uid="uid://bwy5c01muv74a" path="res://assets/sprites/common/logo.png" id="3_adnl8"]
+[ext_resource type="Texture2D" uid="uid://c41cwpugfple7" path="res://assets/sprites/login/btn_google.png" id="4_fiosr"]
+[ext_resource type="Texture2D" uid="uid://kvoxn7pbdhq5" path="res://assets/sprites/login/icon_google.png" id="5_2lboi"]
+[ext_resource type="Texture2D" uid="uid://c3bkfihlxjqw6" path="res://assets/sprites/login/btn_facebook.png" id="6_eivn8"]
+[ext_resource type="Texture2D" uid="uid://djjwiqvnvxui4" path="res://assets/sprites/login/icon_facebook.png" id="7_p3ywx"]
+[ext_resource type="Texture2D" uid="uid://c2ilnhunq4xi7" path="res://assets/sprites/login/btn_apple.png" id="8_173gx"]
+[ext_resource type="Texture2D" uid="uid://duod4oa7d2e58" path="res://assets/sprites/login/icon_apple.png" id="9_s26v3"]
+[ext_resource type="Texture2D" uid="uid://dojnoqcy1kosj" path="res://assets/sprites/login/icon_guest.png" id="10_jnb86"]
+
+[node name="LoginScene" type="Control" unique_id=1949015740]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_nvnqe")
+
+[node name="bg" type="TextureRect" parent="." unique_id=1332005565]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -360.0
+offset_top = -720.0
+offset_right = 360.0
+offset_bottom = 720.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_jrtqw")
+
+[node name="logo" type="TextureRect" parent="." unique_id=1011650181]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -360.0
+offset_top = -640.0
+offset_right = 360.0
+offset_bottom = -184.0
+grow_horizontal = 2
+grow_vertical = 2
+pivot_offset_ratio = Vector2(0.5, 0.5)
+texture = ExtResource("3_adnl8")
+
+[node name="btnGoogle" type="TextureButton" parent="." unique_id=1392010131]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -226.5
+offset_top = -190.0
+offset_right = 226.5
+offset_bottom = -53.0
+grow_horizontal = 2
+grow_vertical = 2
+pivot_offset_ratio = Vector2(0.5, 0.5)
+texture_normal = ExtResource("4_fiosr")
+
+[node name="icon" type="TextureRect" parent="btnGoogle" unique_id=1959030473]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -176.5
+offset_top = -41.5
+offset_right = -93.5
+offset_bottom = 41.5
+grow_horizontal = 2
+grow_vertical = 2
+pivot_offset_ratio = Vector2(0.5, 0.5)
+texture = ExtResource("5_2lboi")
+
+[node name="label" type="Label" parent="btnGoogle" unique_id=1980768085]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -40.5
+offset_top = -37.0
+offset_right = 140.5
+offset_bottom = 37.0
+grow_horizontal = 2
+grow_vertical = 2
+pivot_offset_ratio = Vector2(0.5, 0.5)
+theme_override_colors/font_color = Color(0.4351923, 0.43519226, 0.43519226, 1)
+theme_override_colors/font_outline_color = Color(1, 1, 1, 1)
+theme_override_constants/outline_size = 14
+theme_override_font_sizes/font_size = 50
+text = "Google"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="btnFacebook" type="TextureButton" parent="." unique_id=1720236549]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -226.5
+offset_top = -15.0
+offset_right = 226.5
+offset_bottom = 122.0
+grow_horizontal = 2
+grow_vertical = 2
+pivot_offset_ratio = Vector2(0.5, 0.5)
+texture_normal = ExtResource("6_eivn8")
+
+[node name="icon" type="TextureRect" parent="btnFacebook" unique_id=1974368768]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -169.5
+offset_top = -34.5
+offset_right = -100.5
+offset_bottom = 34.5
+grow_horizontal = 2
+grow_vertical = 2
+pivot_offset_ratio = Vector2(0.5, 0.5)
+texture = ExtResource("7_p3ywx")
+
+[node name="label" type="Label" parent="btnFacebook" unique_id=912207842]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -74.0
+offset_top = -37.0
+offset_right = 174.0
+offset_bottom = 37.0
+grow_horizontal = 2
+grow_vertical = 2
+pivot_offset_ratio = Vector2(0.5, 0.5)
+theme_override_colors/font_color = Color(0.4351923, 0.43519226, 0.43519226, 1)
+theme_override_colors/font_outline_color = Color(1, 1, 1, 1)
+theme_override_constants/outline_size = 14
+theme_override_font_sizes/font_size = 50
+text = "Facebook"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="btnApple" type="TextureButton" parent="." unique_id=73017942]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -226.5
+offset_top = 160.0
+offset_right = 226.5
+offset_bottom = 297.0
+grow_horizontal = 2
+grow_vertical = 2
+pivot_offset_ratio = Vector2(0.5, 0.5)
+texture_normal = ExtResource("8_173gx")
+
+[node name="icon" type="TextureRect" parent="btnApple" unique_id=327008423]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -166.0
+offset_top = -37.0
+offset_right = -104.0
+offset_bottom = 37.0
+grow_horizontal = 2
+grow_vertical = 2
+pivot_offset_ratio = Vector2(0.5, 0.5)
+texture = ExtResource("9_s26v3")
+
+[node name="label" type="Label" parent="btnApple" unique_id=1460054941]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -74.0
+offset_top = -37.0
+offset_right = 174.0
+offset_bottom = 40.0
+grow_horizontal = 2
+grow_vertical = 2
+pivot_offset_ratio = Vector2(0.5, 0.5)
+theme_override_colors/font_color = Color(0.4351923, 0.43519226, 0.43519226, 1)
+theme_override_colors/font_outline_color = Color(1, 1, 1, 1)
+theme_override_constants/outline_size = 14
+theme_override_font_sizes/font_size = 50
+text = "Apple"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="btnGuest" type="Button" parent="." unique_id=1987926740]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = 340.0
+offset_right = 200.0
+offset_bottom = 540.0
+grow_horizontal = 2
+grow_vertical = 2
+pivot_offset_ratio = Vector2(0.5, 0.5)
+flat = true
+
+[node name="icon" type="TextureRect" parent="btnGuest" unique_id=244718488]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -47.5
+offset_top = -81.5
+offset_right = 47.5
+offset_bottom = 22.5
+grow_horizontal = 2
+grow_vertical = 2
+pivot_offset_ratio = Vector2(0.5, 0.5)
+texture = ExtResource("10_jnb86")
+
+[node name="text" type="RichTextLabel" parent="btnGuest" unique_id=266369711]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = 30.0
+offset_right = 200.0
+offset_bottom = 90.0
+grow_horizontal = 2
+grow_vertical = 2
+pivot_offset_ratio = Vector2(0.5, 0.5)
+theme_override_colors/default_color = Color(0.46666667, 0.15294118, 0, 1)
+theme_override_colors/font_outline_color = Color(1, 1, 1, 1)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/normal_font_size = 32
+bbcode_enabled = true
+text = "[u]Continue as guest [/u]"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[connection signal="pressed" from="btnGoogle" to="." method="_on_btn_google_pressed"]
+[connection signal="pressed" from="btnFacebook" to="." method="_on_btn_facebook_pressed"]
+[connection signal="pressed" from="btnApple" to="." method="_on_btn_apple_pressed"]
+[connection signal="pressed" from="btnGuest" to="." method="_on_btn_guest_pressed"]

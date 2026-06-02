@@ -28,12 +28,13 @@ Thumbs.db
 .idea/
 *.swp
 
-# Cocos Creator
+# Godot client
 client/temp/
 client/library/
 client/local/
 client/logs/
 client/profiles/
+~libsentry.*
 
 # Test coverage
 coverage/
