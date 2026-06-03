@@ -1,22 +1,29 @@
-import { Entity, PrimaryColumn, ManyToOne, JoinColumn, Column } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, ManyToOne, JoinColumn, Column, Unique } from 'typeorm';
 import { User } from './user.entity';
 import { Game } from '../games/game.entity';
 
 @Entity('user_rivals')
+@Unique(['userId1', 'userId2', 'gameId'])
 export class UserRival {
-  @PrimaryColumn({ type: 'char', length: 10, name: 'user_id1' })
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column({ type: 'char', length: 10, name: 'user_id1' })
   userId1: string;
 
-  // No FK: when the opponent deletes their account, this row is kept so userId1's stats are preserved.
-  @PrimaryColumn({ type: 'char', length: 10, name: 'user_id2' })
-  userId2: string;
+  @Column({ type: 'char', length: 10, name: 'user_id2', nullable: true })
+  userId2: string | null;
 
-  @PrimaryColumn({ type: 'text', name: 'game_id' })
+  @Column({ type: 'text', name: 'game_id' })
   gameId: string;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id1' })
   user1: User;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'user_id2' })
+  user2: User | null;
 
   @ManyToOne(() => Game)
   @JoinColumn({ name: 'game_id' })
