@@ -102,7 +102,6 @@ echo "[backup] env=$ENV mode=$MODE object=r2:${R2_BACKUP_BUCKET}/${OBJECT}"
 # Dump to a local file first so a partial pg_dump never reaches R2.
 if [[ "$ENV" == "production" && "$MODE" == "predeploy" ]]; then
   # Running on acog-app VPS — Postgres is remote over the private network.
-  : "${DB_HOST:?DB_HOST not set in $ENV_FILE}"
   : "${DB_PASSWORD:?DB_PASSWORD not set in $ENV_FILE}"
   docker run --rm --network host \
     -e PGPASSWORD="$DB_PASSWORD" \
