@@ -21,7 +21,7 @@ jobs:
       - name: Log in to GHCR
         run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Pull image
+      - name: Pull server image
         run: docker pull ${{ env.SERVER_IMAGE }}:${{ inputs.image_tag }}
 
       - name: Pull admin image

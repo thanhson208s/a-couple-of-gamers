@@ -107,7 +107,7 @@ if [[ "$ENV" == "production" && "$MODE" == "predeploy" ]]; then
   docker run --rm --network host \
     -e PGPASSWORD="$DB_PASSWORD" \
     postgres:16-alpine \
-    pg_dump -h "$DB_HOST" -p "${DB_PORT:-5432}" -U "${DB_USER:-postgres}" -d "${DB_NAME:-acog}" \
+    pg_dump -h "${DB_HOST:-10.0.1.14}" -p "${DB_PORT:-5432}" -U "${DB_USER:-postgres}" -d "${DB_NAME:-acog}" \
       "${TABLE_ARGS[@]}" \
     | gzip > "$TMP_DUMP"
 else
