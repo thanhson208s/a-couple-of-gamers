@@ -91,3 +91,32 @@ jobs:
         if: success()
         run: |
           docker image prune -f
+
+      - name: Print deploy result
+        if: success()
+        run: |
+          DEPLOYED_TAG="${{ inputs.image_tag }}"
+          DEPLOYED_AT_UTC="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+          if echo "$DEPLOYED_TAG" | grep -Eq '^v[0-9]+(\.[0-9]+)*([.-][A-Za-z0-9]+)?$'; then
+            TAG_TYPE="version tag"
+          else
+            TAG_TYPE="SHA tag"
+          fi
+
+          echo "Production deploy completed successfully"
+          echo "Deployed at UTC: ${DEPLOYED_AT_UTC}"
+          echo "Tag type: ${TAG_TYPE}"
+          echo "Image tag: ${DEPLOYED_TAG}"
+          echo "Server image: ${{ env.SERVER_IMAGE }}:${DEPLOYED_TAG}"
+          echo "Admin image: ${{ env.ADMIN_IMAGE }}:${DEPLOYED_TAG}"
+
+          {
+            echo "## Production deploy completed successfully"
+            echo ""
+            echo "- Deployed at UTC: \`${DEPLOYED_AT_UTC}\`"
+            echo "- Tag type: \`${TAG_TYPE}\`"
+            echo "- Image tag: \`${DEPLOYED_TAG}\`"
+            echo "- Server image: \`${{ env.SERVER_IMAGE }}:${DEPLOYED_TAG}\`"
+            echo "- Admin image: \`${{ env.ADMIN_IMAGE }}:${DEPLOYED_TAG}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -62,6 +62,32 @@ jobs:
           docker tag ${{ env.ADMIN_IMAGE }}:${{ github.sha }} ${{ env.ADMIN_IMAGE }}:${{ github.ref_name }}
           docker push ${{ env.ADMIN_IMAGE }}:${{ github.ref_name }}
 
+      - name: Print build image tags
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            BUILD_TAG="${{ github.ref_name }}"
+            TAG_TYPE="version tag"
+          else
+            BUILD_TAG="${{ github.sha }}"
+            TAG_TYPE="SHA tag"
+          fi
+
+          echo "Build completed successfully"
+          echo "Tag type: ${TAG_TYPE}"
+          echo "Image tag: ${BUILD_TAG}"
+          echo "Server image: ${{ env.SERVER_IMAGE }}:${BUILD_TAG}"
+          echo "Admin image: ${{ env.ADMIN_IMAGE }}:${BUILD_TAG}"
+
+          {
+            echo "## Build completed successfully"
+            echo ""
+            echo "- Tag type: ${TAG_TYPE}"
+            echo "- Image tag: \`${BUILD_TAG}\`"
+            echo "- Server image: \`${{ env.SERVER_IMAGE }}:${BUILD_TAG}\`"
+            echo "- Admin image: \`${{ env.ADMIN_IMAGE }}:${BUILD_TAG}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+
   deploy-staging:
     name: Deploy to staging
     needs: build
