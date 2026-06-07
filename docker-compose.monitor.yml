@@ -52,6 +52,16 @@ services:
       BASE_URL: https://tracker.acoupleofgamers.com
       BEHIND_HTTPS_PROXY: "true"
       USE_X_FORWARDED_HOST: "false"
+      ALERTS_WEBHOOK_ALLOW_LIST: "slagram.local"
+    networks:
+      - monitor
+
+  slagram:
+    image: node:22-alpine
+    restart: always
+    command: node /app/server.js
+    volumes:
+      - ./slagram:/app:ro
     networks:
       - monitor
 

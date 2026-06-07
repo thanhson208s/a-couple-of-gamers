@@ -74,7 +74,7 @@ push_monitor() {
     -H "CF-Access-Client-Secret: ${HEARTBEAT_ACCESS_CLIENT_SECRET}" \
     --data-urlencode "status=${status}" \
     --data-urlencode "msg=${msg}" \
-    "https://health.acoupleofgamers.com/api/push/gbh4CTr5pJ" \
+    "https://health.acoupleofgamers.com/api/push/eFdv6ZICyv" \
     >/dev/null || true
 }
 
