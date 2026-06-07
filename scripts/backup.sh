@@ -59,6 +59,27 @@ set +a
 : "${R2_BACKUP_SECRET_ACCESS_KEY:?R2_BACKUP_SECRET_ACCESS_KEY not set in $ENV_FILE}"
 : "${R2_BACKUP_ENDPOINT:?R2_BACKUP_ENDPOINT not set in $ENV_FILE}"
 
+push_monitor() {
+  local status="$1"
+  local msg="$2"
+
+  [[ "$ENV" == "production" ]] || return 0
+  [[ "$MODE" == "daily" ]] || return 0
+
+  [[ -n "${HEARTBEAT_ACCESS_CLIENT_ID:-}" ]] || return 0
+  [[ -n "${HEARTBEAT_ACCESS_CLIENT_SECRET:-}" ]] || return 0
+
+  curl -fsSL -G \
+    -H "CF-Access-Client-Id: ${HEARTBEAT_ACCESS_CLIENT_ID}" \
+    -H "CF-Access-Client-Secret: ${HEARTBEAT_ACCESS_CLIENT_SECRET}" \
+    --data-urlencode "status=${status}" \
+    --data-urlencode "msg=${msg}" \
+    "Push: https://health.acoupleofgamers.com/api/push/gbh4CTr5pJ" \
+    >/dev/null || true
+}
+
+trap 'push_monitor down "backup failed"' ERR
+
 # rclone reads its config from RCLONE_CONFIG_<remote>_* env vars; map our names onto the
 # "r2:" remote.
 export RCLONE_CONFIG_R2_TYPE=s3
@@ -137,3 +158,5 @@ docker run --rm \
 echo "[backup] uploaded $(stat -c%s "$TMP_DUMP" 2>/dev/null || stat -f%z "$TMP_DUMP") bytes"
 
 "$SCRIPT_DIR/prune.sh" --env="$ENV" --mode="$MODE"
+
+push_monitor up "backup ok: ${OBJECT}"
