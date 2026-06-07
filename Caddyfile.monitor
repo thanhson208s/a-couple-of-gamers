@@ -1,0 +1,7 @@
+health.acoupleofgamers.com {
+    reverse_proxy health:3001
+}
+
+tracker.acoupleofgamers.com {
+    reverse_proxy tracker:8000
+}

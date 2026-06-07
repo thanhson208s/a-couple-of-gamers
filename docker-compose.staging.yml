@@ -24,6 +24,8 @@ services:
       - acog_net
 
   cache:
+    volumes:
+      - acog_staging_cache:/data
     ports:
       - "127.0.0.1:16379:6379"
     networks:
@@ -50,5 +52,6 @@ services:
 
 volumes:
   acog_staging_db:
+  acog_staging_cache:
   caddy_staging_data:
   caddy_staging_config:

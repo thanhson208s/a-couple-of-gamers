@@ -1,0 +1,63 @@
+services:
+  proxy:
+    image: caddy:2
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile.monitor:/etc/caddy/Caddyfile:ro
+      - ./caddy/data:/data
+      - ./caddy/config:/config
+    networks:
+      - monitor
+
+  health:
+    image: louislam/uptime-kuma:1
+    restart: always
+    volumes:
+      - ./uptime-kuma-data:/app/data
+    networks:
+      - monitor
+
+  db:
+    image: postgres:17-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: tracker
+    volumes:
+      - tracker-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tracker"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - monitor
+
+  tracker:
+    image: bugsink/bugsink:2
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SECRET_KEY: ${SECRET_KEY}
+      CREATE_SUPERUSER: ${CREATE_SUPERUSER}
+      PORT: 8000
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/tracker
+      BASE_URL: https://tracker.acoupleofgamers.com
+      BEHIND_HTTPS_PROXY: "true"
+      USE_X_FORWARDED_HOST: "false"
+    networks:
+      - monitor
+
+volumes:
+  tracker-db:
+
+networks:
+  monitor:
+    name: monitor
