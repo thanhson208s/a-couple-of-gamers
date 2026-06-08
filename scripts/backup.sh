@@ -63,7 +63,6 @@ push_monitor() {
   local status="$1"
   local msg="$2"
 
-  [[ "$ENV" == "production" ]] || return 0
   [[ "$MODE" == "daily" ]] || return 0
 
   [[ -n "${HEARTBEAT_ACCESS_CLIENT_ID:-}" ]] || return 0
@@ -134,7 +133,7 @@ if [[ "$ENV" == "production" && "$MODE" == "predeploy" ]]; then
 else
   # Running on the same VPS as the db container — exec into it.
   cd "$REPO_ROOT"
-  docker compose --env-file "$ENV_FILE" \
+  ENV_FILE="$ENV_FILE" docker compose --env-file "$ENV_FILE" \
     -f docker-compose.yml -f "$COMPOSE_FILE" \
     exec -T db pg_dump -U "${DB_USER:-postgres}" -d "${DB_NAME:-acog}" "${TABLE_ARGS[@]}" \
     | gzip > "$TMP_DUMP"
