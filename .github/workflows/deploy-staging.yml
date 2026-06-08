@@ -34,6 +34,8 @@ jobs:
       image_tag: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -87,6 +89,23 @@ jobs:
             echo "- Admin image: \`${{ env.ADMIN_IMAGE }}:${BUILD_TAG}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Notify Telegram
+        if: always() && startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG_MESSAGE="$(git for-each-ref "refs/tags/${GITHUB_REF_NAME}" --format='%(contents:subject)' | head -n 1)"
+          if [ -z "$TAG_MESSAGE" ]; then
+            TAG_MESSAGE="No tag message provided"
+          fi
+
+          printf -v MESSAGE 'Build %s\nTag: %s\nMessage: %s' \
+            "${{ job.status }}" \
+            "${GITHUB_REF_NAME}" \
+            "${TAG_MESSAGE}"
+
+          curl -fs -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            --data-urlencode "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+            --data-urlencode "message_thread_id=35" \
+            --data-urlencode "text=${MESSAGE}" >/dev/null 2>&1 || true
 
   deploy-staging:
     name: Deploy to staging
