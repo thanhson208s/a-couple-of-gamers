@@ -6,7 +6,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./Caddyfile.monitor:/etc/caddy/Caddyfile:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./caddy/data:/data
       - ./caddy/config:/config
     networks:
@@ -26,11 +26,11 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: tracker
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - tracker-db:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d tracker"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -48,7 +48,7 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       CREATE_SUPERUSER: ${CREATE_SUPERUSER}
       PORT: 8000
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/tracker
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       BASE_URL: https://tracker.acoupleofgamers.com
       BEHIND_HTTPS_PROXY: "true"
       USE_X_FORWARDED_HOST: "false"
@@ -60,10 +60,16 @@ services:
     image: node:22-alpine
     restart: always
     command: node /app/server.js
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+      TELEGRAM_THREAD_ID: ${TELEGRAM_THREAD_ID:-3}
     volumes:
       - ./slagram:/app:ro
     networks:
-      - monitor
+      monitor:
+        aliases:
+          - slagram.local
 
 volumes:
   tracker-db:

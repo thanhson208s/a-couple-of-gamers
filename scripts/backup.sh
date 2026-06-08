@@ -68,13 +68,14 @@ push_monitor() {
 
   [[ -n "${HEARTBEAT_ACCESS_CLIENT_ID:-}" ]] || return 0
   [[ -n "${HEARTBEAT_ACCESS_CLIENT_SECRET:-}" ]] || return 0
+  [[ -n "${HEARTBEAT_BACKUP_URL:-}" ]] || return 0
 
   curl -fsSL -G \
     -H "CF-Access-Client-Id: ${HEARTBEAT_ACCESS_CLIENT_ID}" \
     -H "CF-Access-Client-Secret: ${HEARTBEAT_ACCESS_CLIENT_SECRET}" \
     --data-urlencode "status=${status}" \
     --data-urlencode "msg=${msg}" \
-    "https://health.acoupleofgamers.com/api/push/eFdv6ZICyv" \
+    "${HEARTBEAT_BACKUP_URL}" \
     >/dev/null || true
 }
 
