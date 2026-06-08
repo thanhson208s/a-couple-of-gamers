@@ -14,8 +14,6 @@ pages.
 | Area | Current Behavior | Consequence | Related Documentation |
 |---|---|---|---|
 | Friendship persistence | The committed migration and the runtime friendship entity disagree on relationship timestamp columns. | Friendship reads or mutations against the migrated schema can fail. | [Database Schema](database-schema.md#material-drift), [Identity and Social State](systems/identity-social.md#friendships) |
-| Account deletion atomicity | Match/cache cleanup, local user removal, and Firebase identity deletion are sequential effects rather than one transaction; failures are reported as authorization failure. | An account deletion request can fail after some cleanup or deletion effects have already occurred. | [Identity and Social State](systems/identity-social.md#account-deletion) |
-| Match player retention | The committed schema has no user foreign keys on durable match player IDs, despite the runtime model indicating deleted participants should become null. | Account deletion can leave deleted user identifiers in historical match records. | [Database Schema](database-schema.md#material-drift) |
 
 ## Incomplete Paths
 

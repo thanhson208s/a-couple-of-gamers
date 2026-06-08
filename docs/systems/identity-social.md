@@ -30,6 +30,8 @@ The server-generated user ID is a 10-character identifier formed from
 unambiguous uppercase letters and digits. It remains stable across Firebase
 provider transitions and is used in social state. Provider identifiers remain
 authentication linkage rather than social-facing identifiers.
+Deleted user IDs and provider IDs are reserved by grave rows and are not
+reissued during later login or development-account creation.
 
 ### Profile and Favorites
 
@@ -90,16 +92,17 @@ does not authorize deletion of the caller's application account.
 | Phase | Behavior |
 |---|---|
 | Reauthentication check | The supplied Firebase identity token is verified with revocation checking and must be recently issued. A UID mapped to another application user is rejected without deletion. A UID with no application-user mapping is removed from Firebase and the account-deletion request is rejected. |
-| Pending-match cleanup | Pending invitations created by the deleting user are removed, including recipient invite index entries. The deleting user's received-invite index is also removed. |
-| Active-match cleanup | Each active match involving the user becomes abandoned; current cached state is flushed, cached/replay state is removed, pending reminder work for both players is cancelled, and connected opponents receive `match:over`. |
-| Account removal | After the verified UID resolves to the authenticated caller, the application user row is deleted, followed by deletion of the same Firebase identity. Related row effects depend on committed database relationships. |
+| Grave creation | Before the user row is deleted, a grave row is created with the Firebase UID and active-match cleanup inputs needed by the worker. |
+| Account removal | After the verified UID resolves to the authenticated caller, the application user row is deleted. Committed match rows involving the deleted user are removed by database cascade. The same Firebase identity is then deleted immediately on a best-effort basis. |
+| Deferred external cleanup | The cleanup worker processes unprocessed graves by removing invitation/open-match Redis indexes, deleting match-scoped cache/replay keys captured in the grave payload, cancelling reminder jobs for captured match participants, retrying Firebase identity deletion, and marking the grave processed. |
 
-Deletion coordinates PostgreSQL state, Redis state, reminder jobs, realtime
-delivery, and Firebase removal as sequential effects, not as one atomic
-transaction. If a later external or persistence operation fails, prior
-cleanup effects may already have occurred even though deletion reports
-failure. Removing an orphaned Firebase identity is also an intentional side
-effect of a deletion request that fails authorization for the local account.
+Deletion coordinates PostgreSQL state and immediate Firebase removal
+sequentially, not as one cross-system transaction. Redis, reminder, replay,
+and retry Firebase cleanup are deferred through durable grave rows. If a later
+external operation fails, the grave remains unprocessed and is retried by the
+worker. Removing an orphaned Firebase identity is also an intentional
+best-effort side effect of a deletion request that fails authorization for the
+local account.
 
 Persistence details and current schema constraints are documented in
 [Database Schema](../database-schema.md).

@@ -18,11 +18,24 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { mockRepository } from '../../common/helpers/test.helper';
 import { ConfigService } from '../config/config.service';
 import { DEFAULT_CONFIG } from '../config/config.entity';
+import { Grave } from '../users/grave.entity';
 
 const CALLER_ID = 'CALLER0001';
 const OTHER_ID  = 'OTHER00001';
 const FRIEND_ID = 'FRIEND0001';
 const MATCH_ID  = 'match-uuid-1';
+
+function makeGrave(overrides: Partial<Grave> = {}): Grave {
+  return {
+    userId: CALLER_ID,
+    providerId: 'firebase-uid-123',
+    createdAt: new Date('2026-01-01T00:00:00Z'),
+    isProcessed: false,
+    processedAt: null,
+    externalCleanup: { activeMatches: [] },
+    ...overrides,
+  } as Grave;
+}
 
 function makeGame(overrides: Partial<Game> = {}): Game {
   return { id: 'tictactoe', status: GameStatus.Enabled, name: 'Tic-Tac-Toe', type: GameType.Versus, ...overrides } as Game;
@@ -1094,6 +1107,65 @@ describe('MatchesService', () => {
 
       expect(matchesRepo.delete).not.toHaveBeenCalled();
       expect(redis.del).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('cleanupDeletedUserExternalState', () => {
+    it('removes created invite codes, recipient indexes, and deleted-user indexes', async () => {
+      redis.zrange.mockResolvedValue(['CODE1', 'CODE2']);
+      redis.mget.mockResolvedValue([
+        JSON.stringify({ invitees: [OTHER_ID, 'FRIEND0001'] }),
+        JSON.stringify({ invitees: [OTHER_ID] }),
+      ]);
+
+      await service.cleanupForDeletedUser(makeGrave());
+
+      expect(redis.zrange).toHaveBeenCalledWith(`invite:user:${CALLER_ID}`, 0, -1);
+      expect(redis.mget).toHaveBeenCalledWith('invite:code:CODE1', 'invite:code:CODE2');
+      expect(redis.zrem).toHaveBeenCalledWith(`invite:received:${OTHER_ID}`, 'CODE1');
+      expect(redis.zrem).toHaveBeenCalledWith('invite:received:FRIEND0001', 'CODE1');
+      expect(redis.zrem).toHaveBeenCalledWith(`invite:received:${OTHER_ID}`, 'CODE2');
+      expect(redis.del).toHaveBeenCalledWith('invite:code:CODE1', 'invite:code:CODE2');
+      expect(redis.del).toHaveBeenCalledWith(
+        `invite:user:${CALLER_ID}`,
+        `invite:received:${CALLER_ID}`,
+        `match:user:${CALLER_ID}`,
+      );
+    });
+
+    it('deletes deleted-user indexes when the user has no created invites', async () => {
+      redis.zrange.mockResolvedValue([]);
+
+      await service.cleanupForDeletedUser(makeGrave());
+
+      expect(redis.mget).not.toHaveBeenCalled();
+      expect(redis.del).toHaveBeenCalledWith(
+        `invite:user:${CALLER_ID}`,
+        `invite:received:${CALLER_ID}`,
+        `match:user:${CALLER_ID}`,
+      );
+    });
+
+    it('cancels reminders and clears match-scoped Redis keys captured in the grave payload', async () => {
+      redis.zrange.mockResolvedValue([]);
+      const grave = makeGrave({
+        externalCleanup: {
+          activeMatches: [
+            { matchId: MATCH_ID, player1Id: CALLER_ID, player2Id: OTHER_ID },
+          ],
+        },
+      });
+
+      await service.cleanupForDeletedUser(grave);
+
+      expect(notificationsService.cancelReminders).toHaveBeenCalledWith(MATCH_ID, CALLER_ID);
+      expect(notificationsService.cancelReminders).toHaveBeenCalledWith(MATCH_ID, OTHER_ID);
+      expect(redis.del).toHaveBeenCalledWith(
+        `match:state:${MATCH_ID}`,
+        `match:meta:${MATCH_ID}`,
+        `match:replay:${MATCH_ID}:${CALLER_ID}`,
+        `match:replay:${MATCH_ID}:${OTHER_ID}`,
+      );
     });
   });
 

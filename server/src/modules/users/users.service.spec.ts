@@ -6,7 +6,9 @@ import { User } from './user.entity';
 import { UserFavorite } from './user-favorite.entity';
 import { UserRival } from './user-rival.entity';
 import { UserFriend, FriendStatus } from './user-friend.entity';
+import { Grave } from './grave.entity';
 import { Game, GameType } from '../games/game.entity';
+import { Match, MatchStatus } from '../matches/match.entity';
 import { mockRepository } from '../../common/helpers/test.helper';
 import { FIREBASE_AUTH } from '../../common/firebase/firebase.module';
 import { WsGateway } from '../ws/ws.gateway';
@@ -19,6 +21,8 @@ describe('UsersService', () => {
   let userFavoritesRepo: ReturnType<typeof mockRepository<UserFavorite>>;
   let userRivalsRepo: ReturnType<typeof mockRepository<UserRival>>;
   let userFriendsRepo: ReturnType<typeof mockRepository<UserFriend>> & { createQueryBuilder: jest.Mock };
+  let deletedUsersRepo: ReturnType<typeof mockRepository<Grave>>;
+  let matchesRepo: ReturnType<typeof mockRepository<Match>>;
   let gamesRepo: ReturnType<typeof mockRepository<Game>>;
   let dataSource: { transaction: jest.Mock };
   let firebaseAuth: { deleteUser: jest.Mock; verifyIdToken: jest.Mock };
@@ -28,12 +32,23 @@ describe('UsersService', () => {
     userFavoritesRepo = mockRepository<UserFavorite>();
     userRivalsRepo = mockRepository<UserRival>();
     userFriendsRepo = { ...mockRepository<UserFriend>(), createQueryBuilder: jest.fn() };
+    deletedUsersRepo = mockRepository<Grave>();
+    deletedUsersRepo.create.mockImplementation((data) => ({ ...data } as Grave));
+    matchesRepo = mockRepository<Match>();
     gamesRepo = mockRepository<Game>();
     firebaseAuth = { deleteUser: jest.fn(), verifyIdToken: jest.fn() };
-    // transaction() runs the callback with an EntityManager whose getRepository() returns userRivalsRepo
     dataSource = {
-      transaction: jest.fn().mockImplementation((cb) => cb({ getRepository: () => userRivalsRepo })),
+      transaction: jest.fn().mockImplementation((cb) => cb({
+        getRepository: (entity: unknown) => {
+          if (entity === User) return usersRepo;
+          if (entity === UserRival) return userRivalsRepo;
+          if (entity === Grave) return deletedUsersRepo;
+          if (entity === Match) return matchesRepo;
+          throw new Error('Unexpected repository');
+        },
+      })),
     };
+    matchesRepo.find.mockResolvedValue([]);
 
     const module = await Test.createTestingModule({
       providers: [
@@ -43,6 +58,7 @@ describe('UsersService', () => {
         { provide: getRepositoryToken(UserFavorite), useValue: userFavoritesRepo },
         { provide: getRepositoryToken(UserRival), useValue: userRivalsRepo },
         { provide: getRepositoryToken(UserFriend), useValue: userFriendsRepo },
+        { provide: getRepositoryToken(Grave), useValue: deletedUsersRepo },
         { provide: getRepositoryToken(Game), useValue: gamesRepo },
         { provide: FIREBASE_AUTH, useValue: firebaseAuth },
         { provide: WsGateway, useValue: { sendToUser: jest.fn() } },
@@ -80,6 +96,16 @@ describe('UsersService', () => {
       expect(usersRepo.save).not.toHaveBeenCalled();
     });
 
+    it('rejects when the provider id is reserved in graves', async () => {
+      deletedUsersRepo.existsBy.mockResolvedValue(true);
+
+      await expect(service.findOrCreate('guest', 'uid-deleted', 'guest_uid-deleted')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(usersRepo.findOne).not.toHaveBeenCalled();
+      expect(usersRepo.save).not.toHaveBeenCalled();
+    });
+
     it('generates an ID and inserts a new user when none exists', async () => {
       usersRepo.findOne.mockResolvedValue(null);
       usersRepo.existsBy.mockResolvedValue(false); // ID is unique on first try
@@ -106,9 +132,37 @@ describe('UsersService', () => {
       expect(usersRepo.existsBy).toHaveBeenCalledTimes(5);
       expect(usersRepo.save).not.toHaveBeenCalled();
     });
+
+    it('does not reuse an ID reserved in graves', async () => {
+      usersRepo.findOne.mockResolvedValue(null);
+      usersRepo.existsBy.mockResolvedValue(false);
+      deletedUsersRepo.existsBy
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(false);
+      usersRepo.create.mockImplementation((data) => ({ ...data } as User));
+      usersRepo.save.mockImplementation(async (u) => u as User);
+
+      await service.findOrCreate('guest', 'uid-new', 'guest_uid-new');
+
+      expect(usersRepo.existsBy).toHaveBeenCalledTimes(2);
+      expect(deletedUsersRepo.existsBy).toHaveBeenCalledTimes(3);
+      expect(deletedUsersRepo.existsBy).toHaveBeenCalledWith({ providerId: 'uid-new' });
+      expect(usersRepo.save).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('findOrUpsertByFirebaseUid', () => {
+    it('rejects when the Firebase UID is reserved in graves', async () => {
+      deletedUsersRepo.existsBy.mockResolvedValue(true);
+
+      await expect(service.findOrUpsertByFirebaseUid('firebase-uid', 'provider.com')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(usersRepo.findOne).not.toHaveBeenCalled();
+      expect(usersRepo.save).not.toHaveBeenCalled();
+    });
+
     it('generates an ID and inserts a new user when none exists', async () => {
       usersRepo.findOne.mockResolvedValue(null);
       usersRepo.existsBy.mockResolvedValue(false);
@@ -247,19 +301,70 @@ describe('UsersService', () => {
     const freshIat = now - 60;   // 1 min ago — within 5-min window
     const staleIat = now - 400;  // ~6.7 min ago — outside 5-min window
 
-    it('deletes DB record and Firebase account when token is fresh and user matches', async () => {
-      const cleanup = jest.fn().mockResolvedValue(undefined);
-      service.registerCleanupCallback(cleanup);
+    it('creates a grave with active match cleanup metadata, deletes DB record, and deletes Firebase account', async () => {
+      const activeMatch = {
+        id: 'match-1',
+        player1Id: user.id,
+        player2Id: 'OPPONENT01',
+        status: MatchStatus.Active,
+      } as Match;
       firebaseAuth.verifyIdToken.mockResolvedValue({ uid: user.providerId, iat: freshIat });
       usersRepo.findOne.mockResolvedValue(user);
+      matchesRepo.find.mockResolvedValue([activeMatch]);
       usersRepo.delete.mockResolvedValue({ affected: 1, raw: [] });
+      deletedUsersRepo.save.mockResolvedValue({} as Grave);
       firebaseAuth.deleteUser.mockResolvedValue(undefined);
 
       await service.deleteAccount(user.id, 'valid-id-token');
 
-      expect(cleanup).toHaveBeenCalledWith(user.id);
+      expect(matchesRepo.find).toHaveBeenCalledWith({
+        where: [
+          { player1Id: user.id, status: MatchStatus.Active },
+          { player2Id: user.id, status: MatchStatus.Active },
+        ],
+        select: ['id', 'player1Id', 'player2Id'],
+      });
+      expect(deletedUsersRepo.save).toHaveBeenCalledWith(expect.objectContaining({
+        userId: user.id,
+        providerId: user.providerId,
+        externalCleanup: {
+          activeMatches: [
+            {
+              matchId: activeMatch.id,
+              player1Id: activeMatch.player1Id,
+              player2Id: activeMatch.player2Id,
+            },
+          ],
+        },
+      }));
       expect(usersRepo.delete).toHaveBeenCalledWith(user.id);
       expect(firebaseAuth.deleteUser).toHaveBeenCalledWith(user.providerId);
+    });
+
+    it('succeeds when immediate Firebase deletion fails after the grave transaction commits', async () => {
+      const warn = jest.spyOn((service as any).logger, 'warn').mockImplementation();
+      firebaseAuth.verifyIdToken.mockResolvedValue({ uid: user.providerId, iat: freshIat });
+      usersRepo.findOne.mockResolvedValue(user);
+      usersRepo.delete.mockResolvedValue({ affected: 1, raw: [] });
+      deletedUsersRepo.save.mockResolvedValue({} as Grave);
+      firebaseAuth.deleteUser.mockRejectedValue(new Error('firebase down'));
+
+      await expect(service.deleteAccount(user.id, 'valid-id-token')).resolves.toBeUndefined();
+
+      expect(deletedUsersRepo.save).toHaveBeenCalled();
+      expect(usersRepo.delete).toHaveBeenCalledWith(user.id);
+      expect(firebaseAuth.deleteUser).toHaveBeenCalledWith(user.providerId);
+
+      warn.mockRestore();
+    });
+
+    it('does not translate database failures into UnauthorizedException', async () => {
+      const dbError = new Error('database down');
+      firebaseAuth.verifyIdToken.mockResolvedValue({ uid: user.providerId, iat: freshIat });
+      usersRepo.findOne.mockRejectedValue(dbError);
+
+      await expect(service.deleteAccount(user.id, 'valid-id-token')).rejects.toThrow(dbError);
+      await expect(service.deleteAccount(user.id, 'valid-id-token')).rejects.not.toThrow(UnauthorizedException);
     });
 
     it('throws UnauthorizedException when token is stale', async () => {
@@ -271,28 +376,22 @@ describe('UsersService', () => {
     });
 
     it('throws UnauthorizedException when decoded uid resolves to a different DB user', async () => {
-      const cleanup = jest.fn().mockResolvedValue(undefined);
-      service.registerCleanupCallback(cleanup);
       const otherUser = { id: 'ZZZZZZZZZZ', providerId: user.providerId, provider: 'google.com' } as User;
       firebaseAuth.verifyIdToken.mockResolvedValue({ uid: user.providerId, iat: freshIat });
       usersRepo.findOne.mockResolvedValue(otherUser);
 
       await expect(service.deleteAccount(user.id, 'valid-id-token')).rejects.toThrow(UnauthorizedException);
-      expect(cleanup).not.toHaveBeenCalled();
       expect(usersRepo.delete).not.toHaveBeenCalled();
       expect(firebaseAuth.deleteUser).not.toHaveBeenCalled();
     });
 
     it('removes an orphan Firebase identity but rejects local deletion when user is not found in DB', async () => {
-      const cleanup = jest.fn().mockResolvedValue(undefined);
-      service.registerCleanupCallback(cleanup);
       firebaseAuth.verifyIdToken.mockResolvedValue({ uid: 'orphan-firebase-uid', iat: freshIat });
       usersRepo.findOne.mockResolvedValue(null);
       firebaseAuth.deleteUser.mockResolvedValue(undefined);
 
       await expect(service.deleteAccount(user.id, 'valid-id-token')).rejects.toThrow(UnauthorizedException);
 
-      expect(cleanup).not.toHaveBeenCalled();
       expect(usersRepo.delete).not.toHaveBeenCalled();
       expect(firebaseAuth.deleteUser).toHaveBeenCalledWith('orphan-firebase-uid');
     });
@@ -303,6 +402,55 @@ describe('UsersService', () => {
       await expect(service.deleteAccount(user.id, 'bad-token')).rejects.toThrow(UnauthorizedException);
       expect(usersRepo.delete).not.toHaveBeenCalled();
       expect(firebaseAuth.deleteUser).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('deleted user cleanup helpers', () => {
+    const grave = {
+      userId: 'ABCD123456',
+      providerId: 'firebase-uid-123',
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      isProcessed: false,
+      processedAt: null,
+      externalCleanup: { activeMatches: [] },
+    } as Grave;
+
+    it('lists unprocessed graves in creation order with the requested batch size', async () => {
+      deletedUsersRepo.find.mockResolvedValue([grave]);
+
+      const result = await service.listUnprocessedDeletedUsers(12);
+
+      expect(result).toEqual([grave]);
+      expect(deletedUsersRepo.find).toHaveBeenCalledWith({
+        where: { isProcessed: false },
+        order: { createdAt: 'ASC' },
+        take: 12,
+      });
+    });
+
+    it('deletes the Firebase identity for a grave', async () => {
+      firebaseAuth.deleteUser.mockResolvedValue(undefined);
+
+      await service.cleanupForDeletedUser(grave);
+
+      expect(firebaseAuth.deleteUser).toHaveBeenCalledWith(grave.providerId);
+    });
+
+    it('treats an already-missing Firebase identity as cleaned up', async () => {
+      firebaseAuth.deleteUser.mockRejectedValue({ code: 'auth/user-not-found' });
+
+      await expect(service.cleanupForDeletedUser(grave)).resolves.toBeUndefined();
+    });
+
+    it('marks a grave processed', async () => {
+      deletedUsersRepo.update.mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+
+      await service.markDeletedUserProcessed(grave.userId);
+
+      expect(deletedUsersRepo.update).toHaveBeenCalledWith(
+        { userId: grave.userId },
+        { isProcessed: true, processedAt: expect.any(Date), externalCleanup: null },
+      );
     });
   });
 

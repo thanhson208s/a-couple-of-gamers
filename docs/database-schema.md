@@ -19,6 +19,21 @@ Stores the application identity linked to an authentication provider.
 | `avatar_url` | `text`, nullable | Profile avatar URL. |
 | `created_at` | `timestamptz` not null, default `now()` | Creation timestamp. |
 
+### `graves`
+
+Stores deleted-account tombstones and pending external deletion cleanup state.
+Rows are not foreign-keyed to `users` because the corresponding user row is
+removed.
+
+| Column | Type / Constraints | Purpose |
+|---|---|---|
+| `user_id` | `char(10)` primary key | Former server-generated user identity; reserved against reuse. |
+| `provider_id` | `text` not null, unique | Former Firebase UID or development account identifier. |
+| `created_at` | `timestamptz` not null, default `now()` | Tombstone creation timestamp. |
+| `is_processed` | `boolean` not null, default `false` | Whether external deletion cleanup has completed. |
+| `processed_at` | `timestamptz`, nullable | External cleanup completion timestamp. |
+| `external_cleanup` | `jsonb`, nullable | Snapshot of external cleanup inputs captured before deleting the user row; cleared after worker processing. |
+
 ### `refresh_tokens`
 
 Stores rotating application sessions.
@@ -70,12 +85,11 @@ Stores joined matches only. Pending invitations are not rows in this table.
 | `status` | `text` not null | `active`, `completed`, or `abandoned`. |
 | `state` | `jsonb` not null | Plugin-owned game state. |
 | `options` | `jsonb`, nullable | Plugin-specific creation options. |
-| `player1_id`, `player2_id` | `char(10)`, nullable | Participant IDs. |
+| `player1_id`, `player2_id` | `char(10)` not null, FK to `users.id` with `ON DELETE CASCADE` | Participant IDs. |
 | `winner` | `integer`, nullable | Completion result (`0`, `1`, or `2`). |
 | `created_at`, `updated_at` | `timestamptz` not null, default `now()` | Record timestamps. |
 
-In the current migration, the player identifier columns do not have foreign
-keys to `users`.
+Deleting either participant deletes the durable match row.
 
 ### `user_favorites`
 
@@ -88,14 +102,17 @@ keys to `users`.
 
 | Column | Type / Constraints | Purpose |
 |---|---|---|
-| `user_id1` | `char(10)` PK part, FK to `users.id` with cascading delete | Perspective owner. |
-| `user_id2` | `char(10)` PK part, no user FK | Historical opponent identifier. |
-| `game_id` | `text` PK part, FK to `games.id` | Game identity. |
+| `id` | `uuid` primary key, generated | Rival row identity. |
+| `user_id1` | `char(10)` not null, FK to `users.id` with cascading delete | Perspective owner. |
+| `user_id2` | `char(10)`, nullable, FK to `users.id` with `ON DELETE SET NULL` | Opponent identifier while the opponent account exists. |
+| `game_id` | `text` not null, FK to `games.id` | Game identity. |
 | `match_count` | `integer`, stored generated value | Sum of win/loss/draw counts. |
 | `win_count`, `loss_count`, `draw_count` | `integer` not null, default `0` | Results from `user_id1`'s perspective. |
 
-The absence of a user foreign key on `user_id2` permits surviving historical
-statistics after the opponent account is removed.
+The committed schema also enforces uniqueness on
+`user_id1` / `user_id2` / `game_id`. When an opponent account is removed,
+`user_id2` becomes `NULL` so the perspective owner's historical aggregate row
+can survive without retaining the deleted user's server ID.
 
 ### `user_friends`
 
@@ -129,8 +146,10 @@ A migrated table with no active runtime purchases behavior.
 
 ## Indexes
 
-The committed migration defines only primary-key and uniqueness indexes. It
-does not define additional lookup or cleanup indexes.
+The committed migrations define primary-key indexes plus uniqueness indexes on
+`users.provider_id`, `refresh_tokens.token_hash`,
+`user_rivals(user_id1, user_id2, game_id)`, and `graves.provider_id`. They do
+not define additional lookup or cleanup indexes.
 
 ## Material Drift
 
@@ -139,7 +158,6 @@ The current source and committed migration are not fully aligned:
 | Area | Migration Truth | Source/Runtime Impact |
 |---|---|---|
 | Friends | Table has `created_at` and `updated_at`. | The current entity maps a required `accepted_at` column instead; friendship persistence against this migration can fail. |
-| Match players | No foreign keys from `matches.player1_id` / `player2_id` to `users`. | Account deletion does not automatically null player IDs in historical matches. |
 | Entitlements | Migrated key column is named `game_id`; no gift column/relation exists. | The entity describes an entitlement identifier and a `gift_id` relation not represented in the migration. No active purchases path currently exercises it. |
 | Gifts | No `user_gifts` table is created by the committed migration. | A source entity exists, but no migrated storage is available for it. |
 

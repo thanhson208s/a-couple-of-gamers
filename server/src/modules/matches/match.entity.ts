@@ -26,20 +26,19 @@ export class Match {
   @Column({ type: 'jsonb', nullable: true })
   options: object | null;
 
-  // nullable: player is set to NULL by DB when their account is deleted.
-  @Column({ type: 'char', length: 10, name: 'player1_id', nullable: true })
-  player1Id: string | null;
+  @Column({ type: 'char', length: 10, name: 'player1_id' })
+  player1Id: string;
 
-  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'player1_id' })
-  player1: User | null;
+  player1: User;
 
-  @Column({ type: 'char', length: 10, name: 'player2_id', nullable: true })
-  player2Id: string | null;
+  @Column({ type: 'char', length: 10, name: 'player2_id' })
+  player2Id: string;
 
-  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'player2_id' })
-  player2: User | null;
+  player2: User;
 
   @Column({ type: 'int', name: 'winner', nullable: true })
   winner: 0 | 1 | 2 | null; // 1v1: 1=p1 wins, 2=p2 wins, 0=draw; coop: 1=both win, 0=both lose; null if not finished
