@@ -92,12 +92,19 @@ jobs:
       - name: Notify Telegram
         if: always() && startsWith(github.ref, 'refs/tags/v')
         run: |
-          TAG_MESSAGE="$(git for-each-ref "refs/tags/${GITHUB_REF_NAME}" --format='%(contents:subject)' | head -n 1)"
-          if [ -z "$TAG_MESSAGE" ]; then
-            TAG_MESSAGE="No tag message provided"
+          TAG_REF="refs/tags/${GITHUB_REF_NAME}"
+          TAG_TYPE="$(git cat-file -t "${TAG_REF}" 2>/dev/null || true)"
+          if [ "$TAG_TYPE" = "tag" ]; then
+            TAG_MESSAGE="$(git for-each-ref "${TAG_REF}" --format='%(contents:subject)')"
+          else
+            TAG_MESSAGE=""
           fi
 
-          printf -v MESSAGE 'Build %s\nTag: %s\nMessage: %s' \
+          if [ -z "$TAG_MESSAGE" ]; then
+            TAG_MESSAGE="No annotated tag message provided"
+          fi
+
+          printf -v MESSAGE 'Build %s\nTag: %s\n\nNote: %s' \
             "${{ job.status }}" \
             "${GITHUB_REF_NAME}" \
             "${TAG_MESSAGE}"
