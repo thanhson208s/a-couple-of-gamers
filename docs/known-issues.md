@@ -9,12 +9,6 @@ prevent an exposed flow from working, or leave runtime state inconsistent.
 Protocol and storage definitions remain owned by the linked reference/system
 pages.
 
-## Consistency Hazards
-
-| Area | Current Behavior | Consequence | Related Documentation |
-|---|---|---|---|
-| Friendship persistence | The committed migration and the runtime friendship entity disagree on relationship timestamp columns. | Friendship reads or mutations against the migrated schema can fail. | [Database Schema](database-schema.md#material-drift), [Identity and Social State](systems/identity-social.md#friendships) |
-
 ## Incomplete Paths
 
 | Area | Current Behavior | Consequence | Related Documentation |

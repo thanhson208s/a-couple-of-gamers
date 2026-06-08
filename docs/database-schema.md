@@ -157,7 +157,6 @@ The current source and committed migration are not fully aligned:
 
 | Area | Migration Truth | Source/Runtime Impact |
 |---|---|---|
-| Friends | Table has `created_at` and `updated_at`. | The current entity maps a required `accepted_at` column instead; friendship persistence against this migration can fail. |
 | Entitlements | Migrated key column is named `game_id`; no gift column/relation exists. | The entity describes an entitlement identifier and a `gift_id` relation not represented in the migration. No active purchases path currently exercises it. |
 | Gifts | No `user_gifts` table is created by the committed migration. | A source entity exists, but no migrated storage is available for it. |
 
