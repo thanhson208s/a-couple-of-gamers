@@ -1,4 +1,4 @@
-import { Entity, PrimaryColumn, ManyToOne, JoinColumn, Column } from 'typeorm';
+import { Entity, PrimaryColumn, ManyToOne, JoinColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { User } from './user.entity';
 
 export enum FriendStatus {
@@ -25,6 +25,9 @@ export class UserFriend {
   @Column({ type: 'text', default: FriendStatus.Pending })
   status: FriendStatus;
 
-  @Column({ type: 'timestamptz', name: 'accepted_at' })
-  acceptedAt: Date;
+  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
+  updatedAt: Date;
 }
