@@ -1,6 +1,6 @@
 # Match Runtime
 
-**Status:** Partially implemented
+**Status:** Implemented
 
 ## Responsibility and Boundaries
 
@@ -106,12 +106,6 @@ admission, replacement, dispatch, and shutdown behavior is specified in
 An abandoned match does not update rival statistics. Account deletion removes
 the deleting user's received-invite index, but it does not cancel source
 invitations created by other users.
-
-## Incomplete Runtime Paths
-
-- Newly created Tic-Tac-Toe matches initialize without a player eligible to
-  act (`nextTurns` is empty), so submitted normal moves are rejected as not
-  belonging to the current turn.
 
 ## Client Behavior Placeholder
 

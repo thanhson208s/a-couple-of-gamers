@@ -50,7 +50,7 @@ export class TicTacToePlugin implements GamePlugin {
   initialState(): TicTacToeState {
     return {
       board: [[null, null, null], [null, null, null], [null, null, null]],
-      currentTurn: 0,
+      currentTurn: 1,
       winner: null,
     };
   }

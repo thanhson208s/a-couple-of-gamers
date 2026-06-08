@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { GamePlugin } from '../../logic';
+import { BattleshipPlugin } from '../../logic/battleship';
 import { TicTacToePlugin } from '../../logic/tictactoe';
 import { GameType } from './game.entity';
 
@@ -11,6 +12,7 @@ interface RegistryEntry {
 @Injectable()
 export class GamesRegistry {
   private readonly entries = new Map<string, RegistryEntry>([
+    ['battleship', { plugin: new BattleshipPlugin(), type: GameType.Versus }],
     ['tictactoe', { plugin: new TicTacToePlugin(), type: GameType.Versus }],
   ]);
 
