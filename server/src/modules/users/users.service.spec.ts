@@ -85,78 +85,11 @@ describe('UsersService', () => {
     });
   });
 
-  describe('findOrCreate', () => {
-    it('returns the existing user without inserting', async () => {
-      const existing = { id: 'ABCD123456', provider: 'guest', providerId: 'uid-1' } as User;
-      usersRepo.findOne.mockResolvedValue(existing);
-
-      const result = await service.findOrCreate('guest', 'uid-1', 'guest_uid-1');
-
-      expect(result).toBe(existing);
-      expect(usersRepo.save).not.toHaveBeenCalled();
-    });
-
-    it('rejects when the provider id is reserved in graves', async () => {
-      deletedUsersRepo.existsBy.mockResolvedValue(true);
-
-      await expect(service.findOrCreate('guest', 'uid-deleted', 'guest_uid-deleted')).rejects.toThrow(
-        UnauthorizedException,
-      );
-      expect(usersRepo.findOne).not.toHaveBeenCalled();
-      expect(usersRepo.save).not.toHaveBeenCalled();
-    });
-
-    it('generates an ID and inserts a new user when none exists', async () => {
-      usersRepo.findOne.mockResolvedValue(null);
-      usersRepo.existsBy.mockResolvedValue(false); // ID is unique on first try
-      usersRepo.create.mockImplementation((data) => ({ ...data } as User));
-      usersRepo.save.mockImplementation(async (u) => u as User);
-
-      const result = await service.findOrCreate('guest', 'uid-new', 'guest_uid-new');
-
-      expect(usersRepo.save).toHaveBeenCalledTimes(1);
-      expect(result.provider).toBe('guest');
-      expect(result.providerId).toBe('uid-new');
-      expect(typeof result.id).toBe('string');
-      expect(result.id).toHaveLength(10);
-    });
-
-    it('throws InternalServerErrorException after 5 consecutive ID collisions', async () => {
-      usersRepo.findOne.mockResolvedValue(null);
-      // Every generated ID already exists
-      usersRepo.existsBy.mockResolvedValue(true);
-
-      await expect(service.findOrCreate('guest', 'uid-x', 'guest_uid-x')).rejects.toThrow(
-        InternalServerErrorException,
-      );
-      expect(usersRepo.existsBy).toHaveBeenCalledTimes(5);
-      expect(usersRepo.save).not.toHaveBeenCalled();
-    });
-
-    it('does not reuse an ID reserved in graves', async () => {
-      usersRepo.findOne.mockResolvedValue(null);
-      usersRepo.existsBy.mockResolvedValue(false);
-      deletedUsersRepo.existsBy
-        .mockResolvedValueOnce(false)
-        .mockResolvedValueOnce(true)
-        .mockResolvedValueOnce(false);
-      usersRepo.create.mockImplementation((data) => ({ ...data } as User));
-      usersRepo.save.mockImplementation(async (u) => u as User);
-
-      await service.findOrCreate('guest', 'uid-new', 'guest_uid-new');
-
-      expect(usersRepo.existsBy).toHaveBeenCalledTimes(2);
-      expect(deletedUsersRepo.existsBy).toHaveBeenCalledTimes(3);
-      expect(deletedUsersRepo.existsBy).toHaveBeenCalledWith({ providerId: 'uid-new' });
-      expect(usersRepo.save).toHaveBeenCalledTimes(1);
-    });
-  });
-
   describe('findOrUpsertByFirebaseUid', () => {
     it('rejects when the Firebase UID is reserved in graves', async () => {
       deletedUsersRepo.existsBy.mockResolvedValue(true);
 
-      await expect(service.findOrUpsertByFirebaseUid('firebase-uid', 'provider.com')).rejects.toThrow(
+      await expect(service.findOrUpsertByProviderId('firebase-uid', 'provider.com')).rejects.toThrow(
         UnauthorizedException,
       );
       expect(usersRepo.findOne).not.toHaveBeenCalled();
@@ -169,7 +102,7 @@ describe('UsersService', () => {
       usersRepo.create.mockImplementation((data) => ({ ...data } as any));
       usersRepo.save.mockImplementation(async (u) => u as User);
 
-      const result = await service.findOrUpsertByFirebaseUid('firebase-uid', 'provider.com', "abc");
+      const result = await service.findOrUpsertByProviderId('firebase-uid', 'provider.com', "abc");
 
       expect(usersRepo.save).toHaveBeenCalledTimes(1);
       expect(result.provider).toBe('provider.com');
@@ -185,7 +118,7 @@ describe('UsersService', () => {
       usersRepo.create.mockImplementation((data) => ({ ...data } as any));
       usersRepo.save.mockImplementation(async (u) => u as User);
 
-      const result = await service.findOrUpsertByFirebaseUid('firebase-uid', 'provider.com', undefined, "abc@abc.com");
+      const result = await service.findOrUpsertByProviderId('firebase-uid', 'provider.com', undefined, "abc@abc.com");
 
       expect(usersRepo.save).toHaveBeenCalledTimes(1);
       expect(result.provider).toBe('provider.com');
@@ -201,7 +134,7 @@ describe('UsersService', () => {
       usersRepo.create.mockImplementation((data) => ({ ...data } as any));
       usersRepo.save.mockImplementation(async (u) => u as User);
 
-      const result = await service.findOrUpsertByFirebaseUid('firebase-uid', 'provider.com', undefined, undefined);
+      const result = await service.findOrUpsertByProviderId('firebase-uid', 'provider.com', undefined, undefined);
 
       expect(usersRepo.save).toHaveBeenCalledTimes(1);
       expect(result.provider).toBe('provider.com');
@@ -216,7 +149,7 @@ describe('UsersService', () => {
       usersRepo.findOne.mockResolvedValue(user);
       usersRepo.save.mockImplementation(async (u) => u as User);
 
-      const result = await service.findOrUpsertByFirebaseUid('firebase-uid', 'google.com', 'Alice', undefined, 'https://photo.jpg');
+      const result = await service.findOrUpsertByProviderId('firebase-uid', 'google.com', 'Alice', undefined, 'https://photo.jpg');
 
       expect(usersRepo.save).toHaveBeenCalledTimes(1);
       expect(result.provider).toBe('google.com');
@@ -229,7 +162,7 @@ describe('UsersService', () => {
       usersRepo.findOne.mockResolvedValue(user);
       usersRepo.save.mockImplementation(async (u) => u as User);
 
-      await service.findOrUpsertByFirebaseUid('firebase-uid', 'google.com');
+      await service.findOrUpsertByProviderId('firebase-uid', 'google.com');
 
       expect(usersRepo.save).toHaveBeenCalledTimes(1);
       expect(user.displayName).toBe('Gamer0123456789');
@@ -241,7 +174,7 @@ describe('UsersService', () => {
       usersRepo.findOne.mockResolvedValue(user);
       usersRepo.save.mockImplementation(async (u) => u as User);
 
-      await service.findOrUpsertByFirebaseUid('firebase-uid', 'dev', 'Dev User', undefined, 'https://photo.jpg');
+      await service.findOrUpsertByProviderId('firebase-uid', 'dev', 'Dev User', undefined, 'https://photo.jpg');
 
       expect(usersRepo.save).toHaveBeenCalledTimes(1);
       expect(user.displayName).toBe('Gamer0123456789');
@@ -252,7 +185,7 @@ describe('UsersService', () => {
       const user = { id: '0123456789', provider: 'google.com', displayName: 'Alice', avatarUrl: 'https://original.jpg' } as User;
       usersRepo.findOne.mockResolvedValue(user);
 
-      await service.findOrUpsertByFirebaseUid('firebase-uid', 'google.com', 'New Name', undefined, 'https://new.jpg');
+      await service.findOrUpsertByProviderId('firebase-uid', 'google.com', 'New Name', undefined, 'https://new.jpg');
 
       expect(usersRepo.save).not.toHaveBeenCalled();
       expect(user.displayName).toBe('Alice');
@@ -342,7 +275,6 @@ describe('UsersService', () => {
     });
 
     it('succeeds when immediate Firebase deletion fails after the grave transaction commits', async () => {
-      const warn = jest.spyOn((service as any).logger, 'warn').mockImplementation();
       firebaseAuth.verifyIdToken.mockResolvedValue({ uid: user.providerId, iat: freshIat });
       usersRepo.findOne.mockResolvedValue(user);
       usersRepo.delete.mockResolvedValue({ affected: 1, raw: [] });
@@ -354,8 +286,6 @@ describe('UsersService', () => {
       expect(deletedUsersRepo.save).toHaveBeenCalled();
       expect(usersRepo.delete).toHaveBeenCalledWith(user.id);
       expect(firebaseAuth.deleteUser).toHaveBeenCalledWith(user.providerId);
-
-      warn.mockRestore();
     });
 
     it('does not translate database failures into UnauthorizedException', async () => {

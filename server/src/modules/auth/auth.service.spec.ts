@@ -28,14 +28,14 @@ function makeRefreshToken(overrides: Partial<RefreshToken> = {}): RefreshToken {
 describe('AuthService', () => {
   let service: AuthService;
   let refreshTokensRepo: ReturnType<typeof mockRepository<RefreshToken>>;
-  let usersService: jest.Mocked<Pick<UsersService, 'findOrCreate' | 'findById' | 'findOrUpsertByFirebaseUid'>>;
+  let usersService: jest.Mocked<Pick<UsersService, 'findById' | 'findOrUpsertByProviderId'>>;
   let jwtService: jest.Mocked<Pick<JwtService, 'sign'>>;
   let redis: { get: jest.Mock, set: jest.Mock, del: jest.Mock };
   let firebaseAuth: { verifyIdToken: jest.Mock, getUser: jest.Mock };
 
   beforeEach(async () => {
     refreshTokensRepo = mockRepository<RefreshToken>();
-    usersService = { findOrCreate: jest.fn(), findById: jest.fn(), findOrUpsertByFirebaseUid: jest.fn() };
+    usersService = { findById: jest.fn(), findOrUpsertByProviderId: jest.fn() };
     jwtService = { sign: jest.fn().mockReturnValue('access_token') };
     redis = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
     firebaseAuth = { verifyIdToken: jest.fn(), getUser: jest.fn() };
@@ -60,11 +60,11 @@ describe('AuthService', () => {
   describe('devLogin', () => {
     it('returns accessToken, refreshToken, and user fields', async () => {
       const user = makeUser({ provider: 'dev', providerId: 'alice', displayName: 'dev_alice' });
-      usersService.findOrCreate.mockResolvedValue(user);
+      usersService.findOrUpsertByProviderId.mockResolvedValue(user);
 
       const result = await service.devLogin('alice');
 
-      expect(usersService.findOrCreate).toHaveBeenCalledWith('dev', 'alice', 'dev_alice');
+      expect(usersService.findOrUpsertByProviderId).toHaveBeenCalledWith('alice', 'dev', 'dev_alice');
       expect(jwtService.sign).toHaveBeenCalledWith({ id: user.id });
       expect(result.accessToken).toBe('access_token');
       expect(typeof result.refreshToken).toBe('string');
@@ -81,13 +81,13 @@ describe('AuthService', () => {
       const user = makeUser({ provider: 'google.com', displayName: 'Alice' });
       firebaseAuth.verifyIdToken.mockResolvedValue(decodedToken);
       firebaseAuth.getUser.mockResolvedValue(userRecord);
-      usersService.findOrUpsertByFirebaseUid.mockResolvedValue(user);
+      usersService.findOrUpsertByProviderId.mockResolvedValue(user);
 
       const result = await service.firebaseLogin(idToken);
 
       expect(firebaseAuth.verifyIdToken).toHaveBeenCalledWith(idToken, true);
       expect(firebaseAuth.getUser).toHaveBeenCalledWith(decodedToken.uid);
-      expect(usersService.findOrUpsertByFirebaseUid).toHaveBeenCalledWith(
+      expect(usersService.findOrUpsertByProviderId).toHaveBeenCalledWith(
         decodedToken.uid,
         decodedToken.firebase.sign_in_provider,
         userRecord.displayName,
@@ -114,7 +114,7 @@ describe('AuthService', () => {
     it('throws UnauthorizedException when findOrUpsertByFirebaseUid fails', async () => {
       firebaseAuth.verifyIdToken.mockResolvedValue(decodedToken);
       firebaseAuth.getUser.mockResolvedValue(userRecord);
-      usersService.findOrUpsertByFirebaseUid.mockRejectedValue(new Error('db error'));
+      usersService.findOrUpsertByProviderId.mockRejectedValue(new Error('db error'));
       await expect(service.firebaseLogin(idToken)).rejects.toThrow(UnauthorizedException);
     });
   });

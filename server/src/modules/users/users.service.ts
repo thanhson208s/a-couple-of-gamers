@@ -34,9 +34,11 @@ export class UsersService {
     return this.users.findOne({ where: { id } });
   }
 
-  async findOrUpsertByFirebaseUid(uid: string, provider: string, displayName?: string, email?: string, avatarUrl?: string | null): Promise<User> {
-    await this.ensureProviderIdNotDeleted(uid);
-    let user = await this.users.findOne({ where: { providerId: uid }});
+  async findOrUpsertByProviderId(providerId: string, provider: string, displayName?: string, email?: string, avatarUrl?: string | null): Promise<User> {
+    if (await this.graves.existsBy({ providerId }))
+      throw new UnauthorizedException();
+
+    let user = await this.users.findOne({ where: { providerId }});
     if (user) {
       if (user.provider === provider) return user;
       user.provider = provider;
@@ -48,20 +50,10 @@ export class UsersService {
       const id = await this.generateId();
       if (!displayName)
         displayName = email ? email.split('@')[0] : 'Gamer' + id;
-      user = this.users.create({ id, provider, providerId: uid, displayName, avatarUrl: avatarUrl ?? null });
+      user = this.users.create({ id, provider, providerId, displayName, avatarUrl: avatarUrl ?? null });
     }
 
     return await this.users.save(user);
-  }
-
-  async findOrCreate(provider: string, providerId: string, displayName: string): Promise<User> {
-    await this.ensureProviderIdNotDeleted(providerId);
-    let user = await this.users.findOne({ where: { providerId } });
-    if (!user) {
-      const id = await this.generateId();
-      user = await this.users.save(this.users.create({ id, provider, providerId, displayName }));
-    }
-    return user;
   }
 
   private async generateId(): Promise<string> {
@@ -78,10 +70,6 @@ export class UsersService {
       if (!activeUserExists && !deletedUserExists) return id;
     }
     throw new InternalServerErrorException('Failed to generate unique user ID after 5 attempts');
-  }
-
-  private async ensureProviderIdNotDeleted(providerId: string): Promise<void> {
-    if (await this.graves.existsBy({ providerId })) throw new UnauthorizedException();
   }
 
   async getProfile(userId: string): Promise<{ id: string; provider: string; displayName: string; avatarUrl: string | null; favorites: string[] }> {
