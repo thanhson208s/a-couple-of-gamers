@@ -42,10 +42,7 @@ Catalog status values express availability:
 | Pending match creation | The server resolves only an enabled catalog row, then requires registered plugin logic for that game. A catalog row alone is not executable behavior. |
 | Existing joined match | Processing uses the game identity captured on the durable match and its registered plugin. A later catalog-status change does not stop it. |
 
-The registry currently contains `tictactoe`, so it is the only game slug the
-server can initialize and process for human matches. Its current gameplay
-availability limitation is documented in
-[Match Runtime](match-runtime.md#incomplete-runtime-paths).
+Registered server game logic currently includes `battleship` and `tictactoe`.
 
 ## Configuration Behavior
 

@@ -9,11 +9,7 @@ prevent an exposed flow from working, or leave runtime state inconsistent.
 Protocol and storage definitions remain owned by the linked reference/system
 pages.
 
-## Incomplete Paths
-
-| Area | Current Behavior | Consequence | Related Documentation |
-|---|---|---|---|
-| Tic-Tac-Toe start state | New matches initialize without an eligible first player. | The only currently registered game cannot advance through ordinary action submission. | [Match Runtime](systems/match-runtime.md#incomplete-runtime-paths) |
+No known issues are currently tracked.
 
 ## Maintenance
 
