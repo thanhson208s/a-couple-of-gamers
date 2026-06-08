@@ -52,7 +52,9 @@ services:
       BASE_URL: https://tracker.acoupleofgamers.com
       BEHIND_HTTPS_PROXY: "true"
       USE_X_FORWARDED_HOST: "false"
+      ALERTS_WEBHOOK_OUTBOUND_MODE: "allowlist_only"
       ALERTS_WEBHOOK_ALLOW_LIST: "slagram.local"
+      ALERTS_WEBHOOK_DENY_NON_GLOBAL: "false"
     networks:
       - monitor
 
