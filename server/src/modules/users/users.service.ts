@@ -1,7 +1,7 @@
 import { randomInt } from 'crypto';
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, InternalServerErrorException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { User } from './user.entity';
 import { UserFavorite } from './user-favorite.entity';
 import { Game, GameType } from '../games/game.entity';
@@ -9,16 +9,13 @@ import { FIREBASE_AUTH } from '../../common/firebase/firebase.module';
 import { auth } from 'firebase-admin';
 import { UserRival } from './user-rival.entity';
 import { FriendStatus, UserFriend } from './user-friend.entity';
+import { Grave } from './grave.entity';
 import { WsGateway } from '../ws/ws.gateway';
 import { ConfigService } from '../config/config.service';
+import { Match, MatchStatus } from '../matches/match.entity';
 
 @Injectable()
 export class UsersService {
-  private readonly cleanupCallbacks: ((userId: string) => Promise<void>)[] = [];
-
-  registerCleanupCallback(fn: (userId: string) => Promise<void>): void {
-    this.cleanupCallbacks.push(fn);
-  }
 
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
@@ -27,6 +24,7 @@ export class UsersService {
     @InjectRepository(UserRival) private readonly userRivals: Repository<UserRival>,
     @InjectRepository(Game) private readonly games: Repository<Game>,
     @InjectRepository(UserFriend) private readonly userFriends: Repository<UserFriend>,
+    @InjectRepository(Grave) private readonly graves: Repository<Grave>,
     @Inject(FIREBASE_AUTH) private readonly firebaseAuth: auth.Auth,
     private readonly wsGateway: WsGateway,
     private readonly configService: ConfigService,
@@ -36,8 +34,11 @@ export class UsersService {
     return this.users.findOne({ where: { id } });
   }
 
-  async findOrUpsertByFirebaseUid(uid: string, provider: string, displayName?: string, email?: string, avatarUrl?: string | null): Promise<User> {
-    let user = await this.users.findOne({ where: { providerId: uid }});
+  async findOrUpsertByProviderId(providerId: string, provider: string, displayName?: string, email?: string, avatarUrl?: string | null): Promise<User> {
+    if (await this.graves.existsBy({ providerId }))
+      throw new UnauthorizedException();
+
+    let user = await this.users.findOne({ where: { providerId }});
     if (user) {
       if (user.provider === provider) return user;
       user.provider = provider;
@@ -49,19 +50,10 @@ export class UsersService {
       const id = await this.generateId();
       if (!displayName)
         displayName = email ? email.split('@')[0] : 'Gamer' + id;
-      user = this.users.create({ id, provider, providerId: uid, displayName, avatarUrl: avatarUrl ?? null });
+      user = this.users.create({ id, provider, providerId, displayName, avatarUrl: avatarUrl ?? null });
     }
 
     return await this.users.save(user);
-  }
-
-  async findOrCreate(provider: string, providerId: string, displayName: string): Promise<User> {
-    let user = await this.users.findOne({ where: { providerId } });
-    if (!user) {
-      const id = await this.generateId();
-      user = await this.users.save(this.users.create({ id, provider, providerId, displayName }));
-    }
-    return user;
   }
 
   private async generateId(): Promise<string> {
@@ -71,7 +63,11 @@ export class UsersService {
         { length: 10 },
         () => CHARSET[randomInt(0, CHARSET.length)],
       ).join('');
-      if (!(await this.users.existsBy({ id }))) return id;
+      const [activeUserExists, deletedUserExists] = await Promise.all([
+        this.users.existsBy({ id }),
+        this.graves.existsBy({ userId: id }),
+      ]);
+      if (!activeUserExists && !deletedUserExists) return id;
     }
     throw new InternalServerErrorException('Failed to generate unique user ID after 5 attempts');
   }
@@ -85,25 +81,91 @@ export class UsersService {
 
   async deleteAccount(userId: string, idToken: string): Promise<void> {
     const FRESH_PERIOD = 300; //seconds
+
+    let decodedIdToken: auth.DecodedIdToken;
     try {
-      const decodedIdToken = await this.firebaseAuth.verifyIdToken(idToken, true);
-      if (decodedIdToken.iat + FRESH_PERIOD < Math.floor(Date.now() / 1000))
-        throw new UnauthorizedException();
-
-      const user = await this.users.findOne({ where: { providerId: decodedIdToken.uid }});
-      if (!user) {
-        await this.firebaseAuth.deleteUser(decodedIdToken.uid);
-        throw new UnauthorizedException();
-      }
-      if (user.id !== userId)
-        throw new UnauthorizedException();
-
-      for (const cleanup of this.cleanupCallbacks) await cleanup(userId);
-      await this.users.delete(user.id);
-      await this.firebaseAuth.deleteUser(decodedIdToken.uid);
-    } catch(e) {
+      decodedIdToken = await this.firebaseAuth.verifyIdToken(idToken, true);
+    } catch {
       throw new UnauthorizedException();
     }
+    if (decodedIdToken.iat + FRESH_PERIOD < Math.floor(Date.now() / 1000))
+      throw new UnauthorizedException();
+
+    const user = await this.users.findOne({ where: { providerId: decodedIdToken.uid }});
+    if (!user) {
+      await this.deleteFirebaseUserBestEffort(decodedIdToken.uid);
+      throw new UnauthorizedException();
+    }
+    if (user.id !== userId)
+      throw new UnauthorizedException();
+
+    await this.dataSource.transaction(async (em) => {
+      const users = em.getRepository(User);
+      const graves = em.getRepository(Grave);
+      const matches = em.getRepository(Match);
+      const activeMatches = await matches.find({
+        where: [
+          { player1Id: user.id, status: MatchStatus.Active },
+          { player2Id: user.id, status: MatchStatus.Active },
+        ],
+        select: ['id', 'player1Id', 'player2Id'],
+      });
+
+      await graves.save(graves.create({
+        userId: user.id,
+        providerId: decodedIdToken.uid,
+        externalCleanup: {
+          activeMatches: activeMatches.map((match) => ({
+            matchId: match.id,
+            player1Id: match.player1Id,
+            player2Id: match.player2Id,
+          })),
+        },
+      }));
+      await users.delete(user.id);
+    });
+    await this.deleteFirebaseUserBestEffort(decodedIdToken.uid);
+  }
+
+  async listUnprocessedDeletedUsers(batchSize = 50): Promise<Grave[]> {
+    return this.graves.find({
+      where: { isProcessed: false },
+      order: { createdAt: 'ASC' },
+      take: batchSize,
+    });
+  }
+
+  async markDeletedUserProcessed(userId: string): Promise<void> {
+    await this.graves.update(
+      { userId },
+      { isProcessed: true, processedAt: new Date(), externalCleanup: null },
+    );
+  }
+
+  async cleanupForDeletedUser(grave: Pick<Grave, 'providerId'>): Promise<void> {
+    await this.deleteFirebaseUserIfExists(grave.providerId);
+  }
+
+  async deleteFirebaseUserIfExists(providerId: string): Promise<void> {
+    try {
+      await this.firebaseAuth.deleteUser(providerId);
+    } catch (e) {
+      if (this.isFirebaseUserNotFoundError(e)) return;
+      throw e;
+    }
+  }
+
+  private async deleteFirebaseUserBestEffort(providerId: string): Promise<void> {
+    try {
+      await this.deleteFirebaseUserIfExists(providerId);
+    } catch (e) {
+      // Swallow Firebase deletion errors
+    }
+  }
+
+  private isFirebaseUserNotFoundError(error: unknown): boolean {
+    const { code, errorInfo } = error as { code?: string; errorInfo?: { code?: string } };
+    return code === 'auth/user-not-found' || errorInfo?.code === 'auth/user-not-found';
   }
 
   async addFavorite(userId: string, gameId: string): Promise<void> {
@@ -137,7 +199,7 @@ export class UsersService {
       p1Col = 'lossCount'; p2Col = 'winCount';
     }
 
-    await this.dataSource.transaction(async (em: EntityManager) => {
+    await this.dataSource.transaction(async (em) => {
       const rivals = em.getRepository(UserRival);
       for (const [uid1, uid2] of [[player1Id, player2Id], [player2Id, player1Id]] as [string, string][]) {
         if (!(await rivals.existsBy({ userId1: uid1, userId2: uid2, gameId }))) {

@@ -100,7 +100,7 @@ admission, replacement, dispatch, and shutdown behavior is specified in
 | Trigger | Match Effect | Associated Cleanup |
 |---|---|---|
 | Explicit abandonment | Any non-completed joined match containing the caller becomes abandoned. | Cached state is flushed and removed, buffered replay is cleared, and both connected players can receive `match:over`. |
-| Account deletion | Invites created by the deleting user are cancelled and its active matches become abandoned before deleting the user row. | Created invite values, creator invite indexes, recipient invite indexes for those created invites, the deleting user's received-invite index, and open presence are cleared; cached state/replay is cleared; reminder jobs for both players are cancelled; connected opponents receive `match:over`. |
+| Account deletion | Joined matches involving the deleted user are removed by database cascade. Active-match IDs and participant IDs are captured in the grave payload before deletion. | The cleanup worker clears created invite values, creator invite indexes, recipient invite indexes for those created invites, the deleted user's received-invite index, open presence, captured match state/metadata/replay keys, and reminder jobs for captured match participants. |
 | Scheduled stale-match cleanup | Deletes aged abandoned rows and inactive active rows, then removes their cached state/metadata. | Invoked by the worker's repeatable cleanup queue job. |
 
 An abandoned match does not update rival statistics. Account deletion removes

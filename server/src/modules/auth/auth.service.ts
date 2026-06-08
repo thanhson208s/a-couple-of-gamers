@@ -28,7 +28,7 @@ export class AuthService {
   ) {}
 
   async devLogin(accountId: string): Promise<{ accessToken: string; refreshToken: string }> {
-    const user = await this.usersService.findOrCreate('dev', accountId, `dev_${accountId}`);
+    const user = await this.usersService.findOrUpsertByProviderId(accountId, 'dev', `dev_${accountId}`);
     const accessToken = this.issueAccessToken(user.id, user.provider);
     const refreshToken = await this.issueRefreshToken(user.id);
     return { accessToken, refreshToken };
@@ -38,7 +38,7 @@ export class AuthService {
     try {
       const decodedIdToken = await this.firebaseAuth.verifyIdToken(idToken, true);
       const userRecord = await this.firebaseAuth.getUser(decodedIdToken.uid);
-      const user = await this.usersService.findOrUpsertByFirebaseUid(decodedIdToken.uid, decodedIdToken.firebase.sign_in_provider, userRecord.displayName, userRecord.email, userRecord.photoURL);
+      const user = await this.usersService.findOrUpsertByProviderId(decodedIdToken.uid, decodedIdToken.firebase.sign_in_provider, userRecord.displayName, userRecord.email, userRecord.photoURL);
       const accessToken = this.issueAccessToken(user.id, user.provider);
       const refreshToken = await this.issueRefreshToken(user.id);
       return { accessToken, refreshToken };

@@ -8,7 +8,6 @@ import {
   Injectable,
   NotImplementedException,
   NotFoundException,
-  OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LessThanOrEqual, MoreThan, Repository } from 'typeorm';
@@ -25,6 +24,7 @@ import { OnWsConnected, OnWsDisconnected, OnWsMessage } from '../ws/ws.decorator
 import { MatchMessageDto } from './match-message.dto';
 import { SubmitActionDto } from './submit-action.dto';
 import { ConfigService } from '../config/config.service';
+import { Grave } from '../users/grave.entity';
 
 const META_TTL_MS = 24 * 60 * 60 * 1000; // 1 days
 const INACTIVITY_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -126,7 +126,7 @@ function toInviteDto(data: MatchInvite, now: Date, includeInvitees = true): obje
 }
 
 @Injectable()
-export class MatchesService implements OnModuleInit {
+export class MatchesService {
   constructor(
     @InjectRepository(Match) private readonly matches: Repository<Match>,
     private readonly gamesService: GamesService,
@@ -137,10 +137,6 @@ export class MatchesService implements OnModuleInit {
     private readonly notificationsService: NotificationsService,
     private readonly configService: ConfigService,
   ) {}
-
-  onModuleInit() {
-    this.usersService.registerCleanupCallback((userId) => this.cleanupForUser(userId));
-  }
 
   async createMatch(
     gameSlug: string,
@@ -846,6 +842,44 @@ export class MatchesService implements OnModuleInit {
     await this.redis.del(...keys);
   }
 
+  async cleanupForDeletedUser(grave: Pick<Grave, 'userId' | 'externalCleanup'>): Promise<void> {
+    const userId = grave.userId;
+    const inviteCodes = await this.redis.zrange(`invite:user:${userId}`, 0, -1);
+    if (inviteCodes.length > 0) {
+      const raws = await this.redis.mget(...inviteCodes.map(c => `invite:code:${c}`));
+      await Promise.all(raws.map((raw, index) => {
+        if (!raw) return Promise.resolve();
+
+        let data: MatchInvite;
+        try {
+          data = JSON.parse(raw);
+        } catch {
+          return Promise.resolve();
+        }
+
+        return Promise.all(getInvitees(data).map((inviteeId) => this.redis.zrem(`invite:received:${inviteeId}`, inviteCodes[index])));
+      }));
+      await this.redis.del(...inviteCodes.map(c => `invite:code:${c}`));
+    }
+
+    await this.redis.del(`invite:user:${userId}`, `invite:received:${userId}`, `match:user:${userId}`);
+
+    const activeMatches = grave.externalCleanup?.activeMatches ?? [];
+    await Promise.all(activeMatches.map(async (match) => {
+      await Promise.all([
+        this.notificationsService.cancelReminders(match.matchId, match.player1Id),
+        this.notificationsService.cancelReminders(match.matchId, match.player2Id),
+      ]);
+
+      await this.redis.del(
+        `match:state:${match.matchId}`,
+        `match:meta:${match.matchId}`,
+        `match:replay:${match.matchId}:${match.player1Id}`,
+        `match:replay:${match.matchId}:${match.player2Id}`,
+      );
+    }));
+  }
+
   async completeMatch(_matchId: string, _winner: 0 | 1 | 2): Promise<void> {
     throw new NotImplementedException();
   }
@@ -894,62 +928,6 @@ export class MatchesService implements OnModuleInit {
     if (nextTurns.includes(opponentIndex)) {
       await this.notificationsService.scheduleReminders(matchId, opponentId);
     }
-  }
-
-  // Called by UsersService.deleteAccount before the user row is deleted.
-  // Cancels all pending invites and abandons all active matches, notifying opponents.
-  async cleanupForUser(userId: string): Promise<void> {
-    // Cancel all pending invites created by this user
-    const inviteCodes = await this.redis.zrange(`invite:user:${userId}`, 0, -1);
-    if (inviteCodes.length > 0) {
-      const raws = await this.redis.mget(...inviteCodes.map(c => `invite:code:${c}`));
-      await Promise.all(raws.map((raw, index) => {
-        if (!raw) return Promise.resolve();
-        const data: MatchInvite = JSON.parse(raw);
-        return Promise.all(getInvitees(data).map((inviteeId) => this.redis.zrem(`invite:received:${inviteeId}`, inviteCodes[index])));
-      }));
-      await this.redis.del(...inviteCodes.map(c => `invite:code:${c}`));
-    }
-    await this.redis.del(`invite:user:${userId}`, `invite:received:${userId}`, `match:user:${userId}`);
-
-    // Abandon all active matches
-    const activeMatches = await this.matches.find({
-      where: [
-        { player1Id: userId, status: MatchStatus.Active },
-        { player2Id: userId, status: MatchStatus.Active },
-      ],
-    });
-
-    for (const match of activeMatches) {
-      const opponentId = getOpponentId(match.player1Id!, match.player2Id!, userId)
-
-      // Cancel any pending turn-reminder jobs for both players
-      await Promise.all([
-        this.notificationsService.cancelReminders(match.id, userId),
-        this.notificationsService.cancelReminders(match.id, opponentId),
-      ]);
-
-      match.status = MatchStatus.Abandoned;
-      await this.matches.save(match);
-      await this.flushStateToDB(match.id);
-      await this.clearStateFromCache(match.id);
-      await this.clearReplay(match.id, match.player1Id!, match.player2Id!);
-
-      if (opponentId) {
-        const matchPayload = {
-          id: match.id,
-          status: match.status,
-          winner: null,
-          player1Id: match.player1Id,
-          player2Id: match.player2Id,
-        };
-        this.wsGateway.sendToUser(opponentId, 'match:over', { match: matchPayload });
-      }
-    }
-
-    // TODO: call UsersService.deleteAccount should call this method before deleting the user row.
-    //       Requires injecting MatchesService into UsersService — use forwardRef() on one side
-    //       to break the circular dependency (MatchesService → UsersService already exists).
   }
 
   @OnWsMessage('match:open', MatchMessageDto)

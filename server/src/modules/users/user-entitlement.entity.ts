@@ -1,6 +1,6 @@
 import { Entity, PrimaryColumn, ManyToOne, JoinColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { User } from './user.entity';
-import { UserGift } from './user_gift.entity';
+import { UserGift } from './user-gift.entity';
 
 export enum EntitlementStore {
   PlayStore = 'play_store',

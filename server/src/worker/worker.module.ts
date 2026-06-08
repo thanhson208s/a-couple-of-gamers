@@ -7,10 +7,12 @@ import { getRedisOptions } from '../common/redis/redis.helper';
 import { RedisModule } from '../common/redis/redis.module';
 import { MatchesModule } from '../modules/matches/matches.module';
 import { NotificationsModule } from '../modules/notifications/notifications.module';
+import { UsersModule } from '../modules/users/users.module';
 import { ReminderProcessor } from './processors/reminder.processor';
 import { CleanupProcessor } from './processors/cleanup.processor';
 
-const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // every 24 hours
+const STALE_MATCHES_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // every 24 hours
+const DELETED_USERS_CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
 
 @Module({
   imports: [
@@ -30,6 +32,7 @@ const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // every 24 hours
       { name: 'cleanup' },
     ),
     MatchesModule,
+    UsersModule,
     NotificationsModule,
   ],
   providers: [ReminderProcessor, CleanupProcessor],
@@ -42,7 +45,14 @@ export class WorkerModule implements OnModuleInit {
       'stale-matches',
       {},
       {
-        repeat: { every: CLEANUP_INTERVAL_MS },
+        repeat: { every: STALE_MATCHES_CLEANUP_INTERVAL_MS },
+      },
+    );
+    await this.cleanupQueue.add(
+      'deleted-users',
+      {},
+      {
+        repeat: { every: DELETED_USERS_CLEANUP_INTERVAL_MS },
       },
     );
   }
